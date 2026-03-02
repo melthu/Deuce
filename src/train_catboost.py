@@ -4,20 +4,18 @@ import pickle
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
-import xgboost as xgb
+from catboost import CatBoostClassifier
 from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader
 
 from src.dataset import get_train_val_datasets
 
 DATA_PATH   = "data/processed/final_training_data.csv"
-MODEL_PATH  = "models/best_xgb.pkl"
-DEEPFM_AUC  = 0.7011
-LGBM_AUC    = 0.7375
+MODEL_PATH  = "models/best_catboost.pkl"
+LGBM_AUC    = 0.7375   # previous best
 
 
 def extract_numpy(dataset):
-    """Pull all tensors from a BWFDataset and return (X, y) numpy arrays."""
     loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False)
     cat, cont, labels = next(iter(loader))
     X = np.hstack([cat.numpy(), cont.numpy()])
@@ -26,9 +24,6 @@ def extract_numpy(dataset):
 
 
 def train():
-    # ------------------------------------------------------------------
-    # Data — identical split/scaling/vocab as DeepFM and LightGBM runs
-    # ------------------------------------------------------------------
     train_ds, val_ds, vocab_sizes, _ = get_train_val_datasets(DATA_PATH)
 
     print(f"Train size : {len(train_ds)}  |  Val size : {len(val_ds)}")
@@ -39,35 +34,25 @@ def train():
 
     print(f"X_train shape: {X_train.shape}  |  X_val shape: {X_val.shape}\n")
 
-    # ------------------------------------------------------------------
-    # XGBoost
-    # ------------------------------------------------------------------
-    model = xgb.XGBClassifier(
-        n_estimators=2000,
-        learning_rate=0.03,
-        max_depth=6,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        reg_alpha=0.1,
-        reg_lambda=1.0,
-        random_state=42,
+    # Note: the first 4 columns are integer-encoded categoricals that have been
+    # hstacked with float continuous features, producing a float64 array.
+    # CatBoost treats them as numerical here; its ordered boosting still handles
+    # low-cardinality integer features well.
+    model = CatBoostClassifier(
+        iterations=2000,
+        learning_rate=0.05,
+        depth=6,
+        eval_metric="AUC",
         early_stopping_rounds=100,
-        eval_metric="auc",
-        verbosity=0,
+        random_seed=42,
+        verbose=100,
     )
 
     model.fit(
         X_train, y_train,
-        eval_set=[(X_val, y_val)],
-        verbose=False,
+        eval_set=(X_val, y_val),
     )
 
-    print(f"Best iteration : {model.best_iteration}")
-    print(f"Best val AUC   : {model.best_score:.4f}\n")
-
-    # ------------------------------------------------------------------
-    # Evaluation
-    # ------------------------------------------------------------------
     val_probs = model.predict_proba(X_val)[:, 1]
     val_preds = (val_probs >= 0.5).astype(int)
 
@@ -78,22 +63,14 @@ def train():
         pickle.dump(model, f)
     print(f"Model saved to: {MODEL_PATH}\n")
 
-    def tag(auc):
-        if auc > LGBM_AUC:
-            return "▲ best so far"
-        if auc > DEEPFM_AUC:
-            return "▲ beats DeepFM"
-        return "▼ below DeepFM"
-
-    print(f"{'='*42}")
-    print(f"  XGBoost Results")
+    print(f"\n{'='*42}")
+    print(f"  CatBoost Results")
     print(f"{'='*42}")
     print(f"  Val Accuracy : {val_acc:.4f}")
     print(f"  Val ROC-AUC  : {val_auc:.4f}")
     print(f"\n  Benchmark Comparison")
-    print(f"  DeepFM   AUC : {DEEPFM_AUC:.4f}")
     print(f"  LightGBM AUC : {LGBM_AUC:.4f}")
-    print(f"  XGBoost  AUC : {val_auc:.4f}  ({tag(val_auc)})")
+    print(f"  CatBoost AUC : {val_auc:.4f}  ({'▲ better' if val_auc > LGBM_AUC else '▼ worse'})")
     print(f"{'='*42}")
 
 

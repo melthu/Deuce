@@ -11,7 +11,7 @@ import pandas as pd
 from src.dataset import get_train_val_datasets, CONT_COLS
 
 DATA_PATH  = "data/processed/final_training_data.csv"
-MODEL_PATH = "models/best_lgbm.pkl"
+MODEL_PATH = "models/best_model.pkl"
 
 TOURNAMENT = "German Open 2026"
 TOUR_DATE  = "2026-02-24"
@@ -21,19 +21,33 @@ N_SIMS     = 10_000
 ROUND_ORDER = ["first round", "second round", "quarter-finals", "semi-finals", "final"]
 
 
-def load_lgbm():
+def load_model():
     with open(MODEL_PATH, "rb") as f:
         return pickle.load(f)
 
 
-def build_time_zero_state(df):
+def model_predict_proba(payload, X):
+    """Supports both single-model and ensemble payloads."""
+    if payload["type"] == "ensemble":
+        return sum(
+            w * m.predict_proba(X)[:, 1]
+            for w, m in zip(payload["weights"], payload["models"].values())
+        )
+    return payload["model"].predict_proba(X)[:, 1]
+
+
+def build_time_zero_state(df, tour_date=None, tier=None):
     """
-    From the German Open 2026 first-round rows, extract each player's
+    From the given tournament's first-round rows, extract each player's
     pre-tournament stats exactly as they appear on Day 1.
     Drop mirrored duplicates: keep one canonical row per (player_a, player_b) pair.
     """
+    if tour_date is None:
+        tour_date = TOUR_DATE
+    if tier is None:
+        tier = TIER
     mask = (
-        (df["start_date"] == pd.Timestamp(TOUR_DATE)) &
+        (df["start_date"] == pd.Timestamp(tour_date)) &
         (df["round"] == "first round")
     )
     r32 = df[mask].copy()
@@ -48,49 +62,85 @@ def build_time_zero_state(df):
             keep.append(row)
     r32_unique = pd.DataFrame(keep).reset_index(drop=True)
 
-    # Build player_stats dict
+    # Build player_stats dict with all 20 CONT_COLS fields
     player_stats = {}
     for _, row in r32_unique.iterrows():
         for side in ("a", "b"):
             name = row[f"player_{side}"]
             if name not in player_stats:
                 player_stats[name] = {
-                    "is_home":           int(row[f"player_{side}_is_home"]),
-                    "matches_14d":       int(row[f"player_{side}_matches_last_14_days"]),
-                    "days_since":        float(row[f"player_{side}_days_since_last_match"]),
-                    "recent_win_rate":   float(row[f"player_{side}_recent_win_rate"]),
+                    "is_home":         int(row[f"player_{side}_is_home"]),
+                    "matches_14d":     int(row[f"player_{side}_matches_last_14_days"]),
+                    "days_since":      float(row[f"player_{side}_days_since_last_match"]),
+                    "recent_win_rate": float(row[f"player_{side}_recent_win_rate"]),
+                    "elo":             float(row[f"player_{side}_elo"]),
+                    "ema_form":        float(row[f"player_{side}_ema_form"]),
+                    "win_streak":      int(row[f"player_{side}_win_streak"]),
+                    "matches_7d":      int(row[f"player_{side}_matches_last_7_days"]),
                 }
 
     return r32_unique, player_stats
 
 
-def build_h2h_lookup(df):
+def build_h2h_lookups(df, tour_date=None):
     """
-    Pre-compute H2H win rates from all rows strictly before 2026-02-24.
-    Returns a function h2h(player_a, player_b) → float in [0, 1].
+    Pre-compute two H2H signals from all rows strictly before the given tournament date.
+
+    Returns:
+        h2h_rate_fn(pa, pb)  → float win rate of pa vs pb in [0, 1]
+        h2h_last_fn(pa, pb)  → 1.0 if pa won last meeting, 0.0 if pb did, 0.5 if none
     """
-    hist = df[df["start_date"] < pd.Timestamp(TOUR_DATE)].copy()
+    if tour_date is None:
+        tour_date = TOUR_DATE
+    hist = df[df["start_date"] < pd.Timestamp(tour_date)].copy()
+    hist = hist.sort_values("start_date")
 
-    cache = {}
+    rate_cache = {}
+    last_cache = {}
 
-    def h2h(pa, pb):
+    def h2h_rate(pa, pb):
         key = (pa, pb)
-        if key in cache:
-            return cache[key]
-        rows_a_home = hist[(hist["player_a"] == pa) & (hist["player_b"] == pb)]
-        rows_b_home = hist[(hist["player_a"] == pb) & (hist["player_b"] == pa)]
-        wins = rows_a_home["player_a_won"].sum() + (1 - rows_b_home["player_a_won"]).sum()
-        total = len(rows_a_home) + len(rows_b_home)
+        if key in rate_cache:
+            return rate_cache[key]
+        rows_a = hist[(hist["player_a"] == pa) & (hist["player_b"] == pb)]
+        rows_b = hist[(hist["player_a"] == pb) & (hist["player_b"] == pa)]
+        wins  = rows_a["player_a_won"].sum() + (1 - rows_b["player_a_won"]).sum()
+        total = len(rows_a) + len(rows_b)
         result = float(wins / total) if total > 0 else 0.5
-        cache[key] = result
+        rate_cache[key] = result
         return result
 
-    return h2h
+    def h2h_last(pa, pb):
+        key = (pa, pb)
+        if key in last_cache:
+            return last_cache[key]
+        # All meetings between the two, whichever slot they occupied
+        meetings = hist[
+            ((hist["player_a"] == pa) & (hist["player_b"] == pb)) |
+            ((hist["player_a"] == pb) & (hist["player_b"] == pa))
+        ].sort_values("start_date")
+        if meetings.empty:
+            result = 0.5
+        else:
+            last_row = meetings.iloc[-1]
+            if last_row["player_a"] == pa:
+                result = float(last_row["player_a_won"])
+            else:
+                result = float(1 - last_row["player_a_won"])
+        last_cache[key] = result
+        return result
+
+    return h2h_rate, h2h_last
 
 
-def _predict_one_direction(pa, pb, round_name, player_stats, h2h_fn, scaler, player_to_id, tier_to_id, round_to_id, lgbm_model):
-    """Raw model call with pa in the player_a slot."""
-    UNK = 0
+def _predict_one_direction(
+    pa, pb, round_name, player_stats,
+    h2h_rate_fn, h2h_last_fn,
+    scaler, player_to_id, tier_to_id, round_to_id,
+    model_payload,
+):
+    """Raw model call with pa in the player_a slot (20-feature vector)."""
+    UNK      = 0
     tier_id  = tier_to_id.get(TIER, 0)
     round_id = round_to_id.get(round_name, 0)
     pa_id    = player_to_id.get(pa, UNK)
@@ -99,52 +149,85 @@ def _predict_one_direction(pa, pb, round_name, player_stats, h2h_fn, scaler, pla
     sa = player_stats[pa]
     sb = player_stats[pb]
 
+    # 20 features in CONT_COLS order
     cont_raw = np.array([[
-        0.0,                                        # same_nationality (never same in a real match)
-        h2h_fn(pa, pb),                             # h2h_win_rate_a_vs_b
-        float(sa["is_home"]),                       # player_a_is_home
-        float(sa["matches_14d"]),                   # player_a_matches_last_14_days
-        float(sa["days_since"]),                    # player_a_days_since_last_match
-        float(sa["recent_win_rate"]),               # player_a_recent_win_rate
-        float(sb["is_home"]),                       # player_b_is_home
-        float(sb["matches_14d"]),                   # player_b_matches_last_14_days
-        float(sb["days_since"]),                    # player_b_days_since_last_match
-        float(sb["recent_win_rate"]),               # player_b_recent_win_rate
+        # Original 10
+        0.0,                                # same_nationality
+        h2h_rate_fn(pa, pb),                # h2h_win_rate_a_vs_b
+        float(sa["is_home"]),               # player_a_is_home
+        float(sa["matches_14d"]),           # player_a_matches_last_14_days
+        float(sa["days_since"]),            # player_a_days_since_last_match
+        float(sa["recent_win_rate"]),       # player_a_recent_win_rate
+        float(sb["is_home"]),               # player_b_is_home
+        float(sb["matches_14d"]),           # player_b_matches_last_14_days
+        float(sb["days_since"]),            # player_b_days_since_last_match
+        float(sb["recent_win_rate"]),       # player_b_recent_win_rate
+        # New 10
+        float(sa["elo"]),                   # player_a_elo
+        float(sb["elo"]),                   # player_b_elo
+        float(sa["elo"] - sb["elo"]),       # elo_diff
+        float(sa["ema_form"]),              # player_a_ema_form
+        float(sb["ema_form"]),              # player_b_ema_form
+        h2h_last_fn(pa, pb),               # h2h_last_winner
+        float(sa["win_streak"]),            # player_a_win_streak
+        float(sb["win_streak"]),            # player_b_win_streak
+        float(sa["matches_7d"]),            # player_a_matches_last_7_days
+        float(sb["matches_7d"]),            # player_b_matches_last_7_days
     ]], dtype=np.float32)
 
     cont_scaled = scaler.transform(cont_raw)
     cat = np.array([[tier_id, round_id, pa_id, pb_id]], dtype=np.int64)
     X   = np.hstack([cat, cont_scaled])
-    return float(lgbm_model.predict_proba(X)[0, 1])
+    return float(model_predict_proba(model_payload, X)[0])
 
 
-def predict_match(pa, pb, round_name, player_stats, h2h_fn, scaler, player_to_id, tier_to_id, round_to_id, lgbm_model):
+def predict_match(
+    pa, pb, round_name, player_stats,
+    h2h_rate_fn, h2h_last_fn,
+    scaler, player_to_id, tier_to_id, round_to_id,
+    model_payload,
+):
     """
     Order-invariant win probability for pa beating pb.
     Averages both slot assignments so P(A beats B) == 1 - P(B beats A) exactly.
     """
-    p_ab = _predict_one_direction(pa, pb, round_name, player_stats, h2h_fn, scaler, player_to_id, tier_to_id, round_to_id, lgbm_model)
-    p_ba = _predict_one_direction(pb, pa, round_name, player_stats, h2h_fn, scaler, player_to_id, tier_to_id, round_to_id, lgbm_model)
+    p_ab = _predict_one_direction(
+        pa, pb, round_name, player_stats,
+        h2h_rate_fn, h2h_last_fn,
+        scaler, player_to_id, tier_to_id, round_to_id, model_payload,
+    )
+    p_ba = _predict_one_direction(
+        pb, pa, round_name, player_stats,
+        h2h_rate_fn, h2h_last_fn,
+        scaler, player_to_id, tier_to_id, round_to_id, model_payload,
+    )
     return (p_ab + (1.0 - p_ba)) / 2.0
 
 
-def simulate_bracket(r32_matchups, player_stats, h2h_fn, scaler, player_to_id, tier_to_id, round_to_id, lgbm_model, rng):
+def simulate_bracket(
+    r32_matchups, player_stats,
+    h2h_rate_fn, h2h_last_fn,
+    scaler, player_to_id, tier_to_id, round_to_id,
+    model_payload, rng,
+):
     """Run one full bracket simulation. Returns the champion name."""
-    current_round_players = []
-    for _, row in r32_matchups.iterrows():
-        current_round_players.append((row["player_a"], row["player_b"]))
+    current_round_players = [
+        (row["player_a"], row["player_b"])
+        for _, row in r32_matchups.iterrows()
+    ]
 
     for round_name in ROUND_ORDER:
         next_round = []
         for pa, pb in current_round_players:
-            p_a_wins = predict_match(pa, pb, round_name, player_stats, h2h_fn,
-                                     scaler, player_to_id, tier_to_id, round_to_id, lgbm_model)
+            p_a_wins = predict_match(
+                pa, pb, round_name, player_stats,
+                h2h_rate_fn, h2h_last_fn,
+                scaler, player_to_id, tier_to_id, round_to_id, model_payload,
+            )
             winner = pa if rng.random() < p_a_wins else pb
             next_round.append(winner)
-        # Pair winners for next round
         current_round_players = list(zip(next_round[::2], next_round[1::2]))
         if len(current_round_players) == 0:
-            # Final was just played
             return next_round[0]
 
     return next_round[0]
@@ -156,28 +239,33 @@ def run():
     df["start_date"] = pd.to_datetime(df["start_date"])
     df["round"] = df["round"].str.lower()
 
-    lgbm_model = load_lgbm()
+    model_payload = load_model()
+    model_name    = model_payload.get("name", model_payload.get("type", "unknown"))
+    print(f"Model: {model_name}")
+
     _, _, _, preprocessors = get_train_val_datasets(DATA_PATH)
     scaler       = preprocessors["scaler"]
     player_to_id = preprocessors["player_to_id"]
     tier_to_id   = preprocessors["tier_to_id"]
     round_to_id  = preprocessors["round_to_id"]
 
-    r32_matchups, player_stats = build_time_zero_state(df)
-    h2h_fn = build_h2h_lookup(df)
+    r32_matchups, player_stats = build_time_zero_state(df, TOUR_DATE, TIER)
+    h2h_rate_fn, h2h_last_fn  = build_h2h_lookups(df, TOUR_DATE)
 
     # ------------------------------------------------------------------
     # Print the bracket
     # ------------------------------------------------------------------
-    print(f"\n{'='*58}")
+    print(f"\n{'='*62}")
     print(f"  2026 German Open — First Round Bracket ({len(r32_matchups)} matchups)")
-    print(f"{'='*58}")
-    for i, row in r32_matchups.iterrows():
-        p = predict_match(row["player_a"], row["player_b"], "first round",
-                          player_stats, h2h_fn, scaler, player_to_id,
-                          tier_to_id, round_to_id, lgbm_model)
+    print(f"{'='*62}")
+    for _, row in r32_matchups.iterrows():
+        p = predict_match(
+            row["player_a"], row["player_b"], "first round",
+            player_stats, h2h_rate_fn, h2h_last_fn,
+            scaler, player_to_id, tier_to_id, round_to_id, model_payload,
+        )
         print(f"  {row['player_a']:30s} vs {row['player_b']:30s}  | P(A wins)={p:.3f}")
-    print(f"{'='*58}")
+    print(f"{'='*62}")
 
     # ------------------------------------------------------------------
     # Monte Carlo simulation
@@ -188,9 +276,10 @@ def run():
 
     for _ in range(N_SIMS):
         champion = simulate_bracket(
-            r32_matchups, player_stats, h2h_fn,
+            r32_matchups, player_stats,
+            h2h_rate_fn, h2h_last_fn,
             scaler, player_to_id, tier_to_id, round_to_id,
-            lgbm_model, rng
+            model_payload, rng,
         )
         win_counts[champion] = win_counts.get(champion, 0) + 1
 
@@ -199,14 +288,14 @@ def run():
     # ------------------------------------------------------------------
     leaderboard = sorted(win_counts.items(), key=lambda x: x[1], reverse=True)
 
-    print(f"\n{'='*52}")
+    print(f"\n{'='*54}")
     print(f"  Championship Probability Leaderboard ({N_SIMS:,} sims)")
-    print(f"{'='*52}")
+    print(f"{'='*54}")
     print(f"  {'Player':<32} {'Win %':>7}")
     print(f"  {'-'*32}  {'-'*7}")
     for name, wins in leaderboard:
         print(f"  {name:<32} {wins/N_SIMS*100:>6.2f}%")
-    print(f"{'='*52}")
+    print(f"{'='*54}")
 
 
 if __name__ == "__main__":

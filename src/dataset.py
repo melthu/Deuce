@@ -7,6 +7,7 @@ from torch.utils.data import Dataset
 DATA_PATH = "data/processed/final_training_data.csv"
 
 CONT_COLS = [
+    # Original 10
     "same_nationality",
     "h2h_win_rate_a_vs_b",
     "player_a_is_home",
@@ -17,6 +18,17 @@ CONT_COLS = [
     "player_b_matches_last_14_days",
     "player_b_days_since_last_match",
     "player_b_recent_win_rate",
+    # New 10
+    "player_a_elo",
+    "player_b_elo",
+    "elo_diff",
+    "player_a_ema_form",
+    "player_b_ema_form",
+    "h2h_last_winner",
+    "player_a_win_streak",
+    "player_b_win_streak",
+    "player_a_matches_last_7_days",
+    "player_b_matches_last_7_days",
 ]
 
 UNK_ID = 0  # reserved for players not seen during training

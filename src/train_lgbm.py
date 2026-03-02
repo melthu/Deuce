@@ -46,8 +46,15 @@ def train():
     # LightGBM — first 4 columns are the encoded categoricals
     # ------------------------------------------------------------------
     model = lgb.LGBMClassifier(
-        n_estimators=1000,
+        n_estimators=2000,
         learning_rate=0.05,
+        num_leaves=63,
+        min_child_samples=20,
+        feature_fraction=0.8,
+        bagging_fraction=0.8,
+        bagging_freq=5,
+        lambda_l1=0.1,
+        lambda_l2=0.1,
         random_state=42,
     )
 
@@ -55,7 +62,7 @@ def train():
         X_train, y_train,
         eval_set=[(X_val, y_val)],
         categorical_feature=[0, 1, 2, 3],
-        callbacks=[lgb.early_stopping(stopping_rounds=50, verbose=True)],
+        callbacks=[lgb.early_stopping(stopping_rounds=100, verbose=True)],
     )
 
     # ------------------------------------------------------------------

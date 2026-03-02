@@ -7,3 +7,6 @@ __pycache__/
 
 # Data files tracked in git
 # (all CSVs under data/ are committed; no blanket exclusion)
+
+# CatBoost training logs
+catboost_info/
