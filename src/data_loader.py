@@ -19,6 +19,10 @@ SWAP_PAIRS = [
     # Score-derived features
     ("player_a_avg_point_diff",           "player_b_avg_point_diff"),
     ("player_a_avg_games_per_match",      "player_b_avg_games_per_match"),
+    # New 6: rubber-game rate, victory margin, seeding
+    ("player_a_rubber_game_rate",         "player_b_rubber_game_rate"),
+    ("player_a_avg_victory_margin",       "player_b_avg_victory_margin"),
+    ("player_a_seed",                     "player_b_seed"),
 ]
 
 

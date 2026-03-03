@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.preprocessing import StandardScaler
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
 
 DATA_PATH = "data/processed/final_training_data.csv"
 
@@ -34,9 +34,36 @@ CONT_COLS = [
     "player_b_avg_point_diff",
     "player_a_avg_games_per_match",
     "player_b_avg_games_per_match",
+    # New 6: rubber-game rate, victory margin, seeding
+    "player_a_rubber_game_rate",
+    "player_b_rubber_game_rate",
+    "player_a_avg_victory_margin",
+    "player_b_avg_victory_margin",
+    "player_a_seed",
+    "player_b_seed",
 ]
 
 UNK_ID = 0  # reserved for players not seen during training
+
+
+def extract_numpy(dataset):
+    """
+    Pull all tensors from a BWFDataset in one pass and return
+    (X, y) numpy arrays with cat and cont features concatenated horizontally.
+    """
+    loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False)
+    cat, cont, labels = next(iter(loader))
+    X = np.hstack([cat.numpy(), cont.numpy()])
+    y = labels.numpy().ravel()
+    return X, y
+
+
+def fill_missing_cont_cols(df: pd.DataFrame) -> pd.DataFrame:
+    """Fill any CONT_COLS absent from df with 0.0 (backward-compatibility helper)."""
+    for col in CONT_COLS:
+        if col not in df.columns:
+            df[col] = 0.0
+    return df
 
 
 class BWFDataset(Dataset):
@@ -85,6 +112,7 @@ def get_train_val_datasets(csv_path: str = DATA_PATH):
     df = pd.read_csv(csv_path)
     df["start_date"] = pd.to_datetime(df["start_date"])
     df["round"] = df["round"].str.lower()   # normalise casing (safeguard)
+    fill_missing_cont_cols(df)              # backward-compat: fill 0.0 for absent columns
 
     # ------------------------------------------------------------------
     # Chronological split

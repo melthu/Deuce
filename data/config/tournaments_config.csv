@@ -1,4 +1,204 @@
 url,tournament_name,tier,start_date,host_country
+https://en.wikipedia.org/wiki/2010_BWF_Super_Series_Masters_Finals,Super Series Masters Finals 2010,1500,2010-01-05,Taiwan
+https://en.wikipedia.org/wiki/2010_Korea_Open_Super_Series,Korea Open Super Series 2010,500,2010-01-12,South Korea
+https://en.wikipedia.org/wiki/2010_Malaysia_Super_Series,Malaysia Open Super Series 2010,500,2010-01-19,Malaysia
+https://en.wikipedia.org/wiki/2010_All_England_Super_Series,All England Super Series 2010,500,2010-03-09,England
+https://en.wikipedia.org/wiki/2010_Swiss_Open_Super_Series,Swiss Open Super Series 2010,500,2010-03-16,Switzerland
+https://en.wikipedia.org/wiki/2010_Singapore_Super_Series,Singapore Super Series 2010,500,2010-06-15,Singapore
+https://en.wikipedia.org/wiki/2010_Indonesia_Super_Series,Indonesia Super Series 2010,500,2010-06-22,Indonesia
+https://en.wikipedia.org/wiki/2010_China_Masters_Super_Series,China Masters Super Series 2010,500,2010-09-14,China
+https://en.wikipedia.org/wiki/2010_Japan_Super_Series,Japan Super Series 2010,500,2010-09-21,Japan
+https://en.wikipedia.org/wiki/2010_Denmark_Super_Series,Denmark Super Series 2010,500,2010-10-26,Denmark
+https://en.wikipedia.org/wiki/2010_French_Super_Series,French Super Series 2010,500,2010-11-02,France
+https://en.wikipedia.org/wiki/2010_China_Open_Super_Series,China Open Super Series 2010,500,2010-11-30,China
+https://en.wikipedia.org/wiki/2010_Hong_Kong_Super_Series,Hong Kong Super Series 2010,500,2010-12-07,Hong Kong
+https://en.wikipedia.org/wiki/2011_Malaysia_Super_Series,Malaysia Open Super Series 2011,500,2011-01-18,Malaysia
+https://en.wikipedia.org/wiki/2011_Korea_Open_Super_Series_Premier,Korea Open Super Series Premier 2011,750,2011-01-25,South Korea
+https://en.wikipedia.org/wiki/2011_All_England_Super_Series_Premier,All England Super Series Premier 2011,750,2011-03-08,England
+https://en.wikipedia.org/wiki/2011_India_Super_Series,India Open Super Series 2011,500,2011-04-26,India
+https://en.wikipedia.org/wiki/2011_Singapore_Super_Series,Singapore Super Series 2011,500,2011-06-14,Singapore
+https://en.wikipedia.org/wiki/2011_Indonesia_Super_Series_Premier,Indonesia Super Series Premier 2011,750,2011-06-21,Indonesia
+https://en.wikipedia.org/wiki/2011_China_Masters_Super_Series,China Masters Super Series 2011,500,2011-09-13,China
+https://en.wikipedia.org/wiki/2011_Japan_Super_Series,Japan Super Series 2011,500,2011-09-20,Japan
+https://en.wikipedia.org/wiki/2011_Denmark_Super_Series_Premier,Denmark Super Series Premier 2011,750,2011-10-18,Denmark
+https://en.wikipedia.org/wiki/2011_French_Super_Series,French Super Series 2011,500,2011-10-25,France
+https://en.wikipedia.org/wiki/2011_Hong_Kong_Super_Series,Hong Kong Super Series 2011,500,2011-11-15,Hong Kong
+https://en.wikipedia.org/wiki/2011_China_Open_Super_Series_Premier,China Open Super Series Premier 2011,750,2011-11-22,China
+https://en.wikipedia.org/wiki/2011_BWF_Super_Series_Masters_Finals,Super Series Masters Finals 2011,1500,2011-12-14,China
+https://en.wikipedia.org/wiki/2012_Korea_Open_Super_Series_Premier,Korea Open Super Series Premier 2012,750,2012-01-03,South Korea
+https://en.wikipedia.org/wiki/2012_Malaysia_Super_Series,Malaysia Open Super Series 2012,500,2012-01-10,Malaysia
+https://en.wikipedia.org/wiki/2012_All_England_Super_Series_Premier,All England Super Series Premier 2012,750,2012-03-06,England
+https://en.wikipedia.org/wiki/2012_India_Super_Series,India Open Super Series 2012,500,2012-04-24,India
+https://en.wikipedia.org/wiki/2012_Indonesia_Super_Series_Premier,Indonesia Super Series Premier 2012,750,2012-06-12,Indonesia
+https://en.wikipedia.org/wiki/2012_Singapore_Super_Series,Singapore Super Series 2012,500,2012-06-19,Singapore
+https://en.wikipedia.org/wiki/2012_China_Masters_Super_Series,China Masters Super Series 2012,500,2012-09-11,China
+https://en.wikipedia.org/wiki/2012_Japan_Super_Series,Japan Super Series 2012,500,2012-09-18,Japan
+https://en.wikipedia.org/wiki/2012_Denmark_Super_Series_Premier,Denmark Super Series Premier 2012,750,2012-10-16,Denmark
+https://en.wikipedia.org/wiki/2012_French_Super_Series,French Super Series 2012,500,2012-10-23,France
+https://en.wikipedia.org/wiki/2012_China_Open_Super_Series_Premier,China Open Super Series Premier 2012,750,2012-11-13,China
+https://en.wikipedia.org/wiki/2012_Hong_Kong_Super_Series,Hong Kong Super Series 2012,500,2012-11-20,Hong Kong
+https://en.wikipedia.org/wiki/2012_BWF_Super_Series_Masters_Finals,Super Series Masters Finals 2012,1500,2012-12-12,China
+https://en.wikipedia.org/wiki/2013_Korea_Open_Super_Series_Premier,Korea Open Super Series Premier 2013,750,2013-01-08,South Korea
+https://en.wikipedia.org/wiki/2013_Malaysia_Super_Series,Malaysia Open Super Series 2013,500,2013-01-15,Malaysia
+https://en.wikipedia.org/wiki/2013_All_England_Super_Series_Premier,All England Super Series Premier 2013,750,2013-03-05,England
+https://en.wikipedia.org/wiki/2013_India_Super_Series,India Open Super Series 2013,500,2013-04-23,India
+https://en.wikipedia.org/wiki/2013_Indonesia_Super_Series_Premier,Indonesia Super Series Premier 2013,750,2013-06-11,Indonesia
+https://en.wikipedia.org/wiki/2013_Singapore_Super_Series,Singapore Super Series 2013,500,2013-06-18,Singapore
+https://en.wikipedia.org/wiki/2013_China_Masters_Super_Series,China Masters Super Series 2013,500,2013-09-10,China
+https://en.wikipedia.org/wiki/2013_Japan_Super_Series,Japan Super Series 2013,500,2013-09-17,Japan
+https://en.wikipedia.org/wiki/2013_Denmark_Super_Series_Premier,Denmark Super Series Premier 2013,750,2013-10-15,Denmark
+https://en.wikipedia.org/wiki/2013_French_Super_Series,French Super Series 2013,500,2013-10-22,France
+https://en.wikipedia.org/wiki/2013_China_Open_Super_Series_Premier,China Open Super Series Premier 2013,750,2013-11-12,China
+https://en.wikipedia.org/wiki/2013_Hong_Kong_Super_Series,Hong Kong Super Series 2013,500,2013-11-19,Hong Kong
+https://en.wikipedia.org/wiki/2013_BWF_Super_Series_Masters_Finals,Super Series Masters Finals 2013,1500,2013-12-11,Malaysia
+https://en.wikipedia.org/wiki/2014_Korea_Open_Super_Series,Korea Open Super Series 2014,500,2014-01-07,South Korea
+https://en.wikipedia.org/wiki/2014_Malaysia_Super_Series_Premier,Malaysia Open Super Series Premier 2014,750,2014-01-14,Malaysia
+https://en.wikipedia.org/wiki/2014_All_England_Super_Series_Premier,All England Super Series Premier 2014,750,2014-03-04,England
+https://en.wikipedia.org/wiki/2014_India_Super_Series,India Open Super Series 2014,500,2014-04-01,India
+https://en.wikipedia.org/wiki/2014_Singapore_Super_Series,Singapore Super Series 2014,500,2014-04-08,Singapore
+https://en.wikipedia.org/wiki/2014_Japan_Super_Series,Japan Super Series 2014,500,2014-06-10,Japan
+https://en.wikipedia.org/wiki/2014_Indonesia_Super_Series_Premier,Indonesia Open Super Series Premier 2014,750,2014-06-17,Indonesia
+https://en.wikipedia.org/wiki/2014_Australian_Super_Series,Australian Super Series 2014,500,2014-06-24,Australia
+https://en.wikipedia.org/wiki/2014_Denmark_Super_Series_Premier,Denmark Super Series Premier 2014,750,2014-10-14,Denmark
+https://en.wikipedia.org/wiki/2014_French_Super_Series,French Super Series 2014,500,2014-10-21,France
+https://en.wikipedia.org/wiki/2014_China_Open_Super_Series_Premier,China Open Super Series Premier 2014,750,2014-11-11,China
+https://en.wikipedia.org/wiki/2014_Hong_Kong_Super_Series,Hong Kong Super Series 2014,500,2014-11-18,Hong Kong
+https://en.wikipedia.org/wiki/2014_BWF_Super_Series_Masters_Finals,Super Series Masters Finals 2014,1500,2014-12-17,United Arab Emirates
+https://en.wikipedia.org/wiki/2015_All_England_Super_Series_Premier,All England Super Series Premier 2015,750,2015-03-03,England
+https://en.wikipedia.org/wiki/2015_India_Super_Series,India Open Super Series 2015,500,2015-03-24,India
+https://en.wikipedia.org/wiki/2015_Malaysia_Super_Series_Premier,Malaysia Open Super Series Premier 2015,750,2015-03-31,Malaysia
+https://en.wikipedia.org/wiki/2015_Singapore_Super_Series,Singapore Super Series 2015,500,2015-04-07,Singapore
+https://en.wikipedia.org/wiki/2015_Australian_Super_Series,Australian Super Series 2015,500,2015-05-26,Australia
+https://en.wikipedia.org/wiki/2015_Indonesia_Super_Series_Premier,Indonesia Open Super Series Premier 2015,750,2015-06-02,Indonesia
+https://en.wikipedia.org/wiki/2015_Japan_Super_Series,Japan Super Series 2015,500,2015-09-08,Japan
+https://en.wikipedia.org/wiki/2015_Korea_Open_Super_Series,Korea Open Super Series 2015,500,2015-09-15,South Korea
+https://en.wikipedia.org/wiki/2015_Denmark_Super_Series_Premier,Denmark Super Series Premier 2015,750,2015-10-13,Denmark
+https://en.wikipedia.org/wiki/2015_French_Super_Series,French Super Series 2015,500,2015-10-20,France
+https://en.wikipedia.org/wiki/2015_China_Open_Super_Series_Premier,China Open Super Series Premier 2015,750,2015-11-10,China
+https://en.wikipedia.org/wiki/2015_Hong_Kong_Super_Series,Hong Kong Super Series 2015,500,2015-11-17,Hong Kong
+https://en.wikipedia.org/wiki/2015_BWF_Super_Series_Masters_Finals,Super Series Masters Finals 2015,1500,2015-12-09,United Arab Emirates
+https://en.wikipedia.org/wiki/2016_All_England_Super_Series_Premier,All England Super Series Premier 2016,750,2016-03-08,England
+https://en.wikipedia.org/wiki/2016_India_Super_Series,India Open Super Series 2016,500,2016-03-29,India
+https://en.wikipedia.org/wiki/2016_Malaysia_Super_Series_Premier,Malaysia Open Super Series Premier 2016,750,2016-04-05,Malaysia
+https://en.wikipedia.org/wiki/2016_Singapore_Super_Series,Singapore Super Series 2016,500,2016-04-12,Singapore
+https://en.wikipedia.org/wiki/2016_Indonesia_Super_Series_Premier,Indonesia Open Super Series Premier 2016,750,2016-05-30,Indonesia
+https://en.wikipedia.org/wiki/2016_Australian_Super_Series,Australian Super Series 2016,500,2016-06-07,Australia
+https://en.wikipedia.org/wiki/2016_Japan_Super_Series,Japan Super Series 2016,500,2016-09-20,Japan
+https://en.wikipedia.org/wiki/2016_Korea_Open_Super_Series,Korea Super Series 2016,500,2016-09-27,South Korea
+https://en.wikipedia.org/wiki/2016_Denmark_Super_Series_Premier,Denmark Super Series Premier 2016,750,2016-10-18,Denmark
+https://en.wikipedia.org/wiki/2016_French_Super_Series,French Super Series 2016,500,2016-10-25,France
+https://en.wikipedia.org/wiki/2016_China_Open_Super_Series_Premier,China Open Super Series Premier 2016,750,2016-11-15,China
+https://en.wikipedia.org/wiki/2016_Hong_Kong_Super_Series,Hong Kong Super Series 2016,500,2016-11-22,Hong Kong
+https://en.wikipedia.org/wiki/2016_BWF_Super_Series_Masters_Finals,Super Series Masters Finals 2016,1500,2016-12-14,United Arab Emirates
+https://en.wikipedia.org/wiki/2017_All_England_Super_Series_Premier,All England Super Series Premier 2017,750,2017-03-07,England
+https://en.wikipedia.org/wiki/2017_India_Super_Series,India Super Series 2017,500,2017-03-28,India
+https://en.wikipedia.org/wiki/2017_Malaysia_Super_Series_Premier,Malaysia Open Super Series Premier 2017,750,2017-04-04,Malaysia
+https://en.wikipedia.org/wiki/2017_Singapore_Super_Series,Singapore Super Series 2017,500,2017-04-11,Singapore
+https://en.wikipedia.org/wiki/2017_Indonesia_Super_Series_Premier,Indonesia Open Super Series Premier 2017,750,2017-06-13,Indonesia
+https://en.wikipedia.org/wiki/2017_Australian_Super_Series,Australian Super Series 2017,500,2017-06-20,Australia
+https://en.wikipedia.org/wiki/2017_Korea_Open_Super_Series,Korea Super Series 2017,500,2017-09-12,South Korea
+https://en.wikipedia.org/wiki/2017_Japan_Super_Series,Japan Super Series 2017,500,2017-09-19,Japan
+https://en.wikipedia.org/wiki/2017_Denmark_Super_Series_Premier,Denmark Super Series Premier 2017,750,2017-10-17,Denmark
+https://en.wikipedia.org/wiki/2017_French_Super_Series,French Super Series 2017,500,2017-10-24,France
+https://en.wikipedia.org/wiki/2017_China_Open_Super_Series_Premier,China Open Super Series Premier 2017,750,2017-11-14,China
+https://en.wikipedia.org/wiki/2017_Hong_Kong_Super_Series,Hong Kong Super Series 2017,500,2017-11-21,Hong Kong
+https://en.wikipedia.org/wiki/2017_BWF_Super_Series_Finals,Super Series Finals 2017,1500,2017-12-13,United Arab Emirates
+https://en.wikipedia.org/wiki/2018_Thailand_Masters_(badminton),Thailand Masters 2018,300,2018-01-09,Thailand
+https://en.wikipedia.org/wiki/2018_Malaysia_Masters,Malaysia Masters 2018,500,2018-01-16,Malaysia
+https://en.wikipedia.org/wiki/2018_Indonesia_Masters,Indonesia Masters 2018,500,2018-01-23,Indonesia
+https://en.wikipedia.org/wiki/2018_Swiss_Open_(badminton),Swiss Open 2018,300,2018-02-20,Switzerland
+https://en.wikipedia.org/wiki/2018_German_Open_(badminton),German Open 2018,300,2018-03-06,Germany
+https://en.wikipedia.org/wiki/2018_All_England_Open,All England Open 2018,1000,2018-03-14,England
+https://en.wikipedia.org/wiki/2018_Lingshui_China_Masters,Lingshui China Masters 2018,100,2018-04-10,China
+https://en.wikipedia.org/wiki/2018_New_Zealand_Open_(badminton),New Zealand Open 2018,300,2018-05-01,New Zealand
+https://en.wikipedia.org/wiki/2018_Australian_Open_(badminton),Australian Open 2018,300,2018-05-08,Australia
+https://en.wikipedia.org/wiki/2018_U.S._Open_(badminton),U.S. Open 2018,300,2018-06-12,United States
+https://en.wikipedia.org/wiki/2018_Canada_Open_(badminton),Canada Open 2018,100,2018-06-19,Canada
+https://en.wikipedia.org/wiki/2018_Indonesia_Open_(badminton),Indonesia Open 2018,1000,2018-07-03,Indonesia
+https://en.wikipedia.org/wiki/2018_Thailand_Open_(badminton),Thailand Open 2018,500,2018-07-10,Thailand
+https://en.wikipedia.org/wiki/2018_Singapore_Open_(badminton),Singapore Open 2018,500,2018-07-17,Singapore
+https://en.wikipedia.org/wiki/2018_Akita_Masters,Akita Masters 2018,100,2018-07-24,Japan
+https://en.wikipedia.org/wiki/2018_Vietnam_Open_(badminton),Vietnam Open 2018,100,2018-08-07,Vietnam
+https://en.wikipedia.org/wiki/2018_Hyderabad_Open_(badminton),Hyderabad Open 2018,100,2018-09-04,India
+https://en.wikipedia.org/wiki/2018_Japan_Open_(badminton),Japan Open 2018,750,2018-09-11,Japan
+https://en.wikipedia.org/wiki/2018_China_Open_(badminton),China Open 2018,1000,2018-09-18,China
+https://en.wikipedia.org/wiki/2018_Korea_Open_(badminton),Korea Open 2018,500,2018-09-25,South Korea
+https://en.wikipedia.org/wiki/2018_Chinese_Taipei_Open,Chinese Taipei Open 2018,300,2018-10-02,Taiwan
+https://en.wikipedia.org/wiki/2018_Dutch_Open_(badminton),Dutch Open 2018,100,2018-10-09,Netherlands
+https://en.wikipedia.org/wiki/2018_Denmark_Open,Denmark Open 2018,750,2018-10-16,Denmark
+https://en.wikipedia.org/wiki/2018_French_Open_(badminton),French Open 2018,750,2018-10-23,France
+https://en.wikipedia.org/wiki/2018_Fuzhou_China_Open,Fuzhou China Open 2018,750,2018-11-06,China
+https://en.wikipedia.org/wiki/2018_Hong_Kong_Open_(badminton),Hong Kong Open 2018,500,2018-11-13,Hong Kong
+https://en.wikipedia.org/wiki/2018_Syed_Modi_International,Syed Modi International 2018,300,2018-11-20,India
+https://en.wikipedia.org/wiki/2018_BWF_World_Tour_Finals,BWF World Tour Finals 2018,1500,2018-12-12,China
+https://en.wikipedia.org/wiki/2019_Thailand_Masters_(badminton),Thailand Masters 2019,300,2019-01-08,Thailand
+https://en.wikipedia.org/wiki/2019_Malaysia_Masters,Malaysia Masters 2019,500,2019-01-15,Malaysia
+https://en.wikipedia.org/wiki/2019_Indonesia_Masters,Indonesia Masters 2019,500,2019-01-22,Indonesia
+https://en.wikipedia.org/wiki/2019_Spain_Masters,Spain Masters 2019,300,2019-02-19,Spain
+https://en.wikipedia.org/wiki/2019_German_Open_(badminton),German Open 2019,300,2019-02-26,Germany
+https://en.wikipedia.org/wiki/2019_All_England_Open,All England Open 2019,1000,2019-03-06,England
+https://en.wikipedia.org/wiki/2019_Swiss_Open_(badminton),Swiss Open 2019,300,2019-03-12,Switzerland
+https://en.wikipedia.org/wiki/2019_Orl%C3%A9ans_Masters,Orléans Masters 2019,100,2019-03-19,France
+https://en.wikipedia.org/wiki/2019_India_Open_(badminton),India Open 2019,500,2019-03-26,India
+https://en.wikipedia.org/wiki/2019_Malaysia_Open_(badminton),Malaysia Open 2019,750,2019-04-02,Malaysia
+https://en.wikipedia.org/wiki/2019_Singapore_Open_(badminton),Singapore Open 2019,500,2019-04-09,Singapore
+https://en.wikipedia.org/wiki/2019_New_Zealand_Open_(badminton),New Zealand Open 2019,300,2019-04-30,New Zealand
+https://en.wikipedia.org/wiki/2019_Australian_Open_(badminton),Australian Open 2019,300,2019-06-04,Australia
+https://en.wikipedia.org/wiki/2019_Canada_Open_(badminton),Canada Open 2019,100,2019-07-02,Canada
+https://en.wikipedia.org/wiki/2019_U.S._Open_(badminton),U.S. Open 2019,300,2019-07-09,United States
+https://en.wikipedia.org/wiki/2019_Indonesia_Open_(badminton),Indonesia Open 2019,1000,2019-07-16,Indonesia
+https://en.wikipedia.org/wiki/2019_Japan_Open_(badminton),Japan Open 2019,750,2019-07-23,Japan
+https://en.wikipedia.org/wiki/2019_Thailand_Open_(badminton),Thailand Open 2019,500,2019-07-30,Thailand
+https://en.wikipedia.org/wiki/2019_Hyderabad_Open_(badminton),Hyderabad Open 2019,100,2019-08-06,India
+https://en.wikipedia.org/wiki/2019_Akita_Masters,Akita Masters 2019,100,2019-08-13,Japan
+https://en.wikipedia.org/wiki/2019_Chinese_Taipei_Open,Chinese Taipei Open 2019,300,2019-09-03,Taiwan
+https://en.wikipedia.org/wiki/2019_Vietnam_Open_(badminton),Vietnam Open 2019,100,2019-09-10,Vietnam
+https://en.wikipedia.org/wiki/2019_China_Open_(badminton),China Open 2019,1000,2019-09-17,China
+https://en.wikipedia.org/wiki/2019_Korea_Open_(badminton),Korea Open 2019,500,2019-09-24,South Korea
+https://en.wikipedia.org/wiki/2019_Indonesia_Masters_Super_100,Indonesia Masters Super 100 2019,100,2019-10-01,Indonesia
+https://en.wikipedia.org/wiki/2019_Dutch_Open_(badminton),Dutch Open 2019,100,2019-10-08,Netherlands
+https://en.wikipedia.org/wiki/2019_Denmark_Open,Denmark Open 2019,750,2019-10-15,Denmark
+https://en.wikipedia.org/wiki/2019_French_Open_(badminton),French Open 2019,750,2019-10-22,France
+https://en.wikipedia.org/wiki/2019_Macau_Open_(badminton),Macau Open 2019,300,2019-10-29,Macau
+https://en.wikipedia.org/wiki/2019_Fuzhou_China_Open,Fuzhou China Open 2019,750,2019-11-05,China
+https://en.wikipedia.org/wiki/2019_Hong_Kong_Open_(badminton),Hong Kong Open 2019,500,2019-11-12,Hong Kong
+https://en.wikipedia.org/wiki/2019_Korea_Masters,Korea Masters 2019,300,2019-11-19,South Korea
+https://en.wikipedia.org/wiki/2019_Syed_Modi_International,Syed Modi International 2019,300,2019-11-26,India
+https://en.wikipedia.org/wiki/2019_BWF_World_Tour_Finals,BWF World Tour Finals 2019,1500,2019-12-11,China
+https://en.wikipedia.org/wiki/2020_Malaysia_Masters,Malaysia Masters 2020,500,2020-01-07,Malaysia
+https://en.wikipedia.org/wiki/2020_Yonex_Thailand_Open,Yonex Thailand Open 2020,1000,2020-01-12,Thailand
+https://en.wikipedia.org/wiki/2020_Indonesia_Masters,Indonesia Masters 2020,500,2020-01-14,Indonesia
+https://en.wikipedia.org/wiki/2020_Toyota_Thailand_Open,Toyota Thailand Open 2020,1000,2020-01-19,Thailand
+https://en.wikipedia.org/wiki/2020_Thailand_Masters_(badminton),Thailand Masters 2020,300,2020-01-21,Thailand
+https://en.wikipedia.org/wiki/2020_BWF_World_Tour_Finals,BWF World Tour Finals 2020,1500,2020-01-27,Thailand
+https://en.wikipedia.org/wiki/2020_Spain_Masters,Spain Masters 2020,300,2020-02-18,Spain
+https://en.wikipedia.org/wiki/2020_German_Open_(badminton),German Open 2020,300,2020-03-03,Germany
+https://en.wikipedia.org/wiki/2020_All_England_Open,All England Open 2020,1000,2020-03-11,England
+https://en.wikipedia.org/wiki/2020_Swiss_Open_(badminton),Swiss Open 2020,300,2020-03-17,Switzerland
+https://en.wikipedia.org/wiki/2020_Orl%C3%A9ans_Masters,Orléans Masters 2020,100,2020-03-24,France
+https://en.wikipedia.org/wiki/2020_Singapore_Open,Singapore Open 2020,500,2020-04-07,Singapore
+https://en.wikipedia.org/wiki/2020_Australian_Open_(badminton),Australian Open 2020,300,2020-06-02,Australia
+https://en.wikipedia.org/wiki/2020_U.S._Open_(badminton),U.S. Open 2020,300,2020-06-23,United States
+https://en.wikipedia.org/wiki/2020_Canada_Open_(badminton),Canadian Open 2020,100,2020-06-30,Canada
+https://en.wikipedia.org/wiki/2020_Russian_Open_(badminton),Russian Open 2020,100,2020-07-07,Russia
+https://en.wikipedia.org/wiki/2020_Hyderabad_Open_(badminton),Hyderabad Open 2020,100,2020-08-11,India
+https://en.wikipedia.org/wiki/2020_Akita_Masters,Akita Masters 2020,100,2020-08-18,Japan
+https://en.wikipedia.org/wiki/2020_Lingshui_China_Masters,Lingshui China Masters 2020,100,2020-08-25,China
+https://en.wikipedia.org/wiki/2020_Taipei_Open,Taipei Open 2020,300,2020-09-01,Taiwan
+https://en.wikipedia.org/wiki/2020_Korea_Open_(badminton),Korea Open 2020,500,2020-09-08,South Korea
+https://en.wikipedia.org/wiki/2020_China_Open_(badminton),China Open 2020,1000,2020-09-15,China
+https://en.wikipedia.org/wiki/2020_Japan_Open_(badminton),Japan Open 2020,750,2020-09-22,Japan
+https://en.wikipedia.org/wiki/2020_Indonesia_Masters_Super_100,Indonesia Masters Super 100 2020,100,2020-09-29,Indonesia
+https://en.wikipedia.org/wiki/2020_Dutch_Open_(badminton),Dutch Open 2020,100,2020-10-06,Netherlands
+https://en.wikipedia.org/wiki/2020_Denmark_Open,Denmark Open 2020,750,2020-10-13,Denmark
+https://en.wikipedia.org/wiki/2020_French_Open_(badminton),French Open 2020,750,2020-10-20,France
+https://en.wikipedia.org/wiki/2020_SaarLorLux_Open,SaarLorLux Open 2020,100,2020-10-27,Germany
+https://en.wikipedia.org/wiki/2020_Macau_Open,Macau Open 2020,300,2020-10-27,Macau
+https://en.wikipedia.org/wiki/2020_Fuzhou_China_Open,Fuzhou China Open 2020,750,2020-11-03,China
+https://en.wikipedia.org/wiki/2020_Hong_Kong_Open_(badminton),Hong Kong Open 2020,500,2020-11-10,Hong Kong
+https://en.wikipedia.org/wiki/2020_Indonesia_Open_(badminton),Indonesia Open 2020,1000,2020-11-17,Indonesia
+https://en.wikipedia.org/wiki/2020_Malaysia_Open,Malaysia Open 2020,750,2020-11-24,Malaysia
+https://en.wikipedia.org/wiki/2020_India_Open,India Open 2020,500,2020-12-08,India
 https://en.wikipedia.org/wiki/2021_Swiss_Open_(badminton),Swiss Open 2021,300,2021-03-02,Switzerland
 https://en.wikipedia.org/wiki/2021_German_Open_(badminton),German Open 2021,300,2021-03-09,Germany
 https://en.wikipedia.org/wiki/2021_All_England_Open,All England Open 2021,1000,2021-03-17,England
@@ -142,3 +342,5 @@ https://en.wikipedia.org/wiki/2026_India_Open,India Open 2026,750,2026-01-13,Ind
 https://en.wikipedia.org/wiki/2026_Indonesia_Masters,Indonesia Masters 2026,500,2026-01-20,Indonesia
 https://en.wikipedia.org/wiki/2026_Thailand_Masters_(badminton),Thailand Masters 2026,300,2026-01-27,Thailand
 https://en.wikipedia.org/wiki/2026_German_Open_(badminton),German Open 2026,300,2026-02-24,Germany
+https://en.wikipedia.org/wiki/2026_All_England_Open,All England Open 2026,1000,2026-03-03,England
+https://en.wikipedia.org/wiki/2026_Swiss_Open_(badminton),Swiss Open 2026,300,2026-03-10,Switzerland

@@ -1,5 +1,6 @@
 import sys
 import os
+import copy
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -9,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from src.dataset import get_train_val_datasets, CONT_COLS
+from src.feature_engineering import K_BY_TIER, EMA_ALPHA
 
 DATA_PATH  = "data/processed/final_training_data.csv"
 MODEL_PATH = "models/best_model.pkl"
@@ -26,14 +28,24 @@ def load_model():
         return pickle.load(f)
 
 
+def get_n_features(payload):
+    """Return n_features_in_ of the primary model, or None if unavailable."""
+    m = (payload["model"] if payload["type"] == "single"
+         else next(iter(payload["models"].values())))
+    return getattr(m, "n_features_in_", None)
+
+
 def model_predict_proba(payload, X):
-    """Supports both single-model and ensemble payloads."""
+    """Supports both single-model and ensemble payloads.
+    Auto-trims X to the model's expected feature count for backward compat."""
+    n = get_n_features(payload)
+    X_in = X[:, :n] if n is not None else X
     if payload["type"] == "ensemble":
         return sum(
-            w * m.predict_proba(X)[:, 1]
+            w * m.predict_proba(X_in)[:, 1]
             for w, m in zip(payload["weights"], payload["models"].values())
         )
-    return payload["model"].predict_proba(X)[:, 1]
+    return payload["model"].predict_proba(X_in)[:, 1]
 
 
 def build_time_zero_state(df, tour_date=None, tier=None):
@@ -62,24 +74,28 @@ def build_time_zero_state(df, tour_date=None, tier=None):
             keep.append(row)
     r32_unique = pd.DataFrame(keep).reset_index(drop=True)
 
-    # Build player_stats dict with all 24 CONT_COLS fields
+    # Build player_stats dict with all 30 CONT_COLS fields
     player_stats = {}
     for _, row in r32_unique.iterrows():
         for side in ("a", "b"):
             name = row[f"player_{side}"]
             if name not in player_stats:
                 player_stats[name] = {
-                    "is_home":         int(row[f"player_{side}_is_home"]),
-                    "matches_14d":     int(row[f"player_{side}_matches_last_14_days"]),
-                    "days_since":      float(row[f"player_{side}_days_since_last_match"]),
-                    "recent_win_rate": float(row[f"player_{side}_recent_win_rate"]),
-                    "elo":             float(row[f"player_{side}_elo"]),
-                    "ema_form":        float(row[f"player_{side}_ema_form"]),
-                    "win_streak":      int(row[f"player_{side}_win_streak"]),
-                    "matches_7d":      int(row[f"player_{side}_matches_last_7_days"]),
-                    # New score-derived features
-                    "avg_point_diff":  float(row.get(f"player_{side}_avg_point_diff", 0.0)),
-                    "avg_games_pm":    float(row.get(f"player_{side}_avg_games_per_match", 2.0)),
+                    "is_home":          int(row[f"player_{side}_is_home"]),
+                    "matches_14d":      int(row[f"player_{side}_matches_last_14_days"]),
+                    "days_since":       float(row[f"player_{side}_days_since_last_match"]),
+                    "recent_win_rate":  float(row[f"player_{side}_recent_win_rate"]),
+                    "elo":              float(row[f"player_{side}_elo"]),
+                    "ema_form":         float(row[f"player_{side}_ema_form"]),
+                    "win_streak":       int(row[f"player_{side}_win_streak"]),
+                    "matches_7d":       int(row[f"player_{side}_matches_last_7_days"]),
+                    # Score-derived features
+                    "avg_point_diff":   float(row.get(f"player_{side}_avg_point_diff", 0.0)),
+                    "avg_games_pm":     float(row.get(f"player_{side}_avg_games_per_match", 2.0)),
+                    # New 3
+                    "rubber_game_rate": float(row.get(f"player_{side}_rubber_game_rate", 0.0)),
+                    "avg_margin":       float(row.get(f"player_{side}_avg_victory_margin", 0.0)),
+                    "seed":             float(row.get(f"player_{side}_seed", 0.0)),
                 }
 
     return r32_unique, player_stats
@@ -152,7 +168,7 @@ def _predict_one_direction(
     sa = player_stats[pa]
     sb = player_stats[pb]
 
-    # 24 features in CONT_COLS order
+    # 30 features in CONT_COLS order
     cont_raw = np.array([[
         # Original 10
         0.0,                                # same_nationality
@@ -181,6 +197,13 @@ def _predict_one_direction(
         float(sb["avg_point_diff"]),        # player_b_avg_point_diff
         float(sa["avg_games_pm"]),          # player_a_avg_games_per_match
         float(sb["avg_games_pm"]),          # player_b_avg_games_per_match
+        # New 6: rubber rate, victory margin, seed
+        float(sa["rubber_game_rate"]),      # player_a_rubber_game_rate
+        float(sb["rubber_game_rate"]),      # player_b_rubber_game_rate
+        float(sa["avg_margin"]),            # player_a_avg_victory_margin
+        float(sb["avg_margin"]),            # player_b_avg_victory_margin
+        float(sa["seed"]),                  # player_a_seed
+        float(sb["seed"]),                  # player_b_seed
     ]], dtype=np.float32)
 
     cont_scaled = scaler.transform(cont_raw)
@@ -218,7 +241,14 @@ def simulate_bracket(
     scaler, player_to_id, tier_to_id, round_to_id,
     model_payload, rng, tier=None,
 ):
-    """Run one full bracket simulation. Returns the champion name."""
+    """Run one full bracket simulation with in-bracket Elo/EMA updates.
+    Returns the champion name."""
+    # Deep-copy so each simulation starts from the same Day-1 state
+    sim_stats = copy.deepcopy(player_stats)
+
+    t = TIER if tier is None else tier
+    K = K_BY_TIER.get(t, 24)
+
     current_round_players = [
         (row["player_a"], row["player_b"])
         for _, row in r32_matchups.iterrows()
@@ -228,11 +258,26 @@ def simulate_bracket(
         next_round = []
         for pa, pb in current_round_players:
             p_a_wins = predict_match(
-                pa, pb, round_name, player_stats,
+                pa, pb, round_name, sim_stats,
                 h2h_rate_fn, h2h_last_fn,
                 scaler, player_to_id, tier_to_id, round_to_id, model_payload, tier,
             )
             winner = pa if rng.random() < p_a_wins else pb
+            loser  = pb if winner == pa else pa
+
+            # Update Elo ratings
+            elo_w = sim_stats[winner]["elo"]
+            elo_l = sim_stats[loser]["elo"]
+            expected_w = 1.0 / (1.0 + 10.0 ** ((elo_l - elo_w) / 400.0))
+            sim_stats[winner]["elo"] = elo_w + K * (1.0 - expected_w)
+            sim_stats[loser]["elo"]  = elo_l + K * (0.0 - (1.0 - expected_w))
+
+            # Update EMA form
+            ema_w = sim_stats[winner]["ema_form"]
+            ema_l = sim_stats[loser]["ema_form"]
+            sim_stats[winner]["ema_form"] = EMA_ALPHA * 1.0 + (1 - EMA_ALPHA) * ema_w
+            sim_stats[loser]["ema_form"]  = EMA_ALPHA * 0.0 + (1 - EMA_ALPHA) * ema_l
+
             next_round.append(winner)
         current_round_players = list(zip(next_round[::2], next_round[1::2]))
         if len(current_round_players) == 0:

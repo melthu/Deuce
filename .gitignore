@@ -5,8 +5,17 @@ __pycache__/
 # Virtual environment
 .venv/
 
-# Data files tracked in git
-# (all CSVs under data/ are committed; no blanket exclusion)
-
 # CatBoost training logs
 catboost_info/
+
+# Regenerable data — run `make features` to rebuild
+data/interim/
+data/processed/
+
+# Trained model artifacts — run `make train` to rebuild
+# best_params.json is kept (represents hours of Optuna search)
+models/*.pkl
+models/*.pt
+
+# macOS
+.DS_Store

@@ -4,28 +4,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pickle
 
-import numpy as np
 import lightgbm as lgb
 from sklearn.metrics import roc_auc_score
-from torch.utils.data import DataLoader
 
-from src.dataset import get_train_val_datasets
+from src.dataset import extract_numpy, get_train_val_datasets
 
 DATA_PATH   = "data/processed/final_training_data.csv"
 MODEL_PATH  = "models/best_lgbm.pkl"
 DEEPFM_AUC  = 0.7011   # DeepFM baseline (epoch 7, best val loss)
-
-
-def extract_numpy(dataset):
-    """
-    Pull all tensors from a BWFDataset in one pass and return
-    (X, y) numpy arrays with cat and cont features concatenated horizontally.
-    """
-    loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False)
-    cat, cont, labels = next(iter(loader))
-    X = np.hstack([cat.numpy(), cont.numpy()])
-    y = labels.numpy().ravel()
-    return X, y
 
 
 def train():

@@ -6,21 +6,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 from catboost import CatBoostClassifier
 from sklearn.metrics import roc_auc_score
-from torch.utils.data import DataLoader
 
-from src.dataset import get_train_val_datasets
+from src.dataset import extract_numpy, get_train_val_datasets
 
 DATA_PATH   = "data/processed/final_training_data.csv"
 MODEL_PATH  = "models/best_catboost.pkl"
 LGBM_AUC    = 0.7375   # previous best
-
-
-def extract_numpy(dataset):
-    loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False)
-    cat, cont, labels = next(iter(loader))
-    X = np.hstack([cat.numpy(), cont.numpy()])
-    y = labels.numpy().ravel()
-    return X, y
 
 
 def train():

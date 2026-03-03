@@ -19,7 +19,7 @@ class BWFDeepFM(nn.Module):
         self,
         vocab_sizes: dict,          # {"num_tiers", "num_rounds", "num_players"}
         embed_dim: int = 16,
-        num_cont_features: int = 24,
+        num_cont_features: int = 30,
         hidden_dims: list[int] = None,
     ):
         super().__init__()

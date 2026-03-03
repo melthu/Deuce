@@ -1,0 +1,18 @@
+# Core ML
+numpy
+pandas
+scikit-learn
+torch
+lightgbm
+xgboost
+catboost
+optuna
+
+# Web scraping
+requests
+beautifulsoup4
+
+# Dashboard & visualisation
+streamlit
+shap
+matplotlib

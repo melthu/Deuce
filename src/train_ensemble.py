@@ -6,9 +6,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score
-from torch.utils.data import DataLoader
 
-from src.dataset import get_train_val_datasets
+from src.dataset import extract_numpy, get_train_val_datasets
 from src.model import BWFDeepFM
 
 DATA_PATH  = "data/processed/final_training_data.csv"
@@ -34,6 +33,10 @@ class DeepFMWrapper:
     def __init__(self, model: BWFDeepFM):
         self.model = model
         self.model.eval()
+        # Expose n_features_in_ so model_predict_proba can trim X for backward compat
+        embed_dim = model.embed_tier.embedding_dim
+        num_cont  = model.deep[0].in_features - model.num_fields * embed_dim
+        self.n_features_in_ = 4 + num_cont
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         cat  = torch.tensor(X[:, :4],  dtype=torch.long)
@@ -43,14 +46,6 @@ class DeepFMWrapper:
             probs  = torch.sigmoid(logits).numpy()
         # Return (N, 2) to match sklearn convention — col 1 = P(class=1)
         return np.column_stack([1 - probs, probs])
-
-
-def extract_numpy(dataset):
-    loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False)
-    cat, cont, labels = next(iter(loader))
-    X = np.hstack([cat.numpy(), cont.numpy()])
-    y = labels.numpy().ravel()
-    return X, y
 
 
 def load_tree_models():
@@ -69,6 +64,9 @@ def load_deepfm_wrapper():
         return None, None
 
     ckpt = torch.load(DEEPFM_PATH, map_location="cpu")
+    if "vocab_sizes" not in ckpt:
+        print(f"  DeepFM checkpoint at {DEEPFM_PATH} is missing 'vocab_sizes' — skipping.")
+        return None, None
     vocab_sizes = ckpt["vocab_sizes"]
     saved_auc   = ckpt.get("val_auc", 0.0)
 

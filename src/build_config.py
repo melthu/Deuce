@@ -20,14 +20,6 @@ LEVEL_MAP = {
     "Super 100":          100,
 }
 
-# BWF Super Series / Super Series Premier (2011-2017)
-SUPERSERIES_LEVEL_MAP = {
-    "Super Series Premier": 750,
-    "Super Series":         500,
-    # Some pages label them without "Super" prefix
-    "Series Premier":       750,
-    "Series":               500,
-}
 
 MONTH_MAP = {
     "january": 1, "february": 2, "march": 3, "april": 4,
@@ -38,15 +30,28 @@ MONTH_MAP = {
 
 def parse_start_date(date_text: str, year: int) -> str | None:
     """
-    Convert date strings like '7–12 January', '14–19 January' → YYYY-MM-DD.
-    Takes the first (start) day of the range.
-    Normalises en-dash, em-dash, and minus variants before parsing.
+    Convert date strings to YYYY-MM-DD (takes the first/start day of a range).
+
+    Handles two formats:
+      '7–12 January'  → day-first   (World Tour 2018+)
+      'January 18'    → month-first  (Super Series 2010-2017)
     """
     text = re.sub(r"[–—−]", "-", date_text.strip())
+    # Day-first: "18 January" or "18-23 January"
     m = re.match(r"(\d+)\s*(?:-\s*\d+\s*)?([A-Za-z]+)", text)
     if m:
         day = int(m.group(1))
         month = MONTH_MAP.get(m.group(2).lower())
+        if month:
+            try:
+                return pd.Timestamp(year=year, month=month, day=day).strftime("%Y-%m-%d")
+            except Exception:
+                return None
+    # Month-first: "January 18"
+    m = re.match(r"([A-Za-z]+)\s+(\d+)", text)
+    if m:
+        month = MONTH_MAP.get(m.group(1).lower())
+        day = int(m.group(2))
         if month:
             try:
                 return pd.Timestamp(year=year, month=month, day=day).strftime("%Y-%m-%d")
@@ -191,11 +196,107 @@ def scrape_year(year: int) -> list[dict]:
 
 
 def scrape_superseries_year(year: int) -> list[dict]:
-    """Scrape a BWF Super Series calendar page (2011-2017)."""
-    return _scrape_calendar_page(
-        f"https://en.wikipedia.org/wiki/{year}_BWF_Super_Series",
-        year, SUPERSERIES_LEVEL_MAP,
-    )
+    """
+    Scrape a BWF Super Series calendar page (2010-2017).
+
+    These pages use a flat wikitable with columns:
+      Tour# | Official title | Venue | City | Start | Finish | Prize | Report
+
+    Unlike World Tour pages (2018+), there is no 'Level:' field — tier is
+    inferred from the tournament name:
+      'Finals'          → 1500
+      'Premier'         → 750
+      'Super Series'    → 500
+    The 'Report' link IS the draw page passed to scraper_wiki_single.
+    """
+    url = f"https://en.wikipedia.org/wiki/{year}_BWF_Super_Series"
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        if resp.status_code == 404:
+            print(f"  {year}: page not found (404) — skipping.")
+            return []
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        print(f"  {year}: request failed — {e}")
+        return []
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    tournaments = []
+    seen_urls: set[str] = set()
+
+    table = soup.find("table", class_="wikitable")
+    if not table:
+        print(f"  {year}: no wikitable found — skipping.")
+        return []
+
+    for row in table.find_all("tr"):
+        cells = row.find_all("td")
+        if len(cells) < 8:
+            continue
+
+        title_cell  = cells[1]
+        date_cell   = cells[4]
+        report_cell = cells[7]
+
+        # Host country from flagicon in title cell
+        host_country = None
+        flagicon = title_cell.find("span", class_="flagicon")
+        if flagicon:
+            fa = flagicon.find("a")
+            if fa:
+                host_country = fa.get("title", "").strip()
+        if not host_country:
+            continue
+
+        # Tournament name from first <a> NOT inside flagicon
+        tournament_name = None
+        for a in title_cell.find_all("a"):
+            if a.find_parent("span", class_="flagicon"):
+                continue
+            name = a.get_text().strip()
+            if name:
+                tournament_name = f"{name} {year}"
+                break
+        if not tournament_name:
+            continue
+
+        # Tier from name keywords
+        nl = tournament_name.lower()
+        if "final" in nl:
+            tier = 1500
+        elif "premier" in nl:
+            tier = 750
+        elif "super series" in nl or "superseries" in nl:
+            tier = 500
+        else:
+            continue
+
+        # Start date ("January 18" format)
+        start_date = parse_start_date(date_cell.get_text().strip(), year)
+        if not start_date:
+            continue
+
+        # Draw URL = Report link
+        draw_url = None
+        for a in report_cell.find_all("a"):
+            href = a.get("href", "")
+            if href.startswith("/wiki/") and "redlink" not in href:
+                draw_url = "https://en.wikipedia.org" + href
+                break
+        if not draw_url or draw_url in seen_urls:
+            continue
+
+        seen_urls.add(draw_url)
+        tournaments.append({
+            "url":             draw_url,
+            "tournament_name": tournament_name,
+            "tier":            tier,
+            "start_date":      start_date,
+            "host_country":    host_country,
+        })
+
+    print(f"  {year}: {len(tournaments)} Super Series tournaments found.")
+    return tournaments
 
 
 def build_config(output_path: str = OUTPUT_PATH) -> pd.DataFrame:

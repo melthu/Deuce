@@ -20,6 +20,10 @@ TRAIN_STEPS = [
     ("Selecting best model (ensemble)", "src/train_ensemble.py"),
 ]
 
+TUNE_STEPS = [
+    ("Optuna hyperparameter search (XGBoost + LightGBM)", "src/tune_hyperparams.py"),
+]
+
 
 def run_steps(steps, step_offset=0, total_steps=None):
     if total_steps is None:
@@ -46,11 +50,12 @@ def main():
     parser.add_argument("--scrape",   action="store_true", help="Scrape Wikipedia (steps 1-2)")
     parser.add_argument("--features", action="store_true", help="Engineer features + mirror dataset (steps 3-4)")
     parser.add_argument("--train",    action="store_true", help="Train all models and save best")
+    parser.add_argument("--tune",     action="store_true", help="Optuna hyperparameter search + retrain best models")
     parser.add_argument("--all",      action="store_true", help="Full pipeline: scrape + features + train")
     args = parser.parse_args()
 
     # Default to --all if no flag given
-    if not any([args.scrape, args.features, args.train, args.all]):
+    if not any([args.scrape, args.features, args.train, args.tune, args.all]):
         args.all = True
 
     print("=" * 60)
@@ -70,6 +75,24 @@ def main():
             run_steps(FEATURE_STEPS, step_offset=0, total_steps=len(FEATURE_STEPS))
         if args.train:
             run_steps(TRAIN_STEPS, step_offset=0, total_steps=len(TRAIN_STEPS))
+        if args.tune:
+            # tune_hyperparams.py accepts CLI args; pass --all --retrain inline
+            import subprocess
+            print(f"\n[tune] Running Optuna hyperparameter search (all models, 50 trials)...")
+            step_start = __import__("time").time()
+            result = subprocess.run(
+                [__import__("sys").executable, "src/tune_hyperparams.py",
+                 "--model", "all", "--trials", "50", "--retrain"],
+                capture_output=False,
+            )
+            elapsed = __import__("time").time() - step_start
+            if result.returncode != 0:
+                print(f"\n[ERROR] tune step failed (exit code {result.returncode}). Pipeline halted.")
+                __import__("sys").exit(result.returncode)
+            print(f"[tune] Done in {elapsed:.1f}s")
+            # Rebuild ensemble with newly tuned models
+            run_steps([("Selecting best model (ensemble)", "src/train_ensemble.py")],
+                      step_offset=0, total_steps=1)
 
     total = time.time() - pipeline_start
     print("\n" + "=" * 60)

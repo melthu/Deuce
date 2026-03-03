@@ -24,7 +24,7 @@ DATA_PATH   = "data/processed/final_training_data.csv"
 CONFIG_PATH = "data/config/tournaments_config.csv"
 MODEL_PATH  = "models/best_model.pkl"
 
-# Human-readable names for the 28 model features (4 cat IDs + 24 cont)
+# Human-readable names for the 34 model features (4 cat IDs + 30 cont)
 FEATURE_NAMES = [
     "tier_id", "round_id", "player_a_id", "player_b_id",
 ] + CONT_COLS
@@ -142,8 +142,9 @@ def run_simulation(tour_date: str, tier: int, n_sims: int, seed: int = 42):
 def build_shap_input(pa, pb, round_name, player_stats, h2h_rate_fn, h2h_last_fn,
                      scaler, player_to_id, tier_to_id, round_to_id, tier):
     """
-    Build the 24-element feature vector for one direction (pa → slot_a)
-    as a named DataFrame so SHAP waterfall labels are human-readable.
+    Build the 30-element continuous feature vector for one direction (pa → slot_a)
+    so SHAP waterfall labels are human-readable.
+    Returns a (1, 34) array: 4 cat IDs + 30 scaled cont features.
     """
     UNK      = 0
     tier_id  = tier_to_id.get(tier, 0)
@@ -177,6 +178,13 @@ def build_shap_input(pa, pb, round_name, player_stats, h2h_rate_fn, h2h_last_fn,
         float(sb["avg_point_diff"]),
         float(sa["avg_games_pm"]),
         float(sb["avg_games_pm"]),
+        # New 6: rubber rate, victory margin, seed
+        float(sa["rubber_game_rate"]),
+        float(sb["rubber_game_rate"]),
+        float(sa["avg_margin"]),
+        float(sb["avg_margin"]),
+        float(sa["seed"]),
+        float(sb["seed"]),
     ]], dtype=np.float32)
 
     cont_scaled = scaler.transform(cont_raw)
@@ -314,8 +322,15 @@ with tab_shap:
                         "network (DeepFM). Tree-based SHAP requires a tree model.")
             else:
                 with st.spinner("Computing SHAP values..."):
-                    shap_vals = explainer(X)
-                    shap_vals.feature_names = FEATURE_NAMES
+                    # Trim X to the model's expected feature count (backward compat:
+                    # old models have n_features_in_=28; new ones will have 34)
+                    _m = (model_payload["model"] if model_payload["type"] == "single"
+                          else next(iter(model_payload["models"].values())))
+                    _n = getattr(_m, "n_features_in_", X.shape[1])
+                    X_shap = X[:, :_n]
+                    feat_names_shap = FEATURE_NAMES[:_n]
+                    shap_vals = explainer(X_shap)
+                    shap_vals.feature_names = feat_names_shap
 
                 st.markdown(
                     f"**Waterfall plot** — how each feature shifts the model's output "
@@ -334,8 +349,8 @@ with tab_shap:
                 # ── Raw feature value table ────────────────────────
                 with st.expander("Raw feature values"):
                     feat_df = pd.DataFrame({
-                        "Feature":      FEATURE_NAMES,
-                        "Scaled value": X[0].tolist(),
+                        "Feature":      feat_names_shap,
+                        "Scaled value": X_shap[0].tolist(),
                         "SHAP value":   shap_vals.values[0].tolist(),
                     })
                     feat_df["SHAP value"]   = feat_df["SHAP value"].round(4)
@@ -377,28 +392,34 @@ with tab_shap:
                     opp_side = "b" if is_a else "a"
                     mini_stats = {
                         player: {
-                            "is_home":        int(mrow.get(f"player_{side}_is_home", 0)),
-                            "matches_14d":    int(mrow.get(f"player_{side}_matches_last_14_days", 0)),
-                            "days_since":     float(mrow.get(f"player_{side}_days_since_last_match", 100)),
-                            "recent_win_rate": float(mrow.get(f"player_{side}_recent_win_rate", 0.5)),
-                            "elo":            float(mrow.get(f"player_{side}_elo", 1500)),
-                            "ema_form":       float(mrow.get(f"player_{side}_ema_form", 0.5)),
-                            "win_streak":     int(mrow.get(f"player_{side}_win_streak", 0)),
-                            "matches_7d":     int(mrow.get(f"player_{side}_matches_last_7_days", 0)),
-                            "avg_point_diff": float(mrow.get(f"player_{side}_avg_point_diff", 0.0)),
-                            "avg_games_pm":   float(mrow.get(f"player_{side}_avg_games_per_match", 2.0)),
+                            "is_home":          int(mrow.get(f"player_{side}_is_home", 0)),
+                            "matches_14d":      int(mrow.get(f"player_{side}_matches_last_14_days", 0)),
+                            "days_since":       float(mrow.get(f"player_{side}_days_since_last_match", 100)),
+                            "recent_win_rate":  float(mrow.get(f"player_{side}_recent_win_rate", 0.5)),
+                            "elo":              float(mrow.get(f"player_{side}_elo", 1500)),
+                            "ema_form":         float(mrow.get(f"player_{side}_ema_form", 0.5)),
+                            "win_streak":       int(mrow.get(f"player_{side}_win_streak", 0)),
+                            "matches_7d":       int(mrow.get(f"player_{side}_matches_last_7_days", 0)),
+                            "avg_point_diff":   float(mrow.get(f"player_{side}_avg_point_diff", 0.0)),
+                            "avg_games_pm":     float(mrow.get(f"player_{side}_avg_games_per_match", 2.0)),
+                            "rubber_game_rate": float(mrow.get(f"player_{side}_rubber_game_rate", 0.0)),
+                            "avg_margin":       float(mrow.get(f"player_{side}_avg_victory_margin", 0.0)),
+                            "seed":             float(mrow.get(f"player_{side}_seed", 0.0)),
                         },
                         opp: {
-                            "is_home":        int(mrow.get(f"player_{opp_side}_is_home", 0)),
-                            "matches_14d":    int(mrow.get(f"player_{opp_side}_matches_last_14_days", 0)),
-                            "days_since":     float(mrow.get(f"player_{opp_side}_days_since_last_match", 100)),
-                            "recent_win_rate": float(mrow.get(f"player_{opp_side}_recent_win_rate", 0.5)),
-                            "elo":            float(mrow.get(f"player_{opp_side}_elo", 1500)),
-                            "ema_form":       float(mrow.get(f"player_{opp_side}_ema_form", 0.5)),
-                            "win_streak":     int(mrow.get(f"player_{opp_side}_win_streak", 0)),
-                            "matches_7d":     int(mrow.get(f"player_{opp_side}_matches_last_7_days", 0)),
-                            "avg_point_diff": float(mrow.get(f"player_{opp_side}_avg_point_diff", 0.0)),
-                            "avg_games_pm":   float(mrow.get(f"player_{opp_side}_avg_games_per_match", 2.0)),
+                            "is_home":          int(mrow.get(f"player_{opp_side}_is_home", 0)),
+                            "matches_14d":      int(mrow.get(f"player_{opp_side}_matches_last_14_days", 0)),
+                            "days_since":       float(mrow.get(f"player_{opp_side}_days_since_last_match", 100)),
+                            "recent_win_rate":  float(mrow.get(f"player_{opp_side}_recent_win_rate", 0.5)),
+                            "elo":              float(mrow.get(f"player_{opp_side}_elo", 1500)),
+                            "ema_form":         float(mrow.get(f"player_{opp_side}_ema_form", 0.5)),
+                            "win_streak":       int(mrow.get(f"player_{opp_side}_win_streak", 0)),
+                            "matches_7d":       int(mrow.get(f"player_{opp_side}_matches_last_7_days", 0)),
+                            "avg_point_diff":   float(mrow.get(f"player_{opp_side}_avg_point_diff", 0.0)),
+                            "avg_games_pm":     float(mrow.get(f"player_{opp_side}_avg_games_per_match", 2.0)),
+                            "rubber_game_rate": float(mrow.get(f"player_{opp_side}_rubber_game_rate", 0.0)),
+                            "avg_margin":       float(mrow.get(f"player_{opp_side}_avg_victory_margin", 0.0)),
+                            "seed":             float(mrow.get(f"player_{opp_side}_seed", 0.0)),
                         },
                     }
                     m_tier = int(mrow.get("tier", tier))

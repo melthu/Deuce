@@ -115,57 +115,83 @@ def _parse_score(score_str, player_a_won: int):
 
 def _score_prepass(df: pd.DataFrame):
     """
-    Single O(n) chronological scan to compute rolling point differential
-    and games-per-match averages for every row. Returns four parallel lists.
+    Single O(n) chronological scan to compute rolling point differential,
+    games-per-match, rubber-game rate, and average victory margin for every row.
+    Returns eight parallel lists.
 
     All values represent the player's state BEFORE the match (no leakage).
-    Defaults: point_diff = 0.0, games_per_match = 2.0 (minimum games in badminton).
+    Defaults: point_diff=0.0, games_per_match=2.0, rubber_rate=0.0, avg_margin=0.0.
     """
-    hist_a: dict[str, deque] = {}   # player → deque of (point_diff, n_games)
+    hist_a: dict[str, deque] = {}   # player → deque of (point_diff, n_games, abs_margin)
 
-    pdiff_a_list: list[float] = []
-    pdiff_b_list: list[float] = []
-    gpm_a_list:   list[float] = []
-    gpm_b_list:   list[float] = []
+    pdiff_a_list:  list[float] = []
+    pdiff_b_list:  list[float] = []
+    gpm_a_list:    list[float] = []
+    gpm_b_list:    list[float] = []
+    rubber_a_list: list[float] = []
+    rubber_b_list: list[float] = []
+    margin_a_list: list[float] = []
+    margin_b_list: list[float] = []
 
     def _get_stats(player: str):
         dq = hist_a.get(player)
         if not dq:
-            return 0.0, 2.0
-        diffs = [d for d, _ in dq]
-        gms   = [g for _, g in dq]
-        return sum(diffs) / len(diffs), sum(gms) / len(gms)
+            return 0.0, 2.0, 0.0, 0.0
+        diffs       = [d for d, _, _ in dq]
+        gms         = [g for _, g, _ in dq]
+        rubber_rate = sum(1 for _, g, _ in dq if g >= 3) / len(dq)
+        avg_margin  = sum(m for _, _, m in dq) / len(dq)
+        return sum(diffs) / len(diffs), sum(gms) / len(gms), rubber_rate, avg_margin
 
     for _, row in df.iterrows():
         pa = row["player_a"]
         pb = row["player_b"]
 
         # --- Record PRE-match state ---
-        pa_pdiff, pa_gpm = _get_stats(pa)
-        pb_pdiff, pb_gpm = _get_stats(pb)
+        pa_pdiff, pa_gpm, pa_rubber, pa_margin = _get_stats(pa)
+        pb_pdiff, pb_gpm, pb_rubber, pb_margin = _get_stats(pb)
 
         pdiff_a_list.append(pa_pdiff)
         pdiff_b_list.append(pb_pdiff)
         gpm_a_list.append(pa_gpm)
         gpm_b_list.append(pb_gpm)
+        rubber_a_list.append(pa_rubber)
+        rubber_b_list.append(pb_rubber)
+        margin_a_list.append(pa_margin)
+        margin_b_list.append(pb_margin)
 
         # --- Post-match update (only when a score is available) ---
         parsed = _parse_score(row.get("score", ""), int(row["player_a_won"]))
         if parsed is not None:
             a_pts, b_pts, n_games = parsed
+            abs_margin = abs(a_pts - b_pts)
             if pa not in hist_a:
                 hist_a[pa] = deque(maxlen=SCORE_WINDOW)
-            hist_a[pa].append((a_pts - b_pts, n_games))
+            hist_a[pa].append((a_pts - b_pts, n_games, abs_margin))
             if pb not in hist_a:
                 hist_a[pb] = deque(maxlen=SCORE_WINDOW)
-            hist_a[pb].append((b_pts - a_pts, n_games))
+            hist_a[pb].append((b_pts - a_pts, n_games, abs_margin))
 
-    return pdiff_a_list, pdiff_b_list, gpm_a_list, gpm_b_list
+    return (pdiff_a_list, pdiff_b_list, gpm_a_list, gpm_b_list,
+            rubber_a_list, rubber_b_list, margin_a_list, margin_b_list)
 
 
 def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PATH) -> pd.DataFrame:
     df = pd.read_csv(input_path)
     df["start_date"] = pd.to_datetime(df["start_date"])
+
+    # Backward-compat: fill columns that may be absent in older CSV versions
+    for col, default in [("score", ""), ("player_a_seed", 0), ("player_b_seed", 0)]:
+        if col not in df.columns:
+            df[col] = default
+
+    # Drop walkovers / retirements before feature engineering (they distort stats)
+    if "is_walkover" in df.columns:
+        n_before = len(df)
+        df = df[df["is_walkover"] != 1].copy()
+        n_dropped = n_before - len(df)
+        if n_dropped:
+            print(f"Dropped {n_dropped} walkover/retirement rows.")
 
     # Golden Rule: sort chronologically so the row-wise history slice is always correct
     df = df.sort_values("start_date").reset_index(drop=True)
@@ -177,10 +203,12 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
      streak_a_pre, streak_b_pre) = _elo_prepass(df)
 
     # ------------------------------------------------------------------
-    # Pre-pass: rolling point differential & games-per-match
+    # Pre-pass: rolling score stats (point diff, games/match, rubber rate, margin)
     # ------------------------------------------------------------------
-    (pdiff_a_pre, pdiff_b_pre,
-     gpm_a_pre,   gpm_b_pre) = _score_prepass(df)
+    (pdiff_a_pre,  pdiff_b_pre,
+     gpm_a_pre,    gpm_b_pre,
+     rubber_a_pre, rubber_b_pre,
+     margin_a_pre, margin_b_pre) = _score_prepass(df)
 
     rows = []
 
@@ -295,11 +323,18 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
             "player_b_win_streak":              streak_b_pre[i],
             "player_a_matches_last_7_days":     a_matches_7,
             "player_b_matches_last_7_days":     b_matches_7,
-            # New 4 — rolling score stats
+            # Score-derived 4
             "player_a_avg_point_diff":          round(pdiff_a_pre[i], 4),
             "player_b_avg_point_diff":          round(pdiff_b_pre[i], 4),
             "player_a_avg_games_per_match":     round(gpm_a_pre[i], 4),
             "player_b_avg_games_per_match":     round(gpm_b_pre[i], 4),
+            # New 6 — rubber-game rate, victory margin, seeding
+            "player_a_rubber_game_rate":        round(rubber_a_pre[i], 4),
+            "player_b_rubber_game_rate":        round(rubber_b_pre[i], 4),
+            "player_a_avg_victory_margin":      round(margin_a_pre[i], 4),
+            "player_b_avg_victory_margin":      round(margin_b_pre[i], 4),
+            "player_a_seed":                    int(row.get("player_a_seed", 0)),
+            "player_b_seed":                    int(row.get("player_b_seed", 0)),
         })
 
     result = pd.DataFrame(rows)
@@ -312,6 +347,9 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
         "h2h_last_winner", "player_a_win_streak", "player_b_win_streak",
         "player_a_avg_point_diff", "player_b_avg_point_diff",
         "player_a_avg_games_per_match", "player_b_avg_games_per_match",
+        "player_a_rubber_game_rate", "player_b_rubber_game_rate",
+        "player_a_avg_victory_margin", "player_b_avg_victory_margin",
+        "player_a_seed", "player_b_seed",
     ]
     print("TAIL (5) — new feature columns:")
     print(result[display_cols].tail(5).to_string(index=True))
