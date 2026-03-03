@@ -14,7 +14,7 @@ requests
 beautifulsoup4
 
 # Dashboard & visualisation
-streamlit
+streamlit>=1.35.0
 streamlit-calendar
 shap
 matplotlib
