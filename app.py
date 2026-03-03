@@ -29,6 +29,86 @@ FEATURE_NAMES = [
     "tier_id", "round_id", "player_a_id", "player_b_id",
 ] + CONT_COLS
 
+# National flag emojis for top BWF Men's Singles players (2010-2026)
+PLAYER_FLAGS: dict[str, str] = {
+    # Denmark
+    "Viktor Axelsen":                    "🇩🇰",
+    "Anders Antonsen":                   "🇩🇰",
+    "Rasmus Gemke":                      "🇩🇰",
+    "Jan Ø. Jørgensen":                  "🇩🇰",
+    "Jan O. Jørgensen":                  "🇩🇰",
+    "Peter Gade":                        "🇩🇰",
+    "Hans-Kristian Solberg Vittersheim": "🇳🇴",
+    # Indonesia
+    "Jonatan Christie":                  "🇮🇩",
+    "Anthony Sinisuka Ginting":          "🇮🇩",
+    "Tommy Sugiarto":                    "🇮🇩",
+    "Ihsan Maulana Mustofa":             "🇮🇩",
+    "Taufik Hidayat":                    "🇮🇩",
+    "Sony Dwi Kuncoro":                  "🇮🇩",
+    "Hendra Setiawan":                   "🇮🇩",
+    # China
+    "Lin Dan":                           "🇨🇳",
+    "Chen Long":                         "🇨🇳",
+    "Shi Yuqi":                          "🇨🇳",
+    "Li Shifeng":                        "🇨🇳",
+    "Lu Guang Zu":                       "🇨🇳",
+    "Weng Hong Yang":                    "🇨🇳",
+    "Chen Xiaoxin":                      "🇨🇳",
+    # Japan
+    "Kento Momota":                      "🇯🇵",
+    "Kodai Naraoka":                     "🇯🇵",
+    "Kanta Tsuneyama":                   "🇯🇵",
+    "Nozomi Okuhara":                    "🇯🇵",
+    # Malaysia
+    "Lee Chong Wei":                     "🇲🇾",
+    "Lee Zii Jia":                       "🇲🇾",
+    "Zii Jia Lee":                       "🇲🇾",
+    "Daren Liew":                        "🇲🇾",
+    # Thailand
+    "Kunlavut Vitidsarn":                "🇹🇭",
+    "Tanongsak Saensomboonsuk":          "🇹🇭",
+    "Kantaphon Wangcharoen":             "🇹🇭",
+    # Taiwan
+    "Chou Tien-chen":                    "🇹🇼",
+    "Wang Tzu-wei":                      "🇹🇼",
+    "Chou Tien Chen":                    "🇹🇼",
+    # India
+    "Prannoy H. S.":                     "🇮🇳",
+    "Lakshya Sen":                       "🇮🇳",
+    "Srikanth Kidambi":                  "🇮🇳",
+    "Kidambi Srikanth":                  "🇮🇳",
+    "Parupalli Kashyap":                 "🇮🇳",
+    "Sai Praneeth B.":                   "🇮🇳",
+    # South Korea
+    "Son Wan Ho":                        "🇰🇷",
+    "Lee Hyun Il":                       "🇰🇷",
+    "Jeon Hyuk Jin":                     "🇰🇷",
+    # France
+    "Toma Junior Popov":                 "🇫🇷",
+    "Christo Popov":                     "🇫🇷",
+    "Brice Leverdez":                    "🇫🇷",
+    # Singapore
+    "Loh Kean Yew":                      "🇸🇬",
+    # Hong Kong
+    "Ng Ka Long Angus":                  "🇭🇰",
+    # Netherlands
+    "Mark Caljouw":                      "🇳🇱",
+    # Canada
+    "Brian Yang":                        "🇨🇦",
+    # Ireland
+    "Nhat Nguyen":                       "🇮🇪",
+    # Germany
+    "Marc Zwiebler":                     "🇩🇪",
+    "Fabian Roth":                       "🇩🇪",
+}
+
+
+def format_name(player_name: str) -> str:
+    """Return the player name prefixed with their national flag emoji (🏸 if unknown)."""
+    flag = PLAYER_FLAGS.get(player_name, "🏸")
+    return f"{flag} {player_name}"
+
 st.set_page_config(
     page_title="BWF Match Predictor",
     page_icon="🏸",
@@ -271,8 +351,11 @@ with tab_sim:
 
             with col_left:
                 st.subheader(f"First Round Bracket ({len(bracket_df)} matchups)")
+                display_bracket = bracket_df.copy()
+                display_bracket["Player A"] = display_bracket["Player A"].apply(format_name)
+                display_bracket["Player B"] = display_bracket["Player B"].apply(format_name)
                 styled = (
-                    bracket_df.style
+                    display_bracket.style
                     .format({"P(A wins)": "{:.3f}"})
                     .background_gradient(subset=["P(A wins)"], cmap="RdYlGn",
                                          vmin=0.3, vmax=0.7)
@@ -289,9 +372,11 @@ with tab_sim:
                 if "Actual Result" in leaderboard.columns:
                     display_cols.append("Actual Result")
 
+                display_lb = leaderboard[display_cols].copy()
+                display_lb["Player"] = display_lb["Player"].apply(format_name)
                 st.dataframe(
-                    leaderboard[display_cols]
-                    .style.format({"Win %": "{:.2f}%"})
+                    display_lb.style
+                    .format({"Win %": "{:.2f}%"})
                     .background_gradient(subset=["Win %"], cmap="Blues"),
                     use_container_width=True,
                     hide_index=True,
@@ -313,10 +398,12 @@ with tab_shap:
     else:
         col_a, col_b = st.columns(2)
         with col_a:
-            player_a = st.selectbox("Player A", roster, index=0, key="shap_pa")
+            player_a = st.selectbox("Player A", roster, index=0,
+                                    format_func=format_name, key="shap_pa")
         with col_b:
             default_b = min(1, len(roster) - 1)
-            player_b  = st.selectbox("Player B", roster, index=default_b, key="shap_pb")
+            player_b  = st.selectbox("Player B", roster, index=default_b,
+                                     format_func=format_name, key="shap_pb")
 
         analyze_btn = st.button("🔍 Analyze Matchup", type="primary")
 
@@ -334,7 +421,7 @@ with tab_shap:
                     "Days Since Last Match", "Matches (Last 14d)",
                     "H2H Win Rate", "Avg Point Diff", "Seed",
                 ],
-                player_a: [
+                format_name(player_a): [
                     f"{sa['elo']:.0f}",
                     f"{sa['ema_form']:.3f}",
                     f"{sa['win_streak']}",
@@ -344,7 +431,7 @@ with tab_shap:
                     f"{sa['avg_point_diff']:+.2f}",
                     f"{int(sa['seed'])}",
                 ],
-                player_b: [
+                format_name(player_b): [
                     f"{sb['elo']:.0f}",
                     f"{sb['ema_form']:.3f}",
                     f"{sb['win_streak']}",
