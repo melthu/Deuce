@@ -556,7 +556,7 @@ def get_all_tournaments() -> pd.DataFrame:
 # App bootstrap
 # ------------------------------------------------------------------
 
-st.set_page_config(page_title="BWF Live Terminal", page_icon="🏸", layout="wide")
+st.set_page_config(page_title="ShuttleCast", page_icon="🏸", layout="wide")
 
 # Hide the Streamlit "running" spinner in the top-right corner
 st.markdown(
@@ -580,7 +580,7 @@ if "selected_tour_key" not in st.session_state:
 if "cal_initial_date"  not in st.session_state:
     st.session_state["cal_initial_date"]  = _default_row["start_date"].strftime("%Y-%m-01")
 
-st.title("🏸 BWF Men's Singles — Live Point-in-Time Terminal")
+st.title("🏸 ShuttleCast")
 
 # Derive active tournament from session state (needed in sidebar and main tabs)
 tour_date = st.session_state["selected_tour_key"]
@@ -932,8 +932,8 @@ with tab_matchup:
             delta=f"{(p_win - 0.5) * 100:+.1f}pp vs 50/50",
         )
 
-        # ── Tale of the Tape ─────────────────────────────────────
-        st.subheader("📋 Tale of the Tape")
+        # ── Stats ────────────────────────────────────────────────
+        st.subheader("📋 Stats")
         tape_df = pd.DataFrame({
             "Stat": [
                 "Elo Rating", "EMA Form", "Win Streak",
