@@ -199,15 +199,16 @@ def build_calendar_events(
         is_sel   = tour_key == selected_key
 
         if is_sel:
-            bg, border = "#1a3a5c", "#1a3a5c"
+            bg, border = "#2e7d32", "#1b5e20"   # bright green — unmistakable
         elif is_past:
             bg, border = "#9e9e9e", "#757575"
         else:
             bg, border = "#1e88e5", "#1565c0"
 
+        title = f"★ {flag} {r['tournament_name']}" if is_sel else f"{flag} {r['tournament_name']}"
         events.append({
             "id":              tour_key,
-            "title":           f"{flag} {r['tournament_name']}",
+            "title":           title,
             "start":           tour_key,
             "end":             end_key,
             "backgroundColor": bg,
@@ -496,6 +497,32 @@ host_flag = TOURNAMENT_HOSTS.get(str(t_row_sel["host_country"]), "🌐")
 # ------------------------------------------------------------------
 
 with st.sidebar:
+    # ── Year / Month quick-jump ────────────────────────────────────
+    _years     = sorted(all_tours["start_date"].dt.year.unique().tolist())
+    _mon_names = ["Jan","Feb","Mar","Apr","May","Jun",
+                  "Jul","Aug","Sep","Oct","Nov","Dec"]
+    _cur_init  = st.session_state["cal_initial_date"]   # "YYYY-MM-01"
+    _cur_year  = int(_cur_init[:4])
+    _cur_mo    = int(_cur_init[5:7]) - 1                # 0-indexed
+
+    _jy, _jm = st.columns(2)
+    with _jy:
+        _sel_year = st.selectbox(
+            "Year", _years,
+            index=_years.index(_cur_year) if _cur_year in _years else len(_years) - 1,
+            key="nav_year", label_visibility="collapsed",
+        )
+    with _jm:
+        _sel_mon_name = st.selectbox(
+            "Month", _mon_names, index=_cur_mo,
+            key="nav_month", label_visibility="collapsed",
+        )
+    _sel_month    = _mon_names.index(_sel_mon_name) + 1   # 1-indexed
+    _new_initial  = f"{_sel_year}-{_sel_month:02d}-01"
+    if _new_initial != _cur_init:
+        st.session_state["cal_initial_date"] = _new_initial
+        st.rerun()
+
     cal_events = build_calendar_events(
         all_tours, st.session_state["selected_tour_key"], TODAY
     )
@@ -537,21 +564,28 @@ with st.sidebar:
             st.session_state["selected_tour_key"] = clicked_id
             st.rerun()
 
-    # Currently selected tournament label
+    # ── Selected tournament card ───────────────────────────────────
+    _is_up   = pd.Timestamp(tour_date).date() >= TODAY
+    _status  = "🔮 Upcoming" if _is_up else "📜 Historical"
     st.markdown(
-        f"<div style='margin:8px 0 2px;font-size:0.82rem;color:#888'>Selected</div>"
-        f"<div style='font-weight:700'>{host_flag} {selected}</div>"
-        f"<div style='font-size:0.8rem;color:#666'>{format_tier(tier)}  ·  {tour_date}</div>",
+        f"<div style='background:#f0faf0;border-left:4px solid #2e7d32;"
+        f"border-radius:4px;padding:10px 12px;margin:8px 0'>"
+        f"<div style='font-size:0.72rem;color:#555;font-weight:600;letter-spacing:.04em'>"
+        f"SELECTED TOURNAMENT</div>"
+        f"<div style='font-size:1.05rem;font-weight:700;margin:3px 0'>"
+        f"{host_flag} {selected}</div>"
+        f"<div style='font-size:0.8rem;color:#444'>{format_tier(tier)}</div>"
+        f"<div style='font-size:0.75rem;color:#777;margin-top:2px'>"
+        f"{tour_date} &nbsp;·&nbsp; {_status}</div>"
+        f"</div>",
         unsafe_allow_html=True,
     )
-    st.divider()
     st.markdown(
-        "<div style='font-size:0.75rem;color:#888'>"
-        "🔵 Upcoming &nbsp; ⚫ Past &nbsp; 🔷 Selected — click any block to select"
+        "<div style='font-size:0.72rem;color:#999;margin:2px 0 6px'>"
+        "🔵 Upcoming &nbsp;·&nbsp; ⚫ Past &nbsp;·&nbsp; 🟢 Selected"
         "</div>",
         unsafe_allow_html=True,
     )
-    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
     n_sims  = st.slider("Monte Carlo Simulations", 1_000, 50_000, 10_000, 1_000)
     run_btn = st.button("▶ Run Simulation", use_container_width=True, type="primary")
 
