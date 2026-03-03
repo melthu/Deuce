@@ -535,7 +535,7 @@ with st.sidebar:
             "center": "title",
             "right":  "",
         },
-        "height":       580,
+        "height":       420,
         "navLinks":     False,
         "editable":     False,
         "selectable":   False,
@@ -551,6 +551,9 @@ with st.sidebar:
             .fc-toolbar-title { font-size: 1rem !important; }
             .fc-button { font-size: 0.72rem !important; padding: 2px 6px !important; }
             .fc-daygrid-event-dot { display: none; }
+            .fc-daygrid-day-frame { min-height: 48px !important; }
+            .fc-daygrid-day-top { padding: 1px 2px !important; }
+            .fc-daygrid-event { margin: 0 !important; }
         """,
         key=f"bwf_cal_{st.session_state['cal_initial_date']}",
     )
