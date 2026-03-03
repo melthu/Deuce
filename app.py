@@ -53,23 +53,15 @@ def load_resources():
 
 @st.cache_resource
 def get_shap_explainer():
-    """
-    Create a SHAP explainer for the best available model.
-    - For tree models (XGBoost, LightGBM, CatBoost): use TreeExplainer.
-    - For PyTorch DeepFM wrappers: fall back to a GradientExplainer-compatible
-      approach is not trivial, so we skip SHAP and return None.
-    """
-    model_payload, _, df = load_resources()
+    model_payload, _, _ = load_resources()
 
     def _pick_model(payload):
         if payload["type"] == "single":
             return payload["model"]
-        # Ensemble: prefer a tree model; skip DeepFM wrappers for SHAP
         models = payload["models"]
         for name in ("xgb", "lgbm", "catboost"):
             if name in models:
                 return models[name]
-        # Fallback: first tree-like model (no `parameters` attr)
         for m in models.values():
             if not hasattr(m, "parameters"):
                 return m
@@ -77,17 +69,17 @@ def get_shap_explainer():
 
     model = _pick_model(model_payload)
     if model is None or hasattr(model, "parameters"):
-        # DeepFM or no usable tree model
         return None
     return shap.TreeExplainer(model)
 
 
 @st.cache_data(show_spinner=False)
-def get_2026_tournaments():
+def get_all_tournaments():
     cfg = pd.read_csv(CONFIG_PATH)
-    cfg2026 = cfg[cfg["start_date"].str.startswith("2026")].copy()
-    cfg2026 = cfg2026.sort_values("start_date")
-    return cfg2026[["tournament_name", "tier", "start_date"]].reset_index(drop=True)
+    cfg["start_date"] = pd.to_datetime(cfg["start_date"], errors="coerce")
+    cfg = cfg.dropna(subset=["start_date"])
+    cfg = cfg.sort_values("start_date", ascending=False)
+    return cfg[["tournament_name", "tier", "start_date"]].reset_index(drop=True)
 
 
 @st.cache_data(show_spinner=False)
@@ -139,11 +131,22 @@ def run_simulation(tour_date: str, tier: int, n_sims: int, seed: int = 42):
     return bracket_df, leaderboard
 
 
+def get_actual_winner(df, tour_date: str):
+    """Find the actual tournament winner from the final-round row."""
+    final_rows = df[
+        (df["start_date"] == pd.Timestamp(tour_date)) &
+        (df["round"] == "final")
+    ]
+    if final_rows.empty:
+        return None
+    row = final_rows.iloc[0]
+    return row["player_a"] if row["player_a_won"] == 1 else row["player_b"]
+
+
 def build_shap_input(pa, pb, round_name, player_stats, h2h_rate_fn, h2h_last_fn,
                      scaler, player_to_id, tier_to_id, round_to_id, tier):
     """
-    Build the 30-element continuous feature vector for one direction (pa → slot_a)
-    so SHAP waterfall labels are human-readable.
+    Build the 30-element continuous feature vector for one direction (pa → slot_a).
     Returns a (1, 34) array: 4 cat IDs + 30 scaled cont features.
     """
     UNK      = 0
@@ -178,7 +181,6 @@ def build_shap_input(pa, pb, round_name, player_stats, h2h_rate_fn, h2h_last_fn,
         float(sb["avg_point_diff"]),
         float(sa["avg_games_pm"]),
         float(sb["avg_games_pm"]),
-        # New 6: rubber rate, victory margin, seed
         float(sa["rubber_game_rate"]),
         float(sb["rubber_game_rate"]),
         float(sa["avg_margin"]),
@@ -197,17 +199,22 @@ def build_shap_input(pa, pb, round_name, player_stats, h2h_rate_fn, h2h_last_fn,
 # App layout
 # ------------------------------------------------------------------
 
-st.title("🏸 BWF Men's Singles — Monte Carlo Bracket Simulator")
+st.title("🏸 BWF Men's Singles — Point-in-Time Historical Backtester")
 
-tournaments = get_2026_tournaments()
+tournaments = get_all_tournaments()
 
 with st.sidebar:
     st.header("Settings")
-    options  = tournaments["tournament_name"].tolist()
-    selected = st.selectbox("Tournament", options, index=len(options) - 1)
+    labels = [
+        f"{row['tournament_name']} ({row['start_date'].strftime('%Y-%m-%d')})"
+        for _, row in tournaments.iterrows()
+    ]
+    selected_label = st.selectbox("Tournament", labels, index=0)
+    selected_idx   = labels.index(selected_label)
 
-    t_row     = tournaments[tournaments["tournament_name"] == selected].iloc[0]
-    tour_date = t_row["start_date"]
+    t_row     = tournaments.iloc[selected_idx]
+    selected  = t_row["tournament_name"]
+    tour_date = t_row["start_date"].strftime("%Y-%m-%d")
     tier      = int(t_row["tier"])
 
     st.caption(f"Date: {tour_date}  |  Tier: {tier}")
@@ -240,8 +247,25 @@ with tab_sim:
             st.error(f"No first-round data found for **{selected}** ({tour_date}). "
                      "The dataset may not cover this tournament.")
         else:
-            with st.spinner(f"Running {n_sims:,} simulations for {selected}..."):
+            with st.status(f"Running Point-in-Time Engine for {selected}...",
+                           expanded=True) as status:
+                st.write("Slicing historical data to pre-tournament state...")
+                st.write("Loading Point-in-Time player features...")
+                st.write(f"Running {n_sims:,} Monte Carlo simulations...")
                 bracket_df, leaderboard = run_simulation(tour_date, tier, n_sims)
+                st.write("Preparing results...")
+                status.update(
+                    label=f"Simulation complete — {selected}",
+                    state="complete",
+                    expanded=False,
+                )
+
+            # Reality Check — annotate the actual tournament winner
+            actual_winner = get_actual_winner(df, tour_date)
+            if actual_winner:
+                leaderboard["Actual Result"] = leaderboard["Player"].apply(
+                    lambda p: "🥇 Winner" if p == actual_winner else ""
+                )
 
             col_left, col_right = st.columns(2)
 
@@ -260,15 +284,20 @@ with tab_sim:
                 top_n      = min(16, len(leaderboard))
                 chart_data = leaderboard.head(top_n).set_index("Player")["Win %"]
                 st.bar_chart(chart_data, horizontal=True)
+
+                display_cols = ["Player", "Win %"]
+                if "Actual Result" in leaderboard.columns:
+                    display_cols.append("Actual Result")
+
                 st.dataframe(
-                    leaderboard[["Player", "Win %"]]
+                    leaderboard[display_cols]
                     .style.format({"Win %": "{:.2f}%"})
                     .background_gradient(subset=["Win %"], cmap="Blues"),
                     use_container_width=True,
                     hide_index=True,
                 )
                 model_name = model_payload.get("name", model_payload.get("type", "?"))
-                st.caption(f"Model: **{model_name}**  |  Val AUC: 0.7754")
+                st.caption(f"Model: **{model_name}**  |  Val AUC: 0.7872")
 
 # ── Tab 2: Matchup Explainer ────────────────────────────────────────
 with tab_shap:
@@ -284,8 +313,7 @@ with tab_shap:
     else:
         col_a, col_b = st.columns(2)
         with col_a:
-            default_a = 0
-            player_a  = st.selectbox("Player A", roster, index=default_a, key="shap_pa")
+            player_a = st.selectbox("Player A", roster, index=0, key="shap_pa")
         with col_b:
             default_b = min(1, len(roster) - 1)
             player_b  = st.selectbox("Player B", roster, index=default_b, key="shap_pb")
@@ -295,6 +323,41 @@ with tab_shap:
         if player_a == player_b:
             st.warning("Please select two **different** players.")
         elif analyze_btn:
+            sa = player_stats[player_a]
+            sb = player_stats[player_b]
+
+            # ── Tale of the Tape ──────────────────────────────────
+            st.subheader("Tale of the Tape")
+            tape_df = pd.DataFrame({
+                "Stat": [
+                    "Elo Rating", "EMA Form", "Win Streak",
+                    "Days Since Last Match", "Matches (Last 14d)",
+                    "H2H Win Rate", "Avg Point Diff", "Seed",
+                ],
+                player_a: [
+                    f"{sa['elo']:.0f}",
+                    f"{sa['ema_form']:.3f}",
+                    f"{sa['win_streak']}",
+                    f"{sa['days_since']:.0f}",
+                    f"{sa['matches_14d']}",
+                    f"{h2h_rate_fn(player_a, player_b):.3f}",
+                    f"{sa['avg_point_diff']:+.2f}",
+                    f"{int(sa['seed'])}",
+                ],
+                player_b: [
+                    f"{sb['elo']:.0f}",
+                    f"{sb['ema_form']:.3f}",
+                    f"{sb['win_streak']}",
+                    f"{sb['days_since']:.0f}",
+                    f"{sb['matches_14d']}",
+                    f"{h2h_rate_fn(player_b, player_a):.3f}",
+                    f"{sb['avg_point_diff']:+.2f}",
+                    f"{int(sb['seed'])}",
+                ],
+            })
+            st.dataframe(tape_df, use_container_width=True, hide_index=True)
+            st.divider()
+
             # ── Build feature vector ──────────────────────────────
             X = build_shap_input(
                 player_a, player_b, "first round",
@@ -322,8 +385,6 @@ with tab_shap:
                         "network (DeepFM). Tree-based SHAP requires a tree model.")
             else:
                 with st.spinner("Computing SHAP values..."):
-                    # Trim X to the model's expected feature count (backward compat:
-                    # old models have n_features_in_=28; new ones will have 34)
                     _m = (model_payload["model"] if model_payload["type"] == "single"
                           else next(iter(model_payload["models"].values())))
                     _n = getattr(_m, "n_features_in_", X.shape[1])
@@ -338,7 +399,6 @@ with tab_shap:
                     f"**{player_a}** in the Player A slot."
                 )
 
-                # ── Render waterfall via matplotlib ───────────────
                 shap.plots.waterfall(shap_vals[0], max_display=20, show=False)
                 fig = plt.gcf()
                 fig.set_size_inches(10, 8)
@@ -346,7 +406,6 @@ with tab_shap:
                 st.pyplot(fig)
                 plt.close(fig)
 
-                # ── Raw feature value table ────────────────────────
                 with st.expander("Raw feature values"):
                     feat_df = pd.DataFrame({
                         "Feature":      feat_names_shap,
@@ -367,10 +426,6 @@ with tab_shap:
             )
 
             def build_form_chart(player: str, tour_date_str: str):
-                """
-                Return a DataFrame with the last 5 historical matches for `player`
-                before `tour_date_str`, with per-match win probability and outcome.
-                """
                 cutoff = pd.Timestamp(tour_date_str)
                 mask = (
                     ((df["player_a"] == player) | (df["player_b"] == player)) &
@@ -382,14 +437,13 @@ with tab_shap:
 
                 records = []
                 for _, mrow in hist.iterrows():
-                    m_date = mrow["start_date"]
-                    is_a   = (mrow["player_a"] == player)
-                    opp    = mrow["player_b"] if is_a else mrow["player_a"]
-                    won    = bool(mrow["player_a_won"] == 1) if is_a else bool(mrow["player_a_won"] == 0)
-
-                    # Build mini player_stats from this specific match's data
-                    side = "a" if is_a else "b"
+                    m_date   = mrow["start_date"]
+                    is_a     = (mrow["player_a"] == player)
+                    opp      = mrow["player_b"] if is_a else mrow["player_a"]
+                    won      = bool(mrow["player_a_won"] == 1) if is_a else bool(mrow["player_a_won"] == 0)
+                    side     = "a" if is_a else "b"
                     opp_side = "b" if is_a else "a"
+
                     mini_stats = {
                         player: {
                             "is_home":          int(mrow.get(f"player_{side}_is_home", 0)),
@@ -422,23 +476,24 @@ with tab_shap:
                             "seed":             float(mrow.get(f"player_{opp_side}_seed", 0.0)),
                         },
                     }
-                    m_tier = int(mrow.get("tier", tier))
+                    m_tier  = int(mrow.get("tier", tier))
                     m_round = str(mrow.get("round", "first round")).lower()
 
-                    # H2H at this point in time
                     hist_before = df[df["start_date"] < m_date]
-                    h2h_r, h2h_l = build_h2h_lookups(hist_before.assign(start_date=hist_before["start_date"]), m_date.strftime("%Y-%m-%d"))
-
+                    h2h_r, h2h_l = build_h2h_lookups(
+                        hist_before.assign(start_date=hist_before["start_date"]),
+                        m_date.strftime("%Y-%m-%d"),
+                    )
                     p = predict_match(
                         player, opp, m_round, mini_stats,
                         h2h_r, h2h_l,
                         scaler, player_to_id, tier_to_id, round_to_id, model_payload, m_tier,
                     )
                     records.append({
-                        "Date":        m_date.strftime("%Y-%m-%d"),
-                        "Opponent":    opp,
-                        "Win Prob":    round(p, 3),
-                        "Result":      "W" if won else "L",
+                        "Date":     m_date.strftime("%Y-%m-%d"),
+                        "Opponent": opp,
+                        "Win Prob": round(p, 3),
+                        "Result":   "W" if won else "L",
                     })
                 return pd.DataFrame(records)
 
@@ -450,8 +505,6 @@ with tab_shap:
                     if form_df is None or form_df.empty:
                         st.caption("No historical match data found before this tournament.")
                     else:
-                        # Line chart
-                        chart_data = form_df.set_index("Date")["Win Prob"]
                         fig2, ax = plt.subplots(figsize=(5, 3))
                         colors = ["green" if r == "W" else "red"
                                   for r in form_df["Result"]]
@@ -469,7 +522,6 @@ with tab_shap:
                         fig2.tight_layout()
                         st.pyplot(fig2)
                         plt.close(fig2)
-                        # Detail table
                         st.dataframe(
                             form_df.style.applymap(
                                 lambda v: "color: green" if v == "W" else "color: red",
