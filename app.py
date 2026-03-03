@@ -4,7 +4,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import time
 import pickle
-import calendar as cal_module
 from datetime import date
 
 import numpy as np
@@ -15,6 +14,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import shap
 import streamlit as st
+from streamlit_calendar import calendar as st_calendar
 
 from src.dataset import get_train_val_datasets, CONT_COLS
 from src.simulate_german_open import (
@@ -179,86 +179,41 @@ def get_actual_winner(df: pd.DataFrame, tour_date: str):
     return r["player_a"] if r["player_a_won"] == 1 else r["player_b"]
 
 
-def html_month_calendar(
-    year: int,
-    month: int,
+def build_calendar_events(
     all_tours: pd.DataFrame,
-    today: date,
     selected_key: str,
-) -> str:
+    today: date,
+) -> list:
     """
-    Returns an HTML string for a monthly calendar grid.
-    Tournament days show host flag + abbreviated name.
-    Past = gray, upcoming = light blue, selected = dark navy.
+    Build FullCalendar event dicts for all BWF tournaments.
+    Each tournament spans 6 days (end is exclusive in FullCalendar).
+    Colors: selected = navy, past = muted gray, upcoming = vibrant blue.
     """
-    mask = (
-        (all_tours["start_date"].dt.year  == year) &
-        (all_tours["start_date"].dt.month == month)
-    )
-    tour_by_day = {
-        row["start_date"].day: row
-        for _, row in all_tours[mask].iterrows()
-    }
+    events = []
+    for _, r in all_tours.iterrows():
+        tour_dt  = r["start_date"]
+        tour_key = tour_dt.strftime("%Y-%m-%d")
+        end_key  = (tour_dt + pd.Timedelta(days=6)).strftime("%Y-%m-%d")
+        flag     = TOURNAMENT_HOSTS.get(str(r["host_country"]), "🌐")
+        is_past  = tour_dt.date() < today
+        is_sel   = tour_key == selected_key
 
-    # Abbreviate tournament name for the calendar cell
-    def _abbrev(name: str) -> str:
-        stop = {" Open", " Masters", " International", " Championship",
-                " Super Series", " World Tour Finals"}
-        s = name
-        for w in stop:
-            s = s.replace(w, "")
-        return s[:13]
+        if is_sel:
+            bg, border = "#1a3a5c", "#1a3a5c"
+        elif is_past:
+            bg, border = "#9e9e9e", "#757575"
+        else:
+            bg, border = "#1e88e5", "#1565c0"
 
-    hdr = "".join(
-        f'<th style="text-align:center;color:#999;font-size:10px;'
-        f'font-weight:600;padding:2px 0">{d}</th>'
-        for d in ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
-    )
-    tbody = ""
-    for week in cal_module.monthcalendar(year, month):
-        tbody += "<tr>"
-        for day in week:
-            if day == 0:
-                tbody += '<td style="padding:2px"></td>'
-                continue
-            if day in tour_by_day:
-                t        = tour_by_day[day]
-                key      = t["start_date"].strftime("%Y-%m-%d")
-                flag     = TOURNAMENT_HOSTS.get(str(t["host_country"]), "🌐")
-                is_past  = t["start_date"].date() < today
-                is_sel   = key == selected_key
-
-                if is_sel:
-                    bg, fg, bdr = "#1a3a5c", "white", "#1a3a5c"
-                elif is_past:
-                    bg, fg, bdr = "#eeeeee", "#666", "#ccc"
-                else:
-                    bg, fg, bdr = "#dceefb", "#1565c0", "#90caf9"
-
-                tbody += (
-                    f'<td style="padding:2px;vertical-align:top">'
-                    f'<div style="background:{bg};color:{fg};border:1px solid {bdr};'
-                    f'border-radius:5px;padding:3px 2px;text-align:center;'
-                    f'min-height:52px">'
-                    f'<div style="font-size:10px;font-weight:bold">{day}</div>'
-                    f'<div style="font-size:14px;line-height:1">{flag}</div>'
-                    f'<div style="font-size:8px;line-height:1.2;'
-                    f'overflow:hidden;word-break:break-word">{_abbrev(t["tournament_name"])}</div>'
-                    f'</div></td>'
-                )
-            else:
-                tbody += (
-                    f'<td style="text-align:center;color:#ccc;'
-                    f'font-size:10px;padding:2px">{day}</td>'
-                )
-        tbody += "</tr>"
-
-    return (
-        f'<table style="width:100%;border-collapse:collapse;table-layout:fixed">'
-        f"<thead><tr>{hdr}</tr></thead>"
-        f"<tbody>{tbody}</tbody>"
-        f"</table>"
-    )
+        events.append({
+            "id":              tour_key,
+            "title":           f"{flag} {r['tournament_name']}",
+            "start":           tour_key,
+            "end":             end_key,
+            "backgroundColor": bg,
+            "borderColor":     border,
+        })
+    return events
 
 
 def build_shap_input(pa, pb, round_name, player_stats, h2h_rate_fn, h2h_last_fn,
@@ -570,98 +525,12 @@ if "shap_analyzed"     not in st.session_state:
     st.session_state["shap_analyzed"]     = None
 if "selected_tour_key" not in st.session_state:
     st.session_state["selected_tour_key"] = _default_key
-if "cal_year"          not in st.session_state:
-    st.session_state["cal_year"]          = _default_row["start_date"].year
-if "cal_month"         not in st.session_state:
-    st.session_state["cal_month"]         = _default_row["start_date"].month
+if "cal_initial_date"  not in st.session_state:
+    st.session_state["cal_initial_date"]  = _default_row["start_date"].strftime("%Y-%m-01")
 
 st.title("🏸 BWF Men's Singles — Live Point-in-Time Terminal")
 
-# ------------------------------------------------------------------
-# Sidebar — calendar + tournament picker
-# ------------------------------------------------------------------
-
-with st.sidebar:
-    cal_year  = st.session_state["cal_year"]
-    cal_month = st.session_state["cal_month"]
-
-    # ── Month navigation ─────────────────────────────────────────
-    nav_l, nav_m, nav_r = st.columns([1, 4, 1])
-    if nav_l.button("◀", key="cal_prev"):
-        if cal_month == 1:
-            st.session_state["cal_year"]  = cal_year - 1
-            st.session_state["cal_month"] = 12
-        else:
-            st.session_state["cal_month"] = cal_month - 1
-        st.rerun()
-
-    nav_m.markdown(
-        f"<p style='text-align:center;font-weight:700;margin:6px 0'>"
-        f"{cal_module.month_name[cal_month]} {cal_year}</p>",
-        unsafe_allow_html=True,
-    )
-
-    if nav_r.button("▶", key="cal_next"):
-        if cal_month == 12:
-            st.session_state["cal_year"]  = cal_year + 1
-            st.session_state["cal_month"] = 1
-        else:
-            st.session_state["cal_month"] = cal_month + 1
-        st.rerun()
-
-    # ── HTML calendar ─────────────────────────────────────────────
-    st.markdown(
-        html_month_calendar(
-            cal_year, cal_month, all_tours,
-            TODAY, st.session_state["selected_tour_key"],
-        ),
-        unsafe_allow_html=True,
-    )
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-
-    # ── Tournament picker (current month, flag + name only) ───────
-    month_mask  = (
-        (all_tours["start_date"].dt.year  == cal_year) &
-        (all_tours["start_date"].dt.month == cal_month)
-    )
-    month_tours = all_tours[month_mask].sort_values("start_date")
-
-    if month_tours.empty:
-        st.caption("No tournaments this month — use ◀▶ to navigate.")
-        # Keep whatever was previously selected
-    else:
-        sel_labels = []
-        for _, r in month_tours.iterrows():
-            flag     = TOURNAMENT_HOSTS.get(str(r["host_country"]), "🌐")
-            is_past  = r["start_date"].date() < TODAY
-            pfx      = "📜" if is_past else "🔮"
-            tier_str = format_tier(int(r["tier"]))
-            sel_labels.append(f"{pfx} {flag}  {tier_str} — {r['tournament_name']}")
-
-        # Find index of currently selected tournament (if in this month)
-        cur_idx = 0
-        for i, (_, r) in enumerate(month_tours.iterrows()):
-            if r["start_date"].strftime("%Y-%m-%d") == st.session_state["selected_tour_key"]:
-                cur_idx = i
-                break
-
-        sel_choice = st.selectbox(
-            "Tournament", sel_labels, index=cur_idx,
-            label_visibility="collapsed",
-        )
-        new_key = month_tours.iloc[sel_labels.index(sel_choice)]["start_date"].strftime("%Y-%m-%d")
-        if new_key != st.session_state["selected_tour_key"]:
-            st.session_state["selected_tour_key"] = new_key
-            st.rerun()
-
-    st.divider()
-    n_sims  = st.slider("Monte Carlo Simulations", 1_000, 50_000, 10_000, 1_000)
-    run_btn = st.button("▶ Run Simulation", use_container_width=True, type="primary")
-
-# ------------------------------------------------------------------
-# Derive active tournament from session state
-# ------------------------------------------------------------------
-
+# Derive active tournament from session state (needed in sidebar and main tabs)
 tour_date = st.session_state["selected_tour_key"]
 t_match   = all_tours[all_tours["start_date"] == pd.Timestamp(tour_date)]
 if t_match.empty:
@@ -670,6 +539,70 @@ t_row_sel = t_match.iloc[0]
 selected  = t_row_sel["tournament_name"]
 tier      = int(t_row_sel["tier"])
 host_flag = TOURNAMENT_HOSTS.get(str(t_row_sel["host_country"]), "🌐")
+
+# ------------------------------------------------------------------
+# Sidebar — calendar + tournament picker
+# ------------------------------------------------------------------
+
+with st.sidebar:
+    cal_events = build_calendar_events(
+        all_tours, st.session_state["selected_tour_key"], TODAY
+    )
+
+    cal_options = {
+        "initialView":   "dayGridMonth",
+        "initialDate":   st.session_state["cal_initial_date"],
+        "headerToolbar": {
+            "left":   "prev,next today",
+            "center": "title",
+            "right":  "",
+        },
+        "height":       580,
+        "navLinks":     False,
+        "editable":     False,
+        "selectable":   False,
+        "dayMaxEvents": 2,
+    }
+
+    cal_state = st_calendar(
+        events=cal_events,
+        options=cal_options,
+        callbacks=["eventClick"],
+        custom_css="""
+            .fc-event { cursor: pointer; font-size: 10px; }
+            .fc-toolbar-title { font-size: 1rem !important; }
+            .fc-button { font-size: 0.72rem !important; padding: 2px 6px !important; }
+            .fc-daygrid-event-dot { display: none; }
+        """,
+        key=f"bwf_cal_{st.session_state['cal_initial_date']}",
+    )
+
+    # Handle event click — update selected tournament and remount calendar at that month
+    if cal_state and cal_state.get("eventClick"):
+        clicked_id = cal_state["eventClick"]["event"]["id"]
+        if clicked_id != st.session_state["selected_tour_key"]:
+            clicked_dt = pd.Timestamp(clicked_id)
+            st.session_state["cal_initial_date"]  = clicked_dt.strftime("%Y-%m-01")
+            st.session_state["selected_tour_key"] = clicked_id
+            st.rerun()
+
+    # Currently selected tournament label
+    st.markdown(
+        f"<div style='margin:8px 0 2px;font-size:0.82rem;color:#888'>Selected</div>"
+        f"<div style='font-weight:700'>{host_flag} {selected}</div>"
+        f"<div style='font-size:0.8rem;color:#666'>{format_tier(tier)}  ·  {tour_date}</div>",
+        unsafe_allow_html=True,
+    )
+    st.divider()
+    st.markdown(
+        "<div style='font-size:0.75rem;color:#888'>"
+        "🔵 Upcoming &nbsp; ⚫ Past &nbsp; 🔷 Selected — click any block to select"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+    n_sims  = st.slider("Monte Carlo Simulations", 1_000, 50_000, 10_000, 1_000)
+    run_btn = st.button("▶ Run Simulation", use_container_width=True, type="primary")
 
 # ------------------------------------------------------------------
 # Load data & build tournament state
