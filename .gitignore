@@ -10,11 +10,11 @@ catboost_info/
 
 # Regenerable data — run `make features` to rebuild
 data/interim/
-data/processed/
+# data/processed is tracked for deployment (final_training_data.csv needed by app)
 
-# Trained model artifacts — run `make train` to rebuild
+# Trained model artifacts — kept for deployment
+# Regenerate with: make train && make train_tabnet
 # best_params.json is kept (represents hours of Optuna search)
-models/*.pkl
 models/*.pt
 
 # macOS
