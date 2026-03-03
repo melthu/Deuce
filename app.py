@@ -556,7 +556,7 @@ def get_all_tournaments() -> pd.DataFrame:
 # App bootstrap
 # ------------------------------------------------------------------
 
-st.set_page_config(page_title="ShuttleCast - BWF Men's Singles Tournament Prediction Model", page_icon="🏸", layout="wide")
+st.set_page_config(page_title="ShuttleCast", page_icon="🏸", layout="wide")
 
 # Hide the Streamlit "running" spinner in the top-right corner
 st.markdown(
@@ -580,7 +580,7 @@ if "selected_tour_key" not in st.session_state:
 if "cal_initial_date"  not in st.session_state:
     st.session_state["cal_initial_date"]  = _default_row["start_date"].strftime("%Y-%m-01")
 
-st.title("🏸 ShuttleCast — BWF Men's Singles Tournament Prediction Model")
+st.title("🏸 ShuttleCast")
 
 # Derive active tournament from session state (needed in sidebar and main tabs)
 tour_date = st.session_state["selected_tour_key"]
