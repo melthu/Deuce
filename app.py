@@ -16,24 +16,39 @@ import shap
 import streamlit as st
 from streamlit_calendar import calendar as st_calendar
 
-from src.dataset import get_train_val_datasets, CONT_COLS
-from src.simulate_german_open import (
-    ROUND_ORDER,
-    build_time_zero_state,
-    build_h2h_lookups,
-    predict_match,
-    simulate_bracket,
+from src.dataset import (
+    CONT_COLS,
+    encode_split,
+    fit_preprocessors,
+    get_train_val_datasets,
+    load_training_frame,
 )
+from src.simulate import (
+    ROUND_ORDER,
+    STAT_KEYS,
+    _cont_matrix,
+    _same_nationality,
+    build_fixed_results,
+    build_time_zero_state,
+    get_n_features,
+    predict_match,
+    round_sequence,
+    run_monte_carlo,
+)
+from src.train_xgb import load_tuned_params
 
 # ------------------------------------------------------------------
 # Constants
 # ------------------------------------------------------------------
 
 DATA_PATH   = "data/processed/final_training_data.csv"
+RAW_PATH    = "data/raw/raw_matches.csv"
 CONFIG_PATH = "data/config/tournaments_config.csv"
 MODEL_PATH  = "models/best_model.pkl"
 
 FEATURE_NAMES = ["tier_id", "round_id", "player_a_id", "player_b_id"] + CONT_COLS
+
+MIN_PIT_ROWS = 1000   # minimum completed rows needed to train a point-in-time model
 
 TIER_LABELS: dict[int, str] = {
     1500: "Finals",
@@ -44,190 +59,197 @@ TIER_LABELS: dict[int, str] = {
     100:  "Super 100",
 }
 
-PLAYER_FLAGS: dict[str, str] = {
-    # Denmark
-    "Viktor Axelsen":                    "🇩🇰",
-    "Anders Antonsen":                   "🇩🇰",
-    "Rasmus Gemke":                      "🇩🇰",
-    "Jan Ø. Jørgensen":                  "🇩🇰",
-    "Jan O. Jørgensen":                  "🇩🇰",
-    "Peter Gade":                        "🇩🇰",
-    # Norway
-    "Hans-Kristian Solberg Vittersheim": "🇳🇴",
-    # Indonesia
-    "Jonatan Christie":                  "🇮🇩",
-    "Anthony Sinisuka Ginting":          "🇮🇩",
-    "Tommy Sugiarto":                    "🇮🇩",
-    "Ihsan Maulana Mustofa":             "🇮🇩",
-    "Taufik Hidayat":                    "🇮🇩",
-    "Sony Dwi Kuncoro":                  "🇮🇩",
-    # China
-    "Lin Dan":                           "🇨🇳",
-    "Chen Long":                         "🇨🇳",
-    "Shi Yuqi":                          "🇨🇳",
-    "Li Shifeng":                        "🇨🇳",
-    "Lu Guang Zu":                       "🇨🇳",
-    "Weng Hong Yang":                    "🇨🇳",
-    "Chen Xiaoxin":                      "🇨🇳",
-    # Japan
-    "Kento Momota":                      "🇯🇵",
-    "Kodai Naraoka":                     "🇯🇵",
-    "Kanta Tsuneyama":                   "🇯🇵",
-    # Malaysia
-    "Lee Chong Wei":                     "🇲🇾",
-    "Lee Zii Jia":                       "🇲🇾",
-    "Daren Liew":                        "🇲🇾",
-    # Thailand
-    "Kunlavut Vitidsarn":                "🇹🇭",
-    "Tanongsak Saensomboonsuk":          "🇹🇭",
-    "Kantaphon Wangcharoen":             "🇹🇭",
-    # Taiwan
-    "Chou Tien-chen":                    "🇹🇼",
-    "Wang Tzu-wei":                      "🇹🇼",
-    # India
-    "Prannoy H. S.":                     "🇮🇳",
-    "Lakshya Sen":                       "🇮🇳",
-    "Srikanth Kidambi":                  "🇮🇳",
-    "Kidambi Srikanth":                  "🇮🇳",
-    "Parupalli Kashyap":                 "🇮🇳",
-    "Sai Praneeth B.":                   "🇮🇳",
-    # South Korea
-    "Son Wan Ho":                        "🇰🇷",
-    "Lee Hyun Il":                       "🇰🇷",
-    "Jeon Hyuk Jin":                     "🇰🇷",
-    # France
-    "Toma Junior Popov":                 "🇫🇷",
-    "Christo Popov":                     "🇫🇷",
-    "Brice Leverdez":                    "🇫🇷",
-    # Singapore
-    "Loh Kean Yew":                      "🇸🇬",
-    # Hong Kong
-    "Ng Ka Long Angus":                  "🇭🇰",
-    # Netherlands
-    "Mark Caljouw":                      "🇳🇱",
-    # Canada
-    "Brian Yang":                        "🇨🇦",
-    # Ireland
-    "Nhat Nguyen":                       "🇮🇪",
-    # Germany
-    "Marc Zwiebler":                     "🇩🇪",
-    "Fabian Roth":                       "🇩🇪",
+ROUND_LABELS = {
+    "first round":    "Round 1",
+    "second round":   "Round 2",
+    "third round":    "Round 3",
+    "quarter-finals": "Quarter-finals",
+    "semi-finals":    "Semi-finals",
+    "final":          "Final",
+    "group stage":    "Group Stage",
 }
 
-TOURNAMENT_HOSTS: dict[str, str] = {
-    "China":                  "🇨🇳",
-    "Japan":                  "🇯🇵",
-    "South Korea":            "🇰🇷",
-    "Korea":                  "🇰🇷",
-    "Indonesia":              "🇮🇩",
-    "Malaysia":               "🇲🇾",
-    "Thailand":               "🇹🇭",
-    "India":                  "🇮🇳",
-    "Denmark":                "🇩🇰",
-    "France":                 "🇫🇷",
-    "Germany":                "🇩🇪",
-    "England":                "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-    "United Kingdom":         "🇬🇧",
-    "Australia":              "🇦🇺",
-    "New Zealand":            "🇳🇿",
-    "Canada":                 "🇨🇦",
-    "United States":          "🇺🇸",
-    "Singapore":              "🇸🇬",
-    "Hong Kong":              "🇭🇰",
-    "Taiwan":                 "🇹🇼",
-    "Switzerland":            "🇨🇭",
-    "Spain":                  "🇪🇸",
-    "Netherlands":            "🇳🇱",
-    "Finland":                "🇫🇮",
-    "Philippines":            "🇵🇭",
-    "Vietnam":                "🇻🇳",
-    "Bangladesh":             "🇧🇩",
-    "Sri Lanka":              "🇱🇰",
-    "United Arab Emirates":   "🇦🇪",
-    "Austria":                "🇦🇹",
-    "Poland":                 "🇵🇱",
-    "Sweden":                 "🇸🇪",
-    "Ireland":                "🇮🇪",
-    "Bahrain":                "🇧🇭",
-    "Macau":                  "🇲🇴",
-    "Norway":                 "🇳🇴",
+# Country → flag emoji, used for both player nationalities and host countries
+COUNTRY_FLAGS: dict = {
+    "Algeria": "🇩🇿", "Australia": "🇦🇺", "Austria": "🇦🇹", "Azerbaijan": "🇦🇿",
+    "Bahrain": "🇧🇭", "Bangladesh": "🇧🇩", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
+    "Bulgaria": "🇧🇬", "Canada": "🇨🇦", "Chile": "🇨🇱", "China": "🇨🇳",
+    "Chinese Taipei": "🇹🇼", "Croatia": "🇭🇷", "Cuba": "🇨🇺", "Czech Republic": "🇨🇿",
+    "Denmark": "🇩🇰", "Egypt": "🇪🇬", "El Salvador": "🇸🇻",
+    "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "Estonia": "🇪🇪", "Finland": "🇫🇮", "France": "🇫🇷",
+    "Germany": "🇩🇪", "Guatemala": "🇬🇹", "Hong Kong": "🇭🇰", "Hungary": "🇭🇺",
+    "India": "🇮🇳", "Indonesia": "🇮🇩", "Ireland": "🇮🇪", "Israel": "🇮🇱",
+    "Italy": "🇮🇹", "Japan": "🇯🇵", "Kazakhstan": "🇰🇿", "Korea": "🇰🇷",
+    "Lithuania": "🇱🇹", "Luxembourg": "🇱🇺", "Macau": "🇲🇴", "Malaysia": "🇲🇾",
+    "Mauritius": "🇲🇺", "Mexico": "🇲🇽", "Mongolia": "🇲🇳", "Myanmar": "🇲🇲",
+    "Nepal": "🇳🇵", "Netherlands": "🇳🇱", "New Zealand": "🇳🇿", "Norway": "🇳🇴",
+    "Philippines": "🇵🇭", "Poland": "🇵🇱", "Portugal": "🇵🇹",
+    "Republic of Ireland": "🇮🇪", "Russia": "🇷🇺", "Saudi Arabia": "🇸🇦",
+    "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿", "Singapore": "🇸🇬", "Slovakia": "🇸🇰",
+    "Slovenia": "🇸🇮", "South Korea": "🇰🇷", "Spain": "🇪🇸", "Sri Lanka": "🇱🇰",
+    "Sweden": "🇸🇪", "Switzerland": "🇨🇭", "Syria": "🇸🇾", "Taiwan": "🇹🇼",
+    "Thailand": "🇹🇭", "Trinidad and Tobago": "🇹🇹", "Turkey": "🇹🇷",
+    "Ukraine": "🇺🇦", "United Arab Emirates": "🇦🇪", "United Kingdom": "🇬🇧",
+    "United States": "🇺🇸", "Vietnam": "🇻🇳", "Zambia": "🇿🇲",
 }
 
 TODAY = date.today()
 
-# Nationality → flag for every country that appears in raw_matches.csv
-NATIONALITY_FLAGS: dict = {
-    "Algeria":              "🇩🇿",
-    "Australia":            "🇦🇺",
-    "Austria":              "🇦🇹",
-    "Azerbaijan":           "🇦🇿",
-    "Bahrain":              "🇧🇭",
-    "Belgium":              "🇧🇪",
-    "Brazil":               "🇧🇷",
-    "Bulgaria":             "🇧🇬",
-    "Canada":               "🇨🇦",
-    "Chile":                "🇨🇱",
-    "China":                "🇨🇳",
-    "Chinese Taipei":       "🇹🇼",
-    "Croatia":              "🇭🇷",
-    "Cuba":                 "🇨🇺",
-    "Czech Republic":       "🇨🇿",
-    "Denmark":              "🇩🇰",
-    "Egypt":                "🇪🇬",
-    "El Salvador":          "🇸🇻",
-    "England":              "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-    "Estonia":              "🇪🇪",
-    "Finland":              "🇫🇮",
-    "France":               "🇫🇷",
-    "Germany":              "🇩🇪",
-    "Guatemala":            "🇬🇹",
-    "Hong Kong":            "🇭🇰",
-    "Hungary":              "🇭🇺",
-    "India":                "🇮🇳",
-    "Indonesia":            "🇮🇩",
-    "Israel":               "🇮🇱",
-    "Italy":                "🇮🇹",
-    "Japan":                "🇯🇵",
-    "Kazakhstan":           "🇰🇿",
-    "Lithuania":            "🇱🇹",
-    "Luxembourg":           "🇱🇺",
-    "Macau":                "🇲🇴",
-    "Malaysia":             "🇲🇾",
-    "Mauritius":            "🇲🇺",
-    "Mexico":               "🇲🇽",
-    "Mongolia":             "🇲🇳",
-    "Myanmar":              "🇲🇲",
-    "Nepal":                "🇳🇵",
-    "Netherlands":          "🇳🇱",
-    "New Zealand":          "🇳🇿",
-    "Poland":               "🇵🇱",
-    "Portugal":             "🇵🇹",
-    "Republic of Ireland":  "🇮🇪",
-    "Russia":               "🇷🇺",
-    "Saudi Arabia":         "🇸🇦",
-    "Scotland":             "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
-    "Singapore":            "🇸🇬",
-    "Slovakia":             "🇸🇰",
-    "Slovenia":             "🇸🇮",
-    "South Korea":          "🇰🇷",
-    "Spain":                "🇪🇸",
-    "Sri Lanka":            "🇱🇰",
-    "Sweden":               "🇸🇪",
-    "Switzerland":          "🇨🇭",
-    "Syria":                "🇸🇾",
-    "Thailand":             "🇹🇭",
-    "Trinidad and Tobago":  "🇹🇹",
-    "Turkey":               "🇹🇷",
-    "Ukraine":              "🇺🇦",
-    "United Arab Emirates": "🇦🇪",
-    "United Kingdom":       "🇬🇧",
-    "United States":        "🇺🇸",
-    "Vietnam":              "🇻🇳",
-    "Zambia":               "🇿🇲",
-}
 
-# Populated at bootstrap from raw_matches.csv — player name → flag emoji
-_player_nat_flags: dict = {}
+# ------------------------------------------------------------------
+# Cached resource loaders
+# ------------------------------------------------------------------
+
+@st.cache_resource(show_spinner=False)
+def load_df() -> pd.DataFrame:
+    """Full mirrored dataset, pending rows included (needed for live draws)."""
+    return load_training_frame(DATA_PATH, drop_pending=False)
+
+
+@st.cache_resource(show_spinner=False)
+def load_pretrained():
+    """Preloaded model (refreshed by the scheduled GitHub Actions retrain)
+    plus the global preprocessors it was trained with."""
+    with open(MODEL_PATH, "rb") as f:
+        payload = pickle.load(f)
+    _, _, _, preprocessors = get_train_val_datasets(DATA_PATH)
+    return payload, preprocessors
+
+
+@st.cache_resource(max_entries=4, show_spinner=False)
+def get_point_in_time_model(tour_date: str):
+    """
+    Train an XGBoost on every completed match strictly before tour_date,
+    with vocab + scaler fit on that same slice — a true point-in-time model.
+    Returns (payload, preprocessors), or None when there is too little history.
+    """
+    import xgboost as xgb
+
+    df = load_df()
+    train_df = df[(df["start_date"] < pd.Timestamp(tour_date)) & (df["is_pending"] == 0)]
+    if len(train_df) < MIN_PIT_ROWS:
+        return None
+
+    preprocessors, _ = fit_preprocessors(train_df)
+    cat, cont, y = encode_split(train_df, preprocessors)
+    X = np.hstack([cat.astype(np.float64), cont])
+
+    params, _ = load_tuned_params()
+    model = xgb.XGBClassifier(**params, random_state=42, eval_metric="auc",
+                              tree_method="hist", verbosity=0)
+    model.fit(X, y, verbose=False)
+
+    payload = {
+        "type":            "single",
+        "model":           model,
+        "name":            "xgb (point-in-time)",
+        "trained_through": str(train_df["start_date"].max().date()),
+        "n_train_rows":    int(len(train_df)),
+    }
+    return payload, preprocessors
+
+
+@st.cache_data(show_spinner=False)
+def load_player_nats() -> dict:
+    """player_name → nationality, from the raw scrape (used for the
+    same_nationality feature and for flag emojis)."""
+    try:
+        raw = pd.read_csv(RAW_PATH)
+    except Exception:
+        return {}
+    result = {}
+    for side in ("a", "b"):
+        sub = raw[[f"player_{side}", f"player_{side}_nat"]].dropna()
+        for name, nat in sub.itertuples(index=False):
+            result.setdefault(name, nat)
+    return result
+
+
+@st.cache_resource(max_entries=4, show_spinner=False)
+def get_shap_explainer(model_key: str, _payload=None):
+    """TreeExplainer for the active model. model_key makes the cache entry
+    unique per model; _payload is excluded from hashing by convention."""
+    m = _payload["model"] if _payload["type"] == "single" else None
+    if m is None and _payload.get("models"):
+        for name in ("xgb", "lgbm", "catboost"):
+            if name in _payload["models"]:
+                m = _payload["models"][name]
+                break
+    try:
+        return shap.TreeExplainer(m) if m is not None else None
+    except Exception:
+        return None
+
+
+@st.cache_data(show_spinner=False)
+def get_all_tournaments() -> pd.DataFrame:
+    cfg = pd.read_csv(CONFIG_PATH)
+    cfg["start_date"] = pd.to_datetime(cfg["start_date"], errors="coerce")
+    cfg = cfg.dropna(subset=["start_date"]).sort_values("start_date", ascending=False)
+    return cfg[["tournament_name", "tier", "start_date", "host_country"]].reset_index(drop=True)
+
+
+@st.cache_data(show_spinner=False)
+def _get_h2h_hist(tour_date: str) -> pd.DataFrame:
+    """Completed-match history strictly before the tournament (for H2H)."""
+    df = load_df()
+    hist = df[(df["start_date"] < pd.Timestamp(tour_date)) & (df["is_pending"] == 0)].copy()
+    return hist.sort_values("start_date").reset_index(drop=True)
+
+
+def _make_h2h_fns(hist: pd.DataFrame):
+    """Memoised H2H closures over a pre-filtered historical slice."""
+    rate_cache: dict = {}
+    last_cache: dict = {}
+
+    def h2h_rate(pa, pb):
+        key = (pa, pb)
+        if key not in rate_cache:
+            rows_a = hist[(hist["player_a"] == pa) & (hist["player_b"] == pb)]
+            rows_b = hist[(hist["player_a"] == pb) & (hist["player_b"] == pa)]
+            wins  = rows_a["player_a_won"].sum() + (1 - rows_b["player_a_won"]).sum()
+            total = len(rows_a) + len(rows_b)
+            rate_cache[key] = float(wins / total) if total > 0 else 0.5
+        return rate_cache[key]
+
+    def h2h_last(pa, pb):
+        key = (pa, pb)
+        if key not in last_cache:
+            meetings = hist[
+                ((hist["player_a"] == pa) & (hist["player_b"] == pb)) |
+                ((hist["player_a"] == pb) & (hist["player_b"] == pa))
+            ].sort_values("start_date")
+            if meetings.empty:
+                last_cache[key] = 0.5
+            else:
+                lr = meetings.iloc[-1]
+                last_cache[key] = (
+                    float(lr["player_a_won"]) if lr["player_a"] == pa
+                    else float(1 - lr["player_a_won"])
+                )
+        return last_cache[key]
+
+    return h2h_rate, h2h_last
+
+
+@st.cache_data(show_spinner=False)
+def _get_cached_tournament_state(tour_date: str, tier: int):
+    """First-round matchups + Day-1 player stats per (tour_date, tier)."""
+    return build_time_zero_state(load_df(), tour_date, tier)
+
+
+@st.cache_data(show_spinner=False)
+def get_tournament_rows(tour_date: str) -> pd.DataFrame:
+    """All of a tournament's rows (completed + pending), mirrored dups removed."""
+    df = load_df()
+    day = df[df["start_date"] == pd.Timestamp(tour_date)]
+    seen, keep = set(), []
+    for _, row in day.iterrows():
+        key = (row["round"], frozenset((row["player_a"], row["player_b"])))
+        if key not in seen:
+            seen.add(key)
+            keep.append(row)
+    return pd.DataFrame(keep).reset_index(drop=True) if keep else pd.DataFrame()
 
 
 # ------------------------------------------------------------------
@@ -235,8 +257,9 @@ _player_nat_flags: dict = {}
 # ------------------------------------------------------------------
 
 def format_name(name: str) -> str:
-    # PLAYER_FLAGS has hand-curated overrides; fall back to nationality from data
-    flag = PLAYER_FLAGS.get(name) or _player_nat_flags.get(name, "🏸")
+    # NAT_MAP is bound once at bootstrap (st.cache_data returns a fresh copy
+    # per call, so calling load_player_nats() here would copy the dict every time)
+    flag = COUNTRY_FLAGS.get(NAT_MAP.get(name, ""), "🏸")
     return f"{flag} {name}"
 
 
@@ -244,38 +267,27 @@ def format_tier(tier: int) -> str:
     return TIER_LABELS.get(tier, f"Tier {tier}")
 
 
-def get_actual_winner(df: pd.DataFrame, tour_date: str):
-    rows = df[
-        (df["start_date"] == pd.Timestamp(tour_date)) &
-        (df["round"] == "final")
-    ]
-    if rows.empty:
+def get_actual_winner(day_rows: pd.DataFrame):
+    finals = day_rows[(day_rows["round"] == "final") & (day_rows["is_pending"] == 0)]
+    if finals.empty:
         return None
-    r = rows.iloc[0]
+    r = finals.iloc[0]
     return r["player_a"] if r["player_a_won"] == 1 else r["player_b"]
 
 
-def build_calendar_events(
-    all_tours: pd.DataFrame,
-    selected_key: str,
-    today: date,
-) -> list:
-    """
-    Build FullCalendar event dicts for all BWF tournaments.
-    Each tournament spans 6 days (end is exclusive in FullCalendar).
-    Colors: selected = navy, past = muted gray, upcoming = vibrant blue.
-    """
+def build_calendar_events(all_tours, selected_key, today) -> list:
+    """FullCalendar event dicts: selected = green, past = gray, upcoming = blue."""
     events = []
     for _, r in all_tours.iterrows():
         tour_dt  = r["start_date"]
         tour_key = tour_dt.strftime("%Y-%m-%d")
         end_key  = (tour_dt + pd.Timedelta(days=6)).strftime("%Y-%m-%d")
-        flag     = TOURNAMENT_HOSTS.get(str(r["host_country"]), "🌐")
+        flag     = COUNTRY_FLAGS.get(str(r["host_country"]), "🌐")
         is_past  = tour_dt.date() < today
         is_sel   = tour_key == selected_key
 
         if is_sel:
-            bg, border = "#2e7d32", "#1b5e20"   # bright green — unmistakable
+            bg, border = "#2e7d32", "#1b5e20"
         elif is_past:
             bg, border = "#9e9e9e", "#757575"
         else:
@@ -293,56 +305,24 @@ def build_calendar_events(
     return events
 
 
-def build_shap_input(pa, pb, round_name, player_stats, h2h_rate_fn, h2h_last_fn,
-                     scaler, player_to_id, tier_to_id, round_to_id, tier):
-    """Build (1, 34) feature array: 4 cat IDs + 30 scaled cont features."""
-    sa, sb   = player_stats[pa], player_stats[pb]
-    tier_id  = tier_to_id.get(tier, 0)
-    round_id = round_to_id.get(round_name, 0)
-    pa_id    = player_to_id.get(pa, 0)
-    pb_id    = player_to_id.get(pb, 0)
-
-    cont_raw = np.array([[
-        0.0, h2h_rate_fn(pa, pb),
-        float(sa["is_home"]),    float(sa["matches_14d"]),  float(sa["days_since"]),   float(sa["recent_win_rate"]),
-        float(sb["is_home"]),    float(sb["matches_14d"]),  float(sb["days_since"]),   float(sb["recent_win_rate"]),
-        float(sa["elo"]),        float(sb["elo"]),           float(sa["elo"] - sb["elo"]),
-        float(sa["ema_form"]),   float(sb["ema_form"]),     h2h_last_fn(pa, pb),
-        float(sa["win_streak"]), float(sb["win_streak"]),
-        float(sa["matches_7d"]), float(sb["matches_7d"]),
-        float(sa["avg_point_diff"]),   float(sb["avg_point_diff"]),
-        float(sa["avg_games_pm"]),     float(sb["avg_games_pm"]),
-        float(sa["rubber_game_rate"]), float(sb["rubber_game_rate"]),
-        float(sa["avg_margin"]),       float(sb["avg_margin"]),
-        float(sa["seed"]),             float(sb["seed"]),
-    ]], dtype=np.float32)
-
+def build_model_input(pa, pb, round_name, player_stats, h2h_rate_fn, h2h_last_fn,
+                      scaler, player_to_id, tier_to_id, round_to_id, tier, nat_map):
+    """(1, 34) feature array with pa in the player_a slot — for SHAP."""
+    sa, sb = player_stats[pa], player_stats[pb]
+    SA = np.array([[sa[k] for k in STAT_KEYS]], dtype=np.float64)
+    SB = np.array([[sb[k] for k in STAT_KEYS]], dtype=np.float64)
+    cont_raw = _cont_matrix(
+        SA, SB,
+        np.array([sa["elo"]]), np.array([sb["elo"]]),
+        np.array([sa["ema_form"]]), np.array([sb["ema_form"]]),
+        np.array([_same_nationality(pa, pb, nat_map)]),
+        np.array([h2h_rate_fn(pa, pb)]),
+        np.array([h2h_last_fn(pa, pb)]),
+    )
     cont_scaled = scaler.transform(cont_raw)
-    cat = np.array([[tier_id, round_id, pa_id, pb_id]], dtype=np.float64)
+    cat = np.array([[tier_to_id.get(tier, 0), round_to_id.get(round_name, 0),
+                     player_to_id.get(pa, 0), player_to_id.get(pb, 0)]], dtype=np.float64)
     return np.hstack([cat, cont_scaled])
-
-
-def compute_likely_bracket(
-    r32_matchups, player_stats,
-    h2h_rate_fn, h2h_last_fn,
-    scaler, player_to_id, tier_to_id, round_to_id,
-    model_payload, tier,
-) -> dict[str, list[str]]:
-    """Greedily advance the higher-probability winner through each round."""
-    current = [(row["player_a"], row["player_b"]) for _, row in r32_matchups.iterrows()]
-    round_winners: dict[str, list[str]] = {}
-    for rnd in ROUND_ORDER:
-        if not current:
-            break
-        winners = [
-            pa if predict_match(pa, pb, rnd, player_stats, h2h_rate_fn, h2h_last_fn,
-                                scaler, player_to_id, tier_to_id, round_to_id,
-                                model_payload, tier) >= 0.5 else pb
-            for pa, pb in current
-        ]
-        round_winners[rnd] = winners
-        current = list(zip(winners[::2], winners[1::2]))
-    return round_winners
 
 
 def render_bracket_figure(round_winners: dict[str, list[str]]) -> go.Figure:
@@ -350,6 +330,7 @@ def render_bracket_figure(round_winners: dict[str, list[str]]) -> go.Figure:
     LABELS = {
         "first round":    "R1",
         "second round":   "R2",
+        "third round":    "R3",
         "quarter-finals": "QF",
         "semi-finals":    "SF",
         "final":          "🏆 Final",
@@ -387,8 +368,7 @@ def render_bracket_figure(round_winners: dict[str, list[str]]) -> go.Figure:
     return fig
 
 
-
-def build_radar_chart(pa: str, pb: str, player_stats: dict, h2h_rate_fn) -> go.Figure:
+def build_radar_chart(pa: str, pb: str, player_stats: dict) -> go.Figure:
     extractors = {
         "Elo":       lambda s: s["elo"],
         "Form":      lambda s: s["ema_form"],
@@ -423,13 +403,65 @@ def build_radar_chart(pa: str, pb: str, player_stats: dict, h2h_rate_fn) -> go.F
     return fig
 
 
-def build_form_chart(player: str, tour_date_str: str, df: pd.DataFrame,
-                     scaler, player_to_id, tier_to_id, round_to_id,
-                     model_payload, tier: int):
+def render_match_explainer(pa, pb, round_name, ctx):
+    """Win-prob metric + SHAP waterfall for one matchup under the active model."""
+    p_win = predict_match(
+        pa, pb, round_name, ctx["player_stats"],
+        ctx["h2h_rate_fn"], ctx["h2h_last_fn"],
+        ctx["scaler"], ctx["player_to_id"], ctx["tier_to_id"], ctx["round_to_id"],
+        ctx["payload"], ctx["tier"], ctx["nat_map"],
+    )
+    st.metric(
+        label=f"P({format_name(pa)} beats {format_name(pb)})",
+        value=f"{p_win * 100:.1f}%",
+        delta=f"{(p_win - 0.5) * 100:+.1f}pp vs 50/50",
+    )
+
+    explainer = get_shap_explainer(ctx["model_key"], _payload=ctx["payload"])
+    if explainer is None:
+        st.info("SHAP unavailable — no tree model loaded.")
+        return
+
+    X = build_model_input(
+        pa, pb, round_name, ctx["player_stats"],
+        ctx["h2h_rate_fn"], ctx["h2h_last_fn"],
+        ctx["scaler"], ctx["player_to_id"], ctx["tier_to_id"], ctx["round_to_id"],
+        ctx["tier"], ctx["nat_map"],
+    )
+    with st.spinner("Computing SHAP values…"):
+        n = get_n_features(ctx["payload"]) or X.shape[1]
+        X_shap     = X[:, :n]
+        feat_names = FEATURE_NAMES[:n]
+        shap_vals  = explainer(X_shap)
+        shap_vals.feature_names = feat_names
+
+    st.caption(
+        f"How each feature shifts the log-odds for **{format_name(pa)}** "
+        f"in the Player A slot."
+    )
+    shap.plots.waterfall(shap_vals[0], max_display=15, show=False)
+    fig = plt.gcf()
+    fig.set_size_inches(10, 6)
+    fig.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
+
+    with st.expander("Raw feature values"):
+        feat_df = pd.DataFrame({
+            "Feature":      feat_names,
+            "Scaled value": X_shap[0].round(4).tolist(),
+            "SHAP value":   shap_vals.values[0].round(4).tolist(),
+        }).sort_values("SHAP value", key=abs, ascending=False)
+        st.dataframe(feat_df, use_container_width=True, hide_index=True)
+
+
+def build_form_chart(player: str, tour_date_str: str, ctx):
+    """Re-predict the player's last 5 completed matches point-in-time."""
+    df = load_df()
     cutoff = pd.Timestamp(tour_date_str)
-    mask   = (
+    mask = (
         ((df["player_a"] == player) | (df["player_b"] == player)) &
-        (df["start_date"] < cutoff)
+        (df["start_date"] < cutoff) & (df["is_pending"] == 0)
     )
     hist = df[mask].sort_values("start_date").tail(5).reset_index(drop=True)
     if hist.empty:
@@ -437,56 +469,37 @@ def build_form_chart(player: str, tour_date_str: str, df: pd.DataFrame,
 
     records = []
     for _, mrow in hist.iterrows():
-        m_date   = mrow["start_date"]
-        is_a     = mrow["player_a"] == player
-        opp      = mrow["player_b"] if is_a else mrow["player_a"]
-        won      = bool(mrow["player_a_won"] == 1) if is_a else bool(mrow["player_a_won"] == 0)
-        side, os = ("a", "b") if is_a else ("b", "a")
+        m_date = mrow["start_date"]
+        is_a   = mrow["player_a"] == player
+        opp    = mrow["player_b"] if is_a else mrow["player_a"]
+        won    = bool(mrow["player_a_won"] == 1) if is_a else bool(mrow["player_a_won"] == 0)
+        side, os_ = ("a", "b") if is_a else ("b", "a")
 
-        def _f(col, default):
-            return mrow.get(col, default)
+        def _stats(s):
+            return {
+                "is_home":          int(mrow.get(f"player_{s}_is_home", 0)),
+                "matches_14d":      int(mrow.get(f"player_{s}_matches_last_14_days", 0)),
+                "days_since":       float(mrow.get(f"player_{s}_days_since_last_match", 100)),
+                "recent_win_rate":  float(mrow.get(f"player_{s}_recent_win_rate", 0.5)),
+                "elo":              float(mrow.get(f"player_{s}_elo", 1500)),
+                "ema_form":         float(mrow.get(f"player_{s}_ema_form", 0.5)),
+                "win_streak":       int(mrow.get(f"player_{s}_win_streak", 0)),
+                "matches_7d":       int(mrow.get(f"player_{s}_matches_last_7_days", 0)),
+                "avg_point_diff":   float(mrow.get(f"player_{s}_avg_point_diff", 0.0)),
+                "avg_games_pm":     float(mrow.get(f"player_{s}_avg_games_per_match", 2.0)),
+                "rubber_game_rate": float(mrow.get(f"player_{s}_rubber_game_rate", 0.0)),
+                "avg_margin":       float(mrow.get(f"player_{s}_avg_victory_margin", 0.0)),
+                "seed":             float(mrow.get(f"player_{s}_seed", 0.0)),
+            }
 
-        mini = {
-            player: {
-                "is_home":          int(_f(f"player_{side}_is_home", 0)),
-                "matches_14d":      int(_f(f"player_{side}_matches_last_14_days", 0)),
-                "days_since":       float(_f(f"player_{side}_days_since_last_match", 100)),
-                "recent_win_rate":  float(_f(f"player_{side}_recent_win_rate", 0.5)),
-                "elo":              float(_f(f"player_{side}_elo", 1500)),
-                "ema_form":         float(_f(f"player_{side}_ema_form", 0.5)),
-                "win_streak":       int(_f(f"player_{side}_win_streak", 0)),
-                "matches_7d":       int(_f(f"player_{side}_matches_last_7_days", 0)),
-                "avg_point_diff":   float(_f(f"player_{side}_avg_point_diff", 0.0)),
-                "avg_games_pm":     float(_f(f"player_{side}_avg_games_per_match", 2.0)),
-                "rubber_game_rate": float(_f(f"player_{side}_rubber_game_rate", 0.0)),
-                "avg_margin":       float(_f(f"player_{side}_avg_victory_margin", 0.0)),
-                "seed":             float(_f(f"player_{side}_seed", 0.0)),
-            },
-            opp: {
-                "is_home":          int(_f(f"player_{os}_is_home", 0)),
-                "matches_14d":      int(_f(f"player_{os}_matches_last_14_days", 0)),
-                "days_since":       float(_f(f"player_{os}_days_since_last_match", 100)),
-                "recent_win_rate":  float(_f(f"player_{os}_recent_win_rate", 0.5)),
-                "elo":              float(_f(f"player_{os}_elo", 1500)),
-                "ema_form":         float(_f(f"player_{os}_ema_form", 0.5)),
-                "win_streak":       int(_f(f"player_{os}_win_streak", 0)),
-                "matches_7d":       int(_f(f"player_{os}_matches_last_7_days", 0)),
-                "avg_point_diff":   float(_f(f"player_{os}_avg_point_diff", 0.0)),
-                "avg_games_pm":     float(_f(f"player_{os}_avg_games_per_match", 2.0)),
-                "rubber_game_rate": float(_f(f"player_{os}_rubber_game_rate", 0.0)),
-                "avg_margin":       float(_f(f"player_{os}_avg_victory_margin", 0.0)),
-                "seed":             float(_f(f"player_{os}_seed", 0.0)),
-            },
-        }
-        m_tier  = int(_f("tier", tier))
-        m_round = str(_f("round", "first round")).lower()
-        hb = df[df["start_date"] < m_date]
-        h2h_r, h2h_l = build_h2h_lookups(
-            hb.assign(start_date=hb["start_date"]),
-            m_date.strftime("%Y-%m-%d"),
+        mini = {player: _stats(side), opp: _stats(os_)}
+        h2h_r, h2h_l = _make_h2h_fns(_get_h2h_hist(m_date.strftime("%Y-%m-%d")))
+        p = predict_match(
+            player, opp, str(mrow.get("round", "first round")).lower(), mini,
+            h2h_r, h2h_l,
+            ctx["scaler"], ctx["player_to_id"], ctx["tier_to_id"], ctx["round_to_id"],
+            ctx["payload"], int(mrow.get("tier", ctx["tier"])), ctx["nat_map"],
         )
-        p = predict_match(player, opp, m_round, mini, h2h_r, h2h_l,
-                          scaler, player_to_id, tier_to_id, round_to_id, model_payload, m_tier)
         records.append({
             "Date":     m_date.strftime("%Y-%m-%d"),
             "Opponent": format_name(opp),
@@ -497,134 +510,26 @@ def build_form_chart(player: str, tour_date_str: str, df: pd.DataFrame,
 
 
 # ------------------------------------------------------------------
-# Cached resource loaders
-# ------------------------------------------------------------------
-
-@st.cache_resource
-def load_resources():
-    with open(MODEL_PATH, "rb") as f:
-        model_payload = pickle.load(f)
-    _, _, _, preprocessors = get_train_val_datasets(DATA_PATH)
-    df = pd.read_csv(DATA_PATH)
-    df["start_date"] = pd.to_datetime(df["start_date"])
-    df["round"]      = df["round"].str.lower()
-    return model_payload, preprocessors, df
-
-
-@st.cache_data(show_spinner=False)
-def load_player_nat_flags() -> dict:
-    """Build player_name → flag_emoji from raw_matches.csv nationalities."""
-    try:
-        raw = pd.read_csv("data/raw/raw_matches.csv")
-        result = {}
-        for side in ("a", "b"):
-            for _, row in raw[["player_" + side, "player_" + side + "_nat"]].iterrows():
-                name = row.iloc[0]
-                nat  = row.iloc[1]
-                if pd.notna(name) and pd.notna(nat) and name not in result:
-                    result[name] = NATIONALITY_FLAGS.get(nat, "🏸")
-        return result
-    except Exception:
-        return {}
-
-
-@st.cache_resource
-def get_shap_explainer():
-    model_payload, _, _ = load_resources()
-
-    def _pick_tree(payload):
-        if payload["type"] == "single":
-            return payload["model"]
-        for name in ("xgb", "lgbm", "catboost"):
-            if name in payload.get("models", {}):
-                return payload["models"][name]
-        return None
-
-    m = _pick_tree(model_payload)
-    return shap.TreeExplainer(m) if m and not hasattr(m, "parameters") else None
-
-
-@st.cache_data(show_spinner=False)
-def get_all_tournaments() -> pd.DataFrame:
-    cfg = pd.read_csv(CONFIG_PATH)
-    cfg["start_date"] = pd.to_datetime(cfg["start_date"], errors="coerce")
-    cfg = cfg.dropna(subset=["start_date"]).sort_values("start_date", ascending=False)
-    return cfg[["tournament_name", "tier", "start_date", "host_country"]].reset_index(drop=True)
-
-
-@st.cache_data(show_spinner=False)
-def _get_cached_tournament_state(tour_date: str, tier: int):
-    """Cache r32 matchups + player stats per (tour_date, tier)."""
-    _, _, _df = load_resources()
-    return build_time_zero_state(_df, tour_date, tier)
-
-
-@st.cache_data(show_spinner=False)
-def _get_h2h_hist(tour_date: str) -> pd.DataFrame:
-    """Cache the pre-tournament historical slice used for all H2H lookups."""
-    _, _, _df = load_resources()
-    hist = _df[_df["start_date"] < pd.Timestamp(tour_date)].copy()
-    return hist.sort_values("start_date").reset_index(drop=True)
-
-
-def _make_h2h_fns(hist: pd.DataFrame):
-    """Build H2H closure functions over a pre-filtered historical slice."""
-    rate_cache: dict = {}
-    last_cache: dict = {}
-
-    def h2h_rate(pa, pb):
-        key = (pa, pb)
-        if key not in rate_cache:
-            rows_a = hist[(hist["player_a"] == pa) & (hist["player_b"] == pb)]
-            rows_b = hist[(hist["player_a"] == pb) & (hist["player_b"] == pa)]
-            wins  = rows_a["player_a_won"].sum() + (1 - rows_b["player_a_won"]).sum()
-            total = len(rows_a) + len(rows_b)
-            rate_cache[key] = float(wins / total) if total > 0 else 0.5
-        return rate_cache[key]
-
-    def h2h_last(pa, pb):
-        key = (pa, pb)
-        if key not in last_cache:
-            meetings = hist[
-                ((hist["player_a"] == pa) & (hist["player_b"] == pb)) |
-                ((hist["player_a"] == pb) & (hist["player_b"] == pa))
-            ].sort_values("start_date")
-            if meetings.empty:
-                last_cache[key] = 0.5
-            else:
-                lr = meetings.iloc[-1]
-                last_cache[key] = (
-                    float(lr["player_a_won"]) if lr["player_a"] == pa
-                    else float(1 - lr["player_a_won"])
-                )
-        return last_cache[key]
-
-    return h2h_rate, h2h_last
-
-
-# ------------------------------------------------------------------
 # App bootstrap
 # ------------------------------------------------------------------
 
 st.set_page_config(page_title="ShuttleCast", page_icon="🏸", layout="wide")
-
-# Hide the Streamlit "running" spinner in the top-right corner
 st.markdown(
     "<style>div[data-testid='stStatusWidget']{display:none!important}</style>",
     unsafe_allow_html=True,
 )
 
 all_tours = get_all_tournaments()
-_player_nat_flags.update(load_player_nat_flags())
+NAT_MAP   = load_player_nats()
 
-# Session state initialisation
-_default_row = all_tours.iloc[0]
+# Default to the current or most recent tournament (next week at the latest) —
+# the furthest-future entries usually have no draw to show yet.
+_near = all_tours[all_tours["start_date"] <= pd.Timestamp(TODAY) + pd.Timedelta(days=7)]
+_default_row = _near.iloc[0] if not _near.empty else all_tours.iloc[0]
 _default_key = _default_row["start_date"].strftime("%Y-%m-%d")
 
 if "sim_results"       not in st.session_state:
     st.session_state["sim_results"]       = {}
-if "shap_analyzed"     not in st.session_state:
-    st.session_state["shap_analyzed"]     = None
 if "selected_tour_key" not in st.session_state:
     st.session_state["selected_tour_key"] = _default_key
 if "cal_initial_date"  not in st.session_state:
@@ -632,7 +537,6 @@ if "cal_initial_date"  not in st.session_state:
 
 st.title("🏸 ShuttleCast")
 
-# Derive active tournament from session state (needed in sidebar and main tabs)
 tour_date = st.session_state["selected_tour_key"]
 t_match   = all_tours[all_tours["start_date"] == pd.Timestamp(tour_date)]
 if t_match.empty:
@@ -640,20 +544,19 @@ if t_match.empty:
 t_row_sel = t_match.iloc[0]
 selected  = t_row_sel["tournament_name"]
 tier      = int(t_row_sel["tier"])
-host_flag = TOURNAMENT_HOSTS.get(str(t_row_sel["host_country"]), "🌐")
+host_flag = COUNTRY_FLAGS.get(str(t_row_sel["host_country"]), "🌐")
 
 # ------------------------------------------------------------------
 # Sidebar — calendar + tournament picker
 # ------------------------------------------------------------------
 
 with st.sidebar:
-    # ── Year / Month quick-jump ────────────────────────────────────
     _years     = sorted(all_tours["start_date"].dt.year.unique().tolist())
     _mon_names = ["Jan","Feb","Mar","Apr","May","Jun",
                   "Jul","Aug","Sep","Oct","Nov","Dec"]
-    _cur_init  = st.session_state["cal_initial_date"]   # "YYYY-MM-01"
+    _cur_init  = st.session_state["cal_initial_date"]
     _cur_year  = int(_cur_init[:4])
-    _cur_mo    = int(_cur_init[5:7]) - 1                # 0-indexed
+    _cur_mo    = int(_cur_init[5:7]) - 1
 
     _jy, _jm = st.columns(2)
     with _jy:
@@ -667,8 +570,7 @@ with st.sidebar:
             "Month", _mon_names, index=_cur_mo,
             key="nav_month", label_visibility="collapsed",
         )
-    _sel_month    = _mon_names.index(_sel_mon_name) + 1   # 1-indexed
-    _new_initial  = f"{_sel_year}-{_sel_month:02d}-01"
+    _new_initial = f"{_sel_year}-{_mon_names.index(_sel_mon_name) + 1:02d}-01"
     if _new_initial != _cur_init:
         st.session_state["cal_initial_date"] = _new_initial
         st.rerun()
@@ -676,22 +578,16 @@ with st.sidebar:
     cal_events = build_calendar_events(
         all_tours, st.session_state["selected_tour_key"], TODAY
     )
-
     cal_options = {
         "initialView":   "dayGridMonth",
         "initialDate":   st.session_state["cal_initial_date"],
-        "headerToolbar": {
-            "left":   "prev,next today",
-            "center": "title",
-            "right":  "",
-        },
+        "headerToolbar": {"left": "prev,next today", "center": "title", "right": ""},
         "height":       420,
         "navLinks":     False,
         "editable":     False,
         "selectable":   False,
         "dayMaxEvents": 2,
     }
-
     cal_state = st_calendar(
         events=cal_events,
         options=cal_options,
@@ -708,7 +604,6 @@ with st.sidebar:
         key=f"bwf_cal_{st.session_state['cal_initial_date']}",
     )
 
-    # Handle event click — update selected tournament and remount calendar at that month
     if cal_state and cal_state.get("eventClick"):
         clicked_id = cal_state["eventClick"]["event"]["id"]
         if clicked_id != st.session_state["selected_tour_key"]:
@@ -717,9 +612,8 @@ with st.sidebar:
             st.session_state["selected_tour_key"] = clicked_id
             st.rerun()
 
-    # ── Selected tournament card ───────────────────────────────────
-    _is_up   = pd.Timestamp(tour_date).date() >= TODAY
-    _status  = "🔮 Upcoming" if _is_up else "📜 Historical"
+    _is_up  = pd.Timestamp(tour_date).date() > TODAY
+    _status = "🔮 Upcoming" if _is_up else "📜 Past / Live"
     st.markdown(
         f"<div style='background:#f0faf0;border-left:4px solid #2e7d32;"
         f"border-radius:4px;padding:10px 12px;margin:8px 0'>"
@@ -739,195 +633,281 @@ with st.sidebar:
         "</div>",
         unsafe_allow_html=True,
     )
-    n_sims  = st.slider("Monte Carlo Simulations", 100, 1_000, 100, 100)
+    n_sims  = st.slider("Monte Carlo Simulations", 100, 10_000, 1_000, 100)
     run_btn = st.button("▶ Run Simulation", use_container_width=True, type="primary")
 
 # ------------------------------------------------------------------
-# Load data & build tournament state
+# Active model: preloaded for upcoming tournaments, point-in-time for past
 # ------------------------------------------------------------------
 
-model_payload, preprocessors, df = load_resources()
+nat_map = NAT_MAP
+is_future = pd.Timestamp(tour_date).date() > TODAY
+
+if is_future:
+    payload, preprocessors = load_pretrained()
+    model_key  = f"pretrained|{payload.get('trained_through', 'static')}"
+    model_desc = (
+        f"**Preloaded XGBoost** — trained through "
+        f"{payload.get('trained_through', '2025 (initial release)')}"
+    )
+else:
+    with st.spinner(f"Training point-in-time model on all matches before {tour_date} "
+                    f"(cached after first run)…"):
+        pit = get_point_in_time_model(tour_date)
+    if pit is None:
+        payload, preprocessors = load_pretrained()
+        model_key  = f"pretrained|{payload.get('trained_through', 'static')}"
+        model_desc = ("**Preloaded XGBoost** — too little history before this "
+                      "tournament for a point-in-time model")
+    else:
+        payload, preprocessors = pit
+        model_key  = f"pit|{tour_date}"
+        model_desc = (
+            f"**Point-in-time XGBoost** — trained on "
+            f"{payload['n_train_rows']:,} rows strictly before {tour_date} (no leakage)"
+        )
+
 scaler       = preprocessors["scaler"]
 player_to_id = preprocessors["player_to_id"]
 tier_to_id   = preprocessors["tier_to_id"]
 round_to_id  = preprocessors["round_to_id"]
 
-r32_matchups, player_stats = _get_cached_tournament_state(tour_date, tier)
+r1_matchups, player_stats = _get_cached_tournament_state(tour_date, tier)
 h2h_rate_fn, h2h_last_fn  = _make_h2h_fns(_get_h2h_hist(tour_date))
-roster = sorted(player_stats.keys())
+day_rows = get_tournament_rows(tour_date)
+roster   = sorted(player_stats.keys())
+
+n_done    = int((day_rows["is_pending"] == 0).sum()) if not day_rows.empty else 0
+n_pending = int((day_rows["is_pending"] == 1).sum()) if not day_rows.empty else 0
+# "Live" = mixed played/unplayed matches AND the event is actually this week.
+# (Old tournaments can carry a few pending rows too — group-stage matches where
+# Wikipedia never marks a per-match winner.)
+_days_ago = (TODAY - pd.Timestamp(tour_date).date()).days
+is_live   = n_done > 0 and n_pending > 0 and 0 <= _days_ago <= 14
+
+ctx = {
+    "payload": payload, "model_key": model_key,
+    "scaler": scaler, "player_to_id": player_to_id,
+    "tier_to_id": tier_to_id, "round_to_id": round_to_id,
+    "player_stats": player_stats,
+    "h2h_rate_fn": h2h_rate_fn, "h2h_last_fn": h2h_last_fn,
+    "tier": tier, "nat_map": nat_map,
+}
+
+st.markdown(f"🧠 {model_desc}")
 
 # ------------------------------------------------------------------
 # Tabs
 # ------------------------------------------------------------------
 
-tab_engine, tab_matchup = st.tabs(["🔬 Live Engine", "⚡ Matchup Analyzer"])
+tab_draw, tab_sim, tab_matchup = st.tabs(
+    ["📋 Draw & Predictions", "🎲 Monte Carlo", "⚡ Matchup Analyzer"]
+)
 
-# ── Tab 1: Live Engine ─────────────────────────────────────────────
+# ── Tab 1: Draw & Predictions ──────────────────────────────────────
 
-sim_key = f"{tour_date}|{tier}|{n_sims}"
-
-with tab_engine:
-    if r32_matchups.empty:
-        st.error(
-            f"No first-round data for **{selected}** ({tour_date}).  \n"
-            "Try a different month, or re-run `make features` + `make train`."
+with tab_draw:
+    if day_rows.empty:
+        st.info(
+            f"No draw available yet for **{selected}** ({tour_date}).  \n"
+            "Draws appear automatically once published on Wikipedia and picked "
+            "up by the weekly data refresh."
         )
+    else:
+        if is_live:
+            st.subheader(f"{host_flag} {selected} · 🔴 In progress")
+        elif n_pending and not n_done:
+            st.subheader(f"{host_flag} {selected} · 🔮 Draw published")
+        else:
+            st.subheader(f"{host_flag} {selected} · ✅ Completed")
+            if n_pending:
+                st.caption(f"⚠️ {n_pending} matches have no recorded winner on "
+                           "Wikipedia (typically group-stage rows) and are "
+                           "shown with model probabilities instead.")
 
-    elif run_btn:
-        # Setup info — stays expanded until simulation starts
-        with st.status("🔬 Point-in-Time Engine", expanded=True) as sim_status:
-            st.write(f"📅 **{selected}** — data cut-off `{tour_date}`")
-            st.write(
-                f"**1 / 4** &nbsp;✅&nbsp; Historical data sliced to `{tour_date}`"
-            )
-            st.write(
-                f"**2 / 4** &nbsp;✅&nbsp; Bracket state ready — "
-                f"**{len(player_stats)} players** · **{len(r32_matchups)} first-round matchups**"
-            )
-            st.write(
-                f"**3 / 4** &nbsp;✅&nbsp; H2H records computed"
-            )
-            actual_winner = get_actual_winner(df, tour_date)
-            if actual_winner:
-                st.write(f"📋 Actual winner on record: **{format_name(actual_winner)}**")
-            st.write(
-                f"**4 / 4** &nbsp;🎲&nbsp; Launching **{n_sims:,}** Monte Carlo simulations…"
-            )
-            sim_status.update(label=f"Simulating {selected}…",
-                              state="running", expanded=False)
+        winner = get_actual_winner(day_rows)
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Players", len(roster))
+        m2.metric("Matches played", n_done)
+        m3.metric("To play", n_pending)
+        m4.metric("Champion", format_name(winner) if winner else "TBD")
 
-        # ── Live progress — outside status so it's always visible ──
-        progress_ph = st.progress(0, text="Starting…")
-        status_ph   = st.empty()
-        ticker_ph   = st.empty()
-        win_counts: dict[str, int] = {}
-        rng = np.random.default_rng(42)
-        t0  = time.time()
-
-        for i in range(n_sims):
-            champion = simulate_bracket(
-                r32_matchups, player_stats,
-                h2h_rate_fn, h2h_last_fn,
-                scaler, player_to_id, tier_to_id, round_to_id,
-                model_payload, rng, tier,
-            )
-            win_counts[champion] = win_counts.get(champion, 0) + 1
-
-            if (i + 1) % 10 == 0 or (i + 1) == n_sims:
-                n_done   = i + 1
-                elapsed  = time.time() - t0
-                rate     = n_done / elapsed if elapsed > 0 else 1
-                eta      = (n_sims - n_done) / rate
-                pct      = n_done / n_sims
-                leader   = max(win_counts, key=win_counts.get)
-                lead_pct = win_counts[leader] / n_done * 100
-
-                progress_ph.progress(
-                    pct,
-                    text=f"**{n_done:,} / {n_sims:,}** sims "
-                         f"({pct*100:.0f}%)  ·  "
-                         f"{rate:.0f} sims/s  ·  "
-                         f"ETA {eta:.0f}s",
-                )
-                status_ph.markdown(
-                    f"🏆 **Leader:** {format_name(leader)} — "
-                    f"**{lead_pct:.1f}%** championship probability"
-                )
-                lb_live = (
-                    pd.DataFrame(win_counts.items(), columns=["Player", "Wins"])
-                    .sort_values("Wins", ascending=False).head(10)
-                    .reset_index(drop=True)
-                )
-                lb_live["Win %"]  = (lb_live["Wins"] / n_done * 100).round(1)
-                lb_live["Player"] = lb_live["Player"].apply(format_name)
-                ticker_ph.dataframe(
-                    lb_live[["Player", "Win %"]].style.format({"Win %": "{:.1f}%"}),
+        _present = set(day_rows["round"])
+        rounds_present = ([r for r in ROUND_ORDER if r in _present]
+                          + sorted(_present - set(ROUND_ORDER)))  # group stage etc.
+        for rnd in rounds_present:
+            rnd_rows = day_rows[day_rows["round"] == rnd]
+            table = []
+            for _, m in rnd_rows.iterrows():
+                pa, pb = m["player_a"], m["player_b"]
+                prob, result = None, ""
+                if int(m["is_pending"]) == 0:
+                    w = pa if m["player_a_won"] == 1 else pb
+                    result = f"🏆 {format_name(w)}"
+                elif pa in player_stats and pb in player_stats:
+                    p = predict_match(
+                        pa, pb, rnd, player_stats, h2h_rate_fn, h2h_last_fn,
+                        scaler, player_to_id, tier_to_id, round_to_id,
+                        payload, tier, nat_map,
+                    )
+                    prob = round(p * 100, 1)
+                    result = "🔮 to play"
+                table.append({
+                    "Player A":  format_name(pa),
+                    "Player B":  format_name(pb),
+                    "P(A wins)": prob,
+                    "Result":    result,
+                })
+            n_open = sum(1 for t in table if t["P(A wins)"] is not None)
+            label = f"**{ROUND_LABELS.get(rnd, rnd.title())}** ({len(table)} matches"
+            label += f", {n_open} to play)" if n_open else ")"
+            with st.expander(label, expanded=(rnd == rounds_present[0] or n_open > 0)):
+                st.dataframe(
+                    pd.DataFrame(table),
+                    column_config={
+                        "P(A wins)": st.column_config.ProgressColumn(
+                            "P(A wins)", format="%.1f%%",
+                            min_value=0, max_value=100,
+                        ),
+                    },
                     use_container_width=True, hide_index=True,
                 )
 
-        elapsed = time.time() - t0
+        # ── Per-match feature attribution ───────────────────────────
+        st.divider()
+        st.subheader("🔍 Explain a match")
+        pending_first = pd.concat([
+            day_rows[day_rows["is_pending"] == 1],
+            day_rows[day_rows["is_pending"] == 0],
+        ])
+        options = [
+            (m["round"], m["player_a"], m["player_b"])
+            for _, m in pending_first.iterrows()
+            if m["player_a"] in player_stats and m["player_b"] in player_stats
+        ]
+        if options:
+            sel = st.selectbox(
+                "Match", options,
+                format_func=lambda o: (
+                    f"{ROUND_LABELS.get(o[0], o[0].title())}: {o[1]} vs {o[2]}"
+                ),
+            )
+            render_match_explainer(sel[1], sel[2], sel[0], ctx)
+        else:
+            st.caption("No matches with full player data available to explain.")
 
-        # ── Build final results ──────────────────────────────────
+# ── Tab 2: Monte Carlo ─────────────────────────────────────────────
+
+with tab_sim:
+    if not r1_matchups.empty and n_done > 0:
+        # For live tournaments, condition simulations on real results by
+        # default; for finished ones, default to the pure pre-tournament
+        # forecast (otherwise the "simulation" trivially returns the winner).
+        condition = st.toggle(
+            f"Condition on the {n_done} match results already played",
+            value=is_live, key=f"cond_{tour_date}",
+            help="ON: already-played matches are fixed to their real outcome and "
+                 "only unplayed matches are simulated. OFF: pure pre-tournament "
+                 "forecast from Day-1 player stats.",
+        )
+    else:
+        condition = False
+    sim_key = f"{tour_date}|{tier}|{n_sims}|{condition}"
+
+    if r1_matchups.empty:
+        st.info(
+            f"No first-round draw for **{selected}** yet — simulation needs the "
+            "bracket. It appears automatically once the draw is published."
+        )
+    elif run_btn:
+        fixed = build_fixed_results(day_rows) if condition else {}
+        n_fixed = len(fixed)
+
+        progress_ph = st.progress(0, text="Preparing bracket…")
+        t0  = time.time()
+        rng = np.random.default_rng(42)
+
+        def _cb(round_name, i, n):
+            progress_ph.progress(
+                i / n, text=f"Simulated **{ROUND_LABELS.get(round_name, round_name)}** "
+                            f"across {n_sims:,} brackets ({i}/{n} rounds)"
+            )
+
+        win_counts = run_monte_carlo(
+            n_sims, r1_matchups, player_stats,
+            h2h_rate_fn, h2h_last_fn,
+            scaler, player_to_id, tier_to_id, round_to_id,
+            payload, rng, tier,
+            nat_map=nat_map, fixed_results=fixed, progress_cb=_cb,
+        )
+        elapsed = time.time() - t0
+        progress_ph.empty()
+
         leaderboard = (
             pd.DataFrame(win_counts.items(), columns=["Player", "Wins"])
             .sort_values("Wins", ascending=False).reset_index(drop=True)
         )
         leaderboard["Win %"] = (leaderboard["Wins"] / n_sims * 100).round(2)
+        actual_winner = get_actual_winner(day_rows)
         if actual_winner:
             leaderboard["Actual Result"] = leaderboard["Player"].apply(
                 lambda p: "🥇 Winner" if p == actual_winner else ""
             )
 
-        bracket_rows = []
-        for _, row in r32_matchups.iterrows():
-            p = predict_match(
-                row["player_a"], row["player_b"], "first round",
-                player_stats, h2h_rate_fn, h2h_last_fn,
-                scaler, player_to_id, tier_to_id, round_to_id, model_payload, tier,
-            )
-            bracket_rows.append({
-                "Player A": row["player_a"], "Player B": row["player_b"],
-                "P(A wins)": round(p, 3),
-            })
-        bracket_df = pd.DataFrame(bracket_rows)
-
-        round_winners = compute_likely_bracket(
-            r32_matchups, player_stats, h2h_rate_fn, h2h_last_fn,
-            scaler, player_to_id, tier_to_id, round_to_id, model_payload, tier,
-        )
+        # Most-likely bracket path: greedy winner per match, conditioned on
+        # real results where they exist
+        round_winners: dict[str, list[str]] = {}
+        current = [(r["player_a"], r["player_b"]) for _, r in r1_matchups.iterrows()]
+        for rnd in round_sequence(len(r1_matchups)):
+            if not current:
+                break
+            winners = []
+            for pa, pb in current:
+                real = fixed.get((rnd, frozenset((pa, pb))))
+                if real is not None:
+                    winners.append(real)
+                else:
+                    p = predict_match(pa, pb, rnd, player_stats,
+                                      h2h_rate_fn, h2h_last_fn,
+                                      scaler, player_to_id, tier_to_id, round_to_id,
+                                      payload, tier, nat_map)
+                    winners.append(pa if p >= 0.5 else pb)
+            round_winners[rnd] = winners
+            current = list(zip(winners[::2], winners[1::2]))
 
         st.session_state["sim_results"][sim_key] = {
-            "bracket_df":    bracket_df,
             "leaderboard":   leaderboard,
             "round_winners": round_winners,
             "actual_winner": actual_winner,
             "elapsed":       elapsed,
+            "n_fixed":       n_fixed,
         }
-        sim_status.update(
-            label=f"✅ {n_sims:,} sims complete — {elapsed:.1f}s",
-            state="complete", expanded=False,
-        )
         st.rerun()
 
     elif sim_key in st.session_state["sim_results"]:
-        # ── Show stored results ──────────────────────────────────
-        res           = st.session_state["sim_results"][sim_key]
-        bracket_df    = res["bracket_df"]
-        leaderboard   = res["leaderboard"]
-        round_winners = res["round_winners"]
-        actual_winner = res["actual_winner"]
-        elapsed       = res["elapsed"]
+        res = st.session_state["sim_results"][sim_key]
+        leaderboard, round_winners = res["leaderboard"], res["round_winners"]
 
+        note = (f" · conditioned on {res['n_fixed']} real results"
+                if res["n_fixed"] else "")
         st.success(
-            f"✅ **{selected}** — {n_sims:,} sims  ·  {elapsed:.1f}s  ·  "
-            f"Model: **{model_payload.get('name', '?')}**  ·  Val AUC: **0.7872**"
+            f"✅ **{selected}** — {n_sims:,} sims in {res['elapsed']:.1f}s · "
+            f"Model: **{payload.get('name', '?')}**{note}"
         )
 
-        col_left, col_right = st.columns(2)
+        col_left, col_right = st.columns([3, 2])
         with col_left:
-            st.subheader(f"First Round ({len(bracket_df)} matchups)")
-            disp_br = bracket_df.copy()
-            disp_br["Player A"] = disp_br["Player A"].apply(format_name)
-            disp_br["Player B"] = disp_br["Player B"].apply(format_name)
-            st.dataframe(
-                disp_br.style
-                .format({"P(A wins)": "{:.3f}"})
-                .background_gradient(subset=["P(A wins)"], cmap="RdYlGn", vmin=0.3, vmax=0.7),
-                use_container_width=True, hide_index=True,
-            )
-
-        with col_right:
             st.subheader(f"Championship Probability ({n_sims:,} sims)")
+            chart_lb = leaderboard.head(min(12, len(leaderboard))).set_index("Player")["Win %"]
+            chart_lb.index = chart_lb.index.map(format_name)
+            st.bar_chart(chart_lb, horizontal=True)
+        with col_right:
+            st.subheader("Leaderboard")
             disp_cols = ["Player", "Win %"] + (
                 ["Actual Result"] if "Actual Result" in leaderboard.columns else []
             )
             disp_lb = leaderboard[disp_cols].copy()
             disp_lb["Player"] = disp_lb["Player"].apply(format_name)
-
-            chart_lb = leaderboard.head(min(12, len(leaderboard))).set_index("Player")["Win %"]
-            chart_lb.index = chart_lb.index.map(format_name)
-            st.bar_chart(chart_lb, horizontal=True)
-
             st.dataframe(
                 disp_lb.style
                 .format({"Win %": "{:.2f}%"})
@@ -940,18 +920,14 @@ with tab_engine:
             st.plotly_chart(render_bracket_figure(round_winners), use_container_width=True)
 
     else:
-        # ── Pre-run: show bracket matchups with instant probabilities ──
-        is_upcoming = pd.Timestamp(tour_date).date() >= TODAY
-        tag = "🔮 Upcoming" if is_upcoming else "📜 Historical"
-        st.subheader(f"{host_flag} {selected}  ·  {format_tier(tier)}  ·  {tag}")
+        st.subheader(f"{host_flag} {selected} · {format_tier(tier)}")
         st.caption(
-            f"{len(roster)} players in bracket  ·  "
-            "Click **▶ Run Simulation** in the sidebar to launch Monte Carlo analysis."
+            f"{len(roster)} players in bracket · choose a simulation count in the "
+            "sidebar and click **▶ Run Simulation**. Live tournaments are "
+            "automatically conditioned on results already played."
         )
 
-
-
-# ── Tab 2: Matchup Analyzer ────────────────────────────────────────
+# ── Tab 3: Matchup Analyzer ────────────────────────────────────────
 
 with tab_matchup:
     st.subheader("⚡ Matchup Analyzer")
@@ -977,21 +953,10 @@ with tab_matchup:
     if player_a == player_b:
         st.warning("Select two **different** players.")
     elif st.session_state.get("shap_analyzed") == shap_key:
-        sa = player_stats[player_a]
-        sb = player_stats[player_b]
+        sa, sb = player_stats[player_a], player_stats[player_b]
 
-        p_win = predict_match(
-            player_a, player_b, "first round",
-            player_stats, h2h_rate_fn, h2h_last_fn,
-            scaler, player_to_id, tier_to_id, round_to_id, model_payload, tier,
-        )
-        st.metric(
-            label=f"P({format_name(player_a)} beats {format_name(player_b)})",
-            value=f"{p_win * 100:.1f}%",
-            delta=f"{(p_win - 0.5) * 100:+.1f}pp vs 50/50",
-        )
+        render_match_explainer(player_a, player_b, "first round", ctx)
 
-        # ── Stats ────────────────────────────────────────────────
         st.subheader("📋 Stats")
         tape_df = pd.DataFrame({
             "Stat": [
@@ -1000,67 +965,26 @@ with tab_matchup:
                 "H2H Win Rate", "Avg Point Diff", "Seed",
             ],
             format_name(player_a): [
-                f"{sa['elo']:.0f}",    f"{sa['ema_form']:.3f}",  f"{sa['win_streak']}",
-                f"{sa['days_since']:.0f}",  f"{sa['matches_14d']}",
+                f"{sa['elo']:.0f}", f"{sa['ema_form']:.3f}", f"{sa['win_streak']}",
+                f"{sa['days_since']:.0f}", f"{sa['matches_14d']}",
                 f"{h2h_rate_fn(player_a, player_b):.3f}",
                 f"{sa['avg_point_diff']:+.2f}", f"{int(sa['seed'])}",
             ],
             format_name(player_b): [
-                f"{sb['elo']:.0f}",    f"{sb['ema_form']:.3f}",  f"{sb['win_streak']}",
-                f"{sb['days_since']:.0f}",  f"{sb['matches_14d']}",
+                f"{sb['elo']:.0f}", f"{sb['ema_form']:.3f}", f"{sb['win_streak']}",
+                f"{sb['days_since']:.0f}", f"{sb['matches_14d']}",
                 f"{h2h_rate_fn(player_b, player_a):.3f}",
                 f"{sb['avg_point_diff']:+.2f}", f"{int(sb['seed'])}",
             ],
         })
         st.dataframe(tape_df, use_container_width=True, hide_index=True)
 
-        # ── Radar chart ──────────────────────────────────────────
         st.subheader("🕸️ Stat Radar")
         st.plotly_chart(
-            build_radar_chart(player_a, player_b, player_stats, h2h_rate_fn),
+            build_radar_chart(player_a, player_b, player_stats),
             use_container_width=True,
         )
 
-        # ── SHAP waterfall ───────────────────────────────────────
-        st.subheader("🔍 SHAP Feature Attribution")
-        explainer = get_shap_explainer()
-        if explainer is None:
-            st.info("SHAP unavailable — no tree model loaded.")
-        else:
-            X = build_shap_input(
-                player_a, player_b, "first round",
-                player_stats, h2h_rate_fn, h2h_last_fn,
-                scaler, player_to_id, tier_to_id, round_to_id, tier,
-            )
-            with st.spinner("Computing SHAP values…"):
-                _m = (model_payload["model"] if model_payload["type"] == "single"
-                      else next(iter(model_payload["models"].values())))
-                _n        = getattr(_m, "n_features_in_", X.shape[1])
-                X_shap    = X[:, :_n]
-                feat_names = FEATURE_NAMES[:_n]
-                shap_vals  = explainer(X_shap)
-                shap_vals.feature_names = feat_names
-
-            st.caption(
-                f"How each feature shifts the log-odds for "
-                f"**{format_name(player_a)}** in the Player A slot."
-            )
-            shap.plots.waterfall(shap_vals[0], max_display=20, show=False)
-            fig = plt.gcf()
-            fig.set_size_inches(10, 8)
-            fig.tight_layout()
-            st.pyplot(fig)
-            plt.close(fig)
-
-            with st.expander("Raw feature values"):
-                feat_df = pd.DataFrame({
-                    "Feature":      feat_names,
-                    "Scaled value": X_shap[0].round(4).tolist(),
-                    "SHAP value":   shap_vals.values[0].round(4).tolist(),
-                }).sort_values("SHAP value", key=abs, ascending=False)
-                st.dataframe(feat_df, use_container_width=True, hide_index=True)
-
-        # ── Player Form ──────────────────────────────────────────
         st.divider()
         st.subheader("📈 Recent Form — Last 5 Matches")
         st.caption("Win probability estimated strictly from pre-match data (no leakage).")
@@ -1068,10 +992,7 @@ with tab_matchup:
         for col_w, player_name in [(form_col_a, player_a), (form_col_b, player_b)]:
             with col_w:
                 st.markdown(f"**{format_name(player_name)}**")
-                fdf = build_form_chart(
-                    player_name, tour_date, df,
-                    scaler, player_to_id, tier_to_id, round_to_id, model_payload, tier,
-                )
+                fdf = build_form_chart(player_name, tour_date, ctx)
                 if fdf is None or fdf.empty:
                     st.caption("No match history before this tournament.")
                 else:
@@ -1087,7 +1008,6 @@ with tab_matchup:
                     ax.set_xticklabels(fdf["Date"].tolist(), rotation=30,
                                        ha="right", fontsize=7)
                     ax.set_ylabel("Win Probability")
-                    ax.set_title(f"Last {len(fdf)} matches")
                     fig2.tight_layout()
                     st.pyplot(fig2)
                     plt.close(fig2)
