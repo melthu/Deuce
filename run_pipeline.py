@@ -4,8 +4,8 @@ import time
 import argparse
 
 SCRAPE_STEPS = [
-    ("Building 5-year tournament config",  "src/build_config.py"),
-    ("Scraping Wikipedia match results",   "src/scraper_orchestrator.py"),
+    ("Building tournament config (2010-present)", "src/build_config.py"),
+    ("Scraping Wikipedia match results",          "src/scraper_orchestrator.py"),
 ]
 
 FEATURE_STEPS = [
@@ -76,19 +76,17 @@ def main():
         if args.train:
             run_steps(TRAIN_STEPS, step_offset=0, total_steps=len(TRAIN_STEPS))
         if args.tune:
-            # tune_hyperparams.py accepts CLI args; pass --all --retrain inline
-            import subprocess
             print(f"\n[tune] Running Optuna hyperparameter search (all models, 50 trials)...")
-            step_start = __import__("time").time()
+            step_start = time.time()
             result = subprocess.run(
-                [__import__("sys").executable, "src/tune_hyperparams.py",
+                [sys.executable, "src/tune_hyperparams.py",
                  "--model", "all", "--trials", "50", "--retrain"],
                 capture_output=False,
             )
-            elapsed = __import__("time").time() - step_start
+            elapsed = time.time() - step_start
             if result.returncode != 0:
                 print(f"\n[ERROR] tune step failed (exit code {result.returncode}). Pipeline halted.")
-                __import__("sys").exit(result.returncode)
+                sys.exit(result.returncode)
             print(f"[tune] Done in {elapsed:.1f}s")
             # Rebuild ensemble with newly tuned models
             run_steps([("Selecting best model (ensemble)", "src/train_ensemble.py")],

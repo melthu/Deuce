@@ -1,7 +1,10 @@
 .PHONY: data features train train_tabnet dashboard all
 
-data:        ## Scrape Wikipedia + rebuild raw CSV
+data:        ## Scrape Wikipedia + rebuild raw CSV (full rescrape)
 	python3 run_pipeline.py --scrape
+
+update:      ## Incremental refresh: new/pending/recent tournaments only
+	python3 src/build_config.py && python3 src/scraper_orchestrator.py --incremental && python3 src/data_checks.py
 
 features:    ## Re-engineer features + mirror dataset
 	python3 run_pipeline.py --features
@@ -18,8 +21,8 @@ dashboard:   ## Launch Streamlit app
 all:         ## Full pipeline end-to-end
 	python3 run_pipeline.py --all
 
-simulate:    ## Run German Open 2026 Monte Carlo simulation
-	python3 src/simulate_german_open.py
+simulate:    ## Monte Carlo simulation CLI (override: make simulate ARGS="--date 2026-02-24 --tier 300")
+	python3 src/simulate.py $(ARGS)
 
 cv:          ## Run rolling 3-fold temporal cross-validation
 	python3 src/temporal_cv.py
