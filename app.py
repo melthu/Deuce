@@ -307,7 +307,8 @@ def build_calendar_events(all_tours, selected_key, today) -> list:
 
 def build_model_input(pa, pb, round_name, player_stats, h2h_rate_fn, h2h_last_fn,
                       scaler, player_to_id, tier_to_id, round_to_id, tier, nat_map):
-    """(1, 34) feature array with pa in the player_a slot — for SHAP."""
+    """(1, 34) feature array with pa in the player_a slot, plus the human-
+    readable (unscaled) value of every feature for SHAP display."""
     sa, sb = player_stats[pa], player_stats[pb]
     SA = np.array([[sa[k] for k in STAT_KEYS]], dtype=np.float64)
     SB = np.array([[sb[k] for k in STAT_KEYS]], dtype=np.float64)
@@ -322,7 +323,104 @@ def build_model_input(pa, pb, round_name, player_stats, h2h_rate_fn, h2h_last_fn
     cont_scaled = scaler.transform(cont_raw)
     cat = np.array([[tier_to_id.get(tier, 0), round_to_id.get(round_name, 0),
                      player_to_id.get(pa, 0), player_to_id.get(pb, 0)]], dtype=np.float64)
-    return np.hstack([cat, cont_scaled])
+    display_vals = (
+        [format_tier(tier), ROUND_LABELS.get(round_name, round_name.title()), pa, pb]
+        + [float(v) for v in cont_raw[0]]
+    )
+    return np.hstack([cat, cont_scaled]), display_vals
+
+
+# Human-readable names for the SHAP chart
+_PRETTY_GLOBAL = {
+    "tier_id":             "Tournament tier",
+    "round_id":            "Round",
+    "same_nationality":    "Same nationality",
+    "h2h_win_rate_a_vs_b": "Head-to-head win rate",
+    "elo_diff":            "Elo difference",
+    "h2h_last_winner":     "Won the last head-to-head",
+}
+_PRETTY_STAT = {
+    "is_home":               "home advantage",
+    "matches_last_14_days":  "matches in last 14 days",
+    "days_since_last_match": "days since last match",
+    "recent_win_rate":       "win rate (last 180 days)",
+    "elo":                   "Elo rating",
+    "ema_form":              "form (EMA)",
+    "win_streak":            "win streak",
+    "matches_last_7_days":   "matches in last 7 days",
+    "avg_point_diff":        "avg point differential",
+    "avg_games_per_match":   "avg games per match",
+    "rubber_game_rate":      "deciding-game rate",
+    "avg_victory_margin":    "avg victory margin",
+    "seed":                  "seed",
+}
+
+
+def pretty_feature(name: str, pa: str, pb: str) -> str:
+    if name == "player_a_id":
+        return f"{pa} (who they are)"
+    if name == "player_b_id":
+        return f"{pb} (who they are)"
+    if name in _PRETTY_GLOBAL:
+        return _PRETTY_GLOBAL[name]
+    for prefix, who in (("player_a_", pa), ("player_b_", pb)):
+        if name.startswith(prefix):
+            key = name[len(prefix):]
+            return f"{who} — {_PRETTY_STAT.get(key, key.replace('_', ' '))}"
+    return name
+
+
+def _fmt_val(v) -> str:
+    if isinstance(v, str):
+        return v
+    if float(v).is_integer() and abs(v) < 10_000:
+        return f"{int(v)}"
+    if abs(v) >= 100:
+        return f"{v:,.0f}"
+    return f"{v:.2f}"
+
+
+def build_shap_figure(shap_row, base_value, feat_names, display_vals,
+                      pa, pb, top_n: int = 12) -> go.Figure:
+    """Theme-aware horizontal bar chart of SHAP contributions: blue bars push
+    the prediction toward pa, red toward pb; labels show raw feature values."""
+    order = np.argsort(np.abs(shap_row))[::-1]
+    top, rest = order[:top_n], order[top_n:]
+
+    labels = [f"{pretty_feature(feat_names[i], pa, pb)}  =  {_fmt_val(display_vals[i])}"
+              for i in top]
+    values = [float(shap_row[i]) for i in top]
+    if len(rest):
+        labels.append(f"{len(rest)} other features")
+        values.append(float(shap_row[rest].sum()))
+
+    labels, values = labels[::-1], values[::-1]   # biggest bar on top
+    colors = ["#1f77b4" if v >= 0 else "#d62728" for v in values]
+
+    fig = go.Figure(go.Bar(
+        x=values, y=labels, orientation="h",
+        marker=dict(color=colors, line_width=0),
+        text=[f"{v:+.2f}" for v in values],
+        textposition="outside", cliponaxis=False,
+        hovertemplate="%{y}<br>impact: %{x:+.3f}<extra></extra>",
+    ))
+    p_base = 1.0 / (1.0 + np.exp(-base_value))
+    p_out  = 1.0 / (1.0 + np.exp(-(base_value + float(shap_row.sum()))))
+    fig.update_layout(
+        title=dict(
+            text=f"Model view from the Player A slot: "
+                 f"<b>{p_out*100:.1f}%</b> for {pa} (baseline {p_base*100:.1f}%)",
+            font=dict(size=14),
+        ),
+        height=34 * len(labels) + 130,
+        margin=dict(l=10, r=55, t=55, b=10),
+        xaxis=dict(title="impact on prediction (log-odds)", zeroline=False),
+        yaxis=dict(automargin=True),
+        showlegend=False,
+        bargap=0.25,
+    )
+    fig.add_vline(x=0, line_width=1, line_color="rgba(128,128,128,0.6)")
+    return fig
 
 
 def render_bracket_figure(round_winners: dict[str, list[str]]) -> go.Figure:
@@ -422,7 +520,7 @@ def render_match_explainer(pa, pb, round_name, ctx):
         st.info("SHAP unavailable — no tree model loaded.")
         return
 
-    X = build_model_input(
+    X, display_vals = build_model_input(
         pa, pb, round_name, ctx["player_stats"],
         ctx["h2h_rate_fn"], ctx["h2h_last_fn"],
         ctx["scaler"], ctx["player_to_id"], ctx["tier_to_id"], ctx["round_to_id"],
@@ -433,24 +531,24 @@ def render_match_explainer(pa, pb, round_name, ctx):
         X_shap     = X[:, :n]
         feat_names = FEATURE_NAMES[:n]
         shap_vals  = explainer(X_shap)
-        shap_vals.feature_names = feat_names
 
-    st.caption(
-        f"How each feature shifts the log-odds for **{format_name(pa)}** "
-        f"in the Player A slot."
+    base = float(np.ravel(shap_vals.base_values)[0])
+    fig = build_shap_figure(
+        shap_vals.values[0], base, feat_names, display_vals[:n], pa, pb,
     )
-    shap.plots.waterfall(shap_vals[0], max_display=15, show=False)
-    fig = plt.gcf()
-    fig.set_size_inches(10, 6)
-    fig.tight_layout()
-    st.pyplot(fig)
-    plt.close(fig)
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption(
+        f"🔵 pushes the prediction toward **{format_name(pa)}** · "
+        f"🔴 toward **{format_name(pb)}**. Values shown are the real "
+        f"(unscaled) inputs. The headline probability above averages both "
+        f"slot orders; this chart explains the Player A slot only."
+    )
 
-    with st.expander("Raw feature values"):
+    with st.expander("All feature values"):
         feat_df = pd.DataFrame({
-            "Feature":      feat_names,
-            "Scaled value": X_shap[0].round(4).tolist(),
-            "SHAP value":   shap_vals.values[0].round(4).tolist(),
+            "Feature":    [pretty_feature(f, pa, pb) for f in feat_names],
+            "Value":      [_fmt_val(v) for v in display_vals[:n]],
+            "SHAP value": shap_vals.values[0].round(4).tolist(),
         }).sort_values("SHAP value", key=abs, ascending=False)
         st.dataframe(feat_df, use_container_width=True, hide_index=True)
 
