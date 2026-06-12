@@ -109,16 +109,11 @@ def train():
         pickle.dump(wrapper, f)
     print(f"\nModel saved to: {MODEL_PATH}")
 
-    BASELINE = 0.7872  # XGBoost
     print(f"\n{'='*40}")
     print(f"  TabNet Results")
     print(f"{'='*40}")
     print(f"  Val Accuracy : {val_acc:.4f}")
     print(f"  Val ROC-AUC  : {val_auc:.4f}")
-    print(f"\n  Benchmark Comparison")
-    print(f"  XGBoost AUC  : {BASELINE:.4f}")
-    print(f"  TabNet  AUC  : {val_auc:.4f}  "
-          f"({'▲ better' if val_auc > BASELINE else '▼ worse'})")
     print(f"{'='*40}")
 
 

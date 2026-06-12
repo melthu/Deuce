@@ -75,10 +75,15 @@ def load_deepfm_wrapper():
     vocab_sizes = ckpt["vocab_sizes"]
     saved_auc   = ckpt.get("val_auc", 0.0)
 
+    # Derive architecture dims from the checkpoint itself so old and new
+    # checkpoints (different feature counts) both load correctly.
+    state      = ckpt["model_state_dict"]
+    embed_dim  = state["embed_tier.weight"].shape[1]
+    num_cont   = state["deep.0.weight"].shape[1] - 4 * embed_dim
     model = BWFDeepFM(
         vocab_sizes=vocab_sizes,
-        embed_dim=32,
-        num_cont_features=24,
+        embed_dim=embed_dim,
+        num_cont_features=num_cont,
         hidden_dims=[256, 128, 64],
     )
     model.load_state_dict(ckpt["model_state_dict"])

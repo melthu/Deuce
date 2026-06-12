@@ -40,7 +40,7 @@ def train():
     model = BWFDeepFM(
         vocab_sizes=vocab_sizes,
         embed_dim=32,
-        num_cont_features=24,
+        num_cont_features=train_ds.cont.shape[1],   # derive from data, not hardcoded
         hidden_dims=[256, 128, 64],
     ).to(device)
     criterion = nn.BCEWithLogitsLoss()

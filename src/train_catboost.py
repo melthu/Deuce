@@ -11,7 +11,6 @@ from src.dataset import extract_numpy, get_train_val_datasets
 
 DATA_PATH   = "data/processed/final_training_data.csv"
 MODEL_PATH  = "models/best_catboost.pkl"
-LGBM_AUC    = 0.7375   # previous best
 
 
 def train():
@@ -59,9 +58,6 @@ def train():
     print(f"{'='*42}")
     print(f"  Val Accuracy : {val_acc:.4f}")
     print(f"  Val ROC-AUC  : {val_auc:.4f}")
-    print(f"\n  Benchmark Comparison")
-    print(f"  LightGBM AUC : {LGBM_AUC:.4f}")
-    print(f"  CatBoost AUC : {val_auc:.4f}  ({'▲ better' if val_auc > LGBM_AUC else '▼ worse'})")
     print(f"{'='*42}")
 
 
