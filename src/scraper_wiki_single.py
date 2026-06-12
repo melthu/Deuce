@@ -4,8 +4,8 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
-# Detects walkover / retirement in score strings (fallback for text-based scores)
-WALKOVER_RE = re.compile(r"\bw\.o\.\b|walkover|retd\.?|retired", re.IGNORECASE)
+# Detects walkover / retirement markers in bracket cells (e.g. "w/o", "Walkover", "retired")
+WALKOVER_RE = re.compile(r"w[/.]?o\.?|walkover|retd\.?|retired", re.IGNORECASE)
 
 # Matches a per-game score cell: "21", "15", "7r" (retirement mid-game)
 _SCORE_CELL_RE = re.compile(r"^\d{1,2}\s*r?$", re.IGNORECASE)
@@ -43,7 +43,7 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
 
     EMPTY_COLS = ["tournament", "tier", "round", "player_a", "player_a_nat",
                   "player_b", "player_b_nat", "player_a_won", "score",
-                  "player_a_seed", "player_b_seed", "is_walkover"]
+                  "player_a_seed", "player_b_seed", "is_walkover", "is_pending"]
 
     if ms_heading_div is None:
         print("ERROR: Could not find a 'Men's Singles' section header on this page.")
@@ -102,8 +102,9 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
     # --- Step 3: Walk each table row-by-row, tracking true column positions ---
     def extract_player_cells(table):
         """
-        Returns an ordered list of 7-tuples:
-        (col_idx, player_name, nationality, is_winner, game_scores, seed, has_retirement)
+        Returns an ordered list of 8-tuples:
+        (row_idx, col_idx, player_name, nationality, is_winner, game_scores,
+         seed, has_retirement)
 
         Wikipedia bracket format (modern): each player occupies one row.
           Seed cell (bare int 1-32) immediately precedes the player cell.
@@ -191,37 +192,56 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
                             game_scores.append(int(digits.group()))
                         if sc_text.lower().endswith("r"):
                             has_retirement = True
+                    elif WALKOVER_RE.fullmatch(sc_text):
+                        # "w/o" / "Walkover" in place of a score cell
+                        has_retirement = True
                     else:
                         break  # stop at first non-score cell
 
-                result.append((true_col, name, nationality, is_winner, game_scores, seed, has_retirement))
+                result.append((ri, true_col, name, nationality, is_winner,
+                               game_scores, seed, has_retirement))
 
         return result
 
-    # --- Step 4: Assemble players with round labels, then pair sequentially ---
-    all_players = []  # (round_name, name, nat, is_winner, game_scores, seed, has_retirement)
+    # --- Step 4: Pair player cells into matches in TRUE bracket order ---
+    # Within a bracket table, one round = one column; the two players of a
+    # match occupy vertically adjacent cells of that column. Sorting by
+    # (column, row) and pairing within each column therefore yields matches
+    # in real bracket order — essential for simulating the right topology
+    # (round N winners [::2] must meet in round N+1).
+    all_pairs = []  # (round_name, cell_a, cell_b)
     for table in ms_tables:
         table_type = classify_table(table)
         if table_type == "skip":
             continue
+        cells = extract_player_cells(table)
         if table_type == "group_match":
-            for _, name, nat, is_winner, g_scores, seed, has_ret in extract_player_cells(table):
-                all_players.append(("group stage", name, nat, is_winner, g_scores, seed, has_ret))
+            # Round-robin tables are flat: pair in document order
+            for i in range(0, len(cells) - 1, 2):
+                all_pairs.append(("group stage", cells[i], cells[i + 1]))
         else:
             round_ranges = build_round_ranges(table)
-            for col_idx, name, nat, is_winner, g_scores, seed, has_ret in extract_player_cells(table):
-                round_name = col_to_round(col_idx, round_ranges)
-                all_players.append((round_name, name, nat, is_winner, g_scores, seed, has_ret))
+            cells.sort(key=lambda c: (c[1], c[0]))   # (col, row)
+            i = 0
+            while i < len(cells) - 1:
+                a, b = cells[i], cells[i + 1]
+                if a[1] != b[1]:
+                    i += 1   # column boundary — unpaired cell (bye/champion box)
+                    continue
+                all_pairs.append((col_to_round(a[1], round_ranges), a, b))
+                i += 2
 
     matches = []
-    for i in range(0, len(all_players) - 1, 2):
-        round_a, player_a, nat_a, a_wins, scores_a, seed_a, ret_a = all_players[i]
-        round_b, player_b, nat_b, _,      scores_b, seed_b, ret_b = all_players[i + 1]
-
-        round_name = round_a if round_a != "Unknown" else round_b
+    for round_name, cell_a, cell_b in all_pairs:
+        _, _, player_a, nat_a, a_wins, scores_a, seed_a, ret_a = cell_a
+        _, _, player_b, nat_b, b_wins, scores_b, seed_b, ret_b = cell_b
 
         if player_a == player_b:
             continue
+
+        # Neither player marked as winner → match is drawn but not yet played
+        # (upcoming/live tournaments publish the bracket before results exist).
+        is_pending = int(not a_wins and not b_wins)
 
         # Reconstruct "W-L" score string from per-game integer arrays
         w_scores = scores_a if a_wins else scores_b
@@ -231,7 +251,7 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
         else:
             match_score = ""
 
-        is_walkover = int(ret_a or ret_b or bool(WALKOVER_RE.search(match_score or "")))
+        is_walkover = int((ret_a or ret_b) and not is_pending)
 
         matches.append(
             {
@@ -247,10 +267,22 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
                 "player_a_seed": seed_a,
                 "player_b_seed": seed_b,
                 "is_walkover": is_walkover,
+                "is_pending": is_pending,
             }
         )
 
-    return pd.DataFrame(matches)
+    # Classic-era (2010-2017) pages repeat the semi-finals in both the
+    # half-bracket tables and the "Finals" table — dedupe on (round, pair),
+    # preferring the later occurrence that has a score (the finals table's
+    # scores parse cleanly; the half-bracket copies are often misaligned).
+    deduped: dict = {}
+    for m in matches:
+        key = (m["round"], frozenset((m["player_a"], m["player_b"])))
+        prev = deduped.get(key)
+        if prev is None or m["score"] or not prev["score"]:
+            deduped[key] = m
+
+    return pd.DataFrame(deduped.values())
 
 
 if __name__ == "__main__":

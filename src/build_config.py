@@ -1,5 +1,6 @@
 import re
 import time
+from datetime import date
 
 import pandas as pd
 import requests
@@ -7,6 +8,12 @@ from bs4 import BeautifulSoup
 
 OUTPUT_PATH = "data/config/tournaments_config.csv"
 MIN_TIER = 100  # Keep Super 100 and above; drop everything else
+
+# World Tour era runs 2018 → present. The +2 end bound lets next season's
+# calendar page be picked up as soon as Wikipedia publishes it; years whose
+# page doesn't exist yet 404 and are skipped gracefully.
+WORLD_TOUR_FIRST_YEAR = 2018
+WORLD_TOUR_LAST_YEAR  = date.today().year + 1
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
@@ -309,8 +316,8 @@ def build_config(output_path: str = OUTPUT_PATH) -> pd.DataFrame:
         all_rows.extend(rows)
         time.sleep(2)
 
-    # BWF World Tour era: 2018–2026
-    for year in range(2018, 2027):
+    # BWF World Tour era: 2018 → present (+1 season lookahead)
+    for year in range(WORLD_TOUR_FIRST_YEAR, WORLD_TOUR_LAST_YEAR + 1):
         print(f"Scraping {year} BWF World Tour...")
         rows = scrape_year(year)
         all_rows.extend(rows)
