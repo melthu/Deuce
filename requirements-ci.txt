@@ -1,0 +1,8 @@
+# Minimal deps for the scheduled data refresh + retrain (no torch — the
+# dataset module degrades gracefully without it; only DeepFM needs torch)
+numpy
+pandas
+scikit-learn
+xgboost
+requests
+beautifulsoup4

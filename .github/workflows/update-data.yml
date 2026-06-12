@@ -1,0 +1,65 @@
+name: Weekly data refresh & retrain
+
+# Most BWF tournaments end on Sunday; Wikipedia editors usually fill in the
+# results within a day. Monday 06:00 UTC catches the fresh results, plus the
+# next tournament's draw if it's already published.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-ci.txt
+
+      - name: Rebuild tournament calendar
+        run: python src/build_config.py
+
+      - name: Incremental scrape (new / pending / recent tournaments)
+        run: python src/scraper_orchestrator.py --incremental
+
+      - name: Sanity-check scraped data
+        run: python src/data_checks.py
+
+      - name: Detect data changes
+        id: diff
+        run: |
+          if git diff --quiet -- data/; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No data changes — skipping feature engineering and retrain."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Re-engineer features + mirror dataset
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          python src/feature_engineering.py
+          python src/data_loader.py
+
+      - name: Retrain preloaded model on all completed matches
+        if: steps.diff.outputs.changed == 'true'
+        run: python src/train_xgb.py --full-data --promote
+
+      - name: Commit & push
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/config data/raw data/processed models/best_model.pkl
+          git commit -m "Auto-refresh: new tournament data + retrained model ($(date -u +%F))"
+          git push
