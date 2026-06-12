@@ -1,8 +1,13 @@
 import numpy as np
 import pandas as pd
-import torch
 from sklearn.preprocessing import StandardScaler
-from torch.utils.data import DataLoader, Dataset
+
+try:
+    import torch
+    from torch.utils.data import Dataset as _TorchDataset
+except ImportError:        # torch is optional — only the DeepFM/TabNet paths need it
+    torch = None
+    _TorchDataset = object
 
 DATA_PATH = "data/processed/final_training_data.csv"
 
@@ -45,16 +50,25 @@ CONT_COLS = [
 
 UNK_ID = 0  # reserved for players not seen during training
 
+# Wikipedia round-name variants → canonical names used everywhere downstream
+ROUND_ALIASES = {
+    "1st round":      "first round",
+    "2nd round":      "second round",
+    "3rd round":      "third round",
+    "first round[2]": "first round",
+    "quarterfinals":  "quarter-finals",
+    "semifinals":     "semi-finals",
+    "finals":         "final",
+}
+
 
 def extract_numpy(dataset):
     """
-    Pull all tensors from a BWFDataset in one pass and return
-    (X, y) numpy arrays with cat and cont features concatenated horizontally.
+    Return (X, y) numpy arrays from a BWFDataset with cat and cont features
+    concatenated horizontally. Works without torch installed.
     """
-    loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False)
-    cat, cont, labels = next(iter(loader))
-    X = np.hstack([cat.numpy(), cont.numpy()])
-    y = labels.numpy().ravel()
+    X = np.hstack([dataset.cat.astype(np.float64), dataset.cont.astype(np.float64)])
+    y = dataset.labels.astype(np.float32).ravel()
     return X, y
 
 
@@ -66,7 +80,77 @@ def fill_missing_cont_cols(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-class BWFDataset(Dataset):
+def load_training_frame(csv_path: str = DATA_PATH, drop_pending: bool = True) -> pd.DataFrame:
+    """
+    Load the mirrored training CSV with standard cleaning applied:
+    parsed dates, lower-cased rounds, backward-compat column fills.
+
+    Pending rows (scraped draw matches that have not been played yet) carry
+    no outcome — they are dropped for any training/eval use unless
+    drop_pending=False (the dashboard keeps them to display upcoming draws).
+    """
+    df = pd.read_csv(csv_path)
+    df["start_date"] = pd.to_datetime(df["start_date"])
+    df["round"] = df["round"].str.lower().replace(ROUND_ALIASES)
+    if "is_pending" not in df.columns:
+        df["is_pending"] = 0
+    if drop_pending:
+        df = df[df["is_pending"] != 1].reset_index(drop=True)
+    fill_missing_cont_cols(df)
+    return df
+
+
+def fit_preprocessors(train_df: pd.DataFrame):
+    """
+    Fit vocabularies (players, tiers, rounds) and a StandardScaler on the
+    given training slice ONLY — the caller guarantees the slice contains no
+    future data relative to what will be predicted.
+
+    Returns:
+        preprocessors : dict with scaler, player_to_id, tier_to_id, round_to_id
+        vocab_sizes   : dict with num_players, num_tiers, num_rounds
+    """
+    train_players = sorted(
+        set(train_df["player_a"].unique()) | set(train_df["player_b"].unique())
+    )
+    player_to_id = {name: idx + 1 for idx, name in enumerate(train_players)}
+    # UNK_ID (0) is implicitly assigned to any name not in the dict
+
+    tier_to_id  = {t: i for i, t in enumerate(sorted(train_df["tier"].unique()))}
+    round_to_id = {r: i for i, r in enumerate(sorted(train_df["round"].unique()))}
+
+    scaler = StandardScaler()
+    scaler.fit(train_df[CONT_COLS].values)
+
+    preprocessors = {
+        "scaler":       scaler,
+        "player_to_id": player_to_id,
+        "tier_to_id":   tier_to_id,
+        "round_to_id":  round_to_id,
+    }
+    vocab_sizes = {
+        "num_players": len(player_to_id) + 1,   # +1 for UNK slot
+        "num_tiers":   len(tier_to_id),
+        "num_rounds":  len(round_to_id),
+    }
+    return preprocessors, vocab_sizes
+
+
+def encode_split(split_df: pd.DataFrame, preprocessors: dict):
+    """Encode a dataframe slice with already-fit preprocessors.
+    Unseen tiers/rounds/players all map to id 0."""
+    cat = np.column_stack([
+        split_df["tier"].map(preprocessors["tier_to_id"]).fillna(0).values,
+        split_df["round"].map(preprocessors["round_to_id"]).fillna(0).values,
+        split_df["player_a"].map(preprocessors["player_to_id"]).fillna(UNK_ID).values,
+        split_df["player_b"].map(preprocessors["player_to_id"]).fillna(UNK_ID).values,
+    ])
+    cont   = preprocessors["scaler"].transform(split_df[CONT_COLS].values)
+    labels = split_df["player_a_won"].values
+    return cat, cont, labels
+
+
+class BWFDataset(_TorchDataset):
     """
     Thin wrapper that holds pre-encoded numpy arrays and serves tensors.
     Encoding and scaling are handled externally by get_train_val_datasets().
@@ -84,9 +168,11 @@ class BWFDataset(Dataset):
         """
         Returns:
             cat_features  : LongTensor  (4,)  — [tier, round, player_a, player_b]
-            cont_features : FloatTensor (10,) — scaled continuous features
+            cont_features : FloatTensor (30,) — scaled continuous features
             label         : FloatTensor (1,)  — player_a_won
         """
+        if torch is None:
+            raise ImportError("torch is required to iterate BWFDataset as tensors")
         return (
             torch.tensor(self.cat[idx],         dtype=torch.long),
             torch.tensor(self.cont[idx],        dtype=torch.float32),
@@ -109,72 +195,18 @@ def get_train_val_datasets(csv_path: str = DATA_PATH):
         vocab_sizes   : dict with num_players, num_tiers, num_rounds
         preprocessors : dict with scaler, player_to_id, tier_to_id, round_to_id
     """
-    df = pd.read_csv(csv_path)
-    df["start_date"] = pd.to_datetime(df["start_date"])
-    df["round"] = df["round"].str.lower()   # normalise casing (safeguard)
-    fill_missing_cont_cols(df)              # backward-compat: fill 0.0 for absent columns
+    df = load_training_frame(csv_path)
 
-    # ------------------------------------------------------------------
-    # Chronological split
-    # ------------------------------------------------------------------
     train_df = df[df["start_date"].dt.year <= 2025].copy()
     val_df   = df[df["start_date"].dt.year >= 2026].copy()
 
-    # ------------------------------------------------------------------
-    # Build vocabularies from train only
-    # ------------------------------------------------------------------
+    preprocessors, vocab_sizes = fit_preprocessors(train_df)
 
-    # Shared player vocab: UNK=0, then sorted training players from 1..N
-    train_players = sorted(
-        set(train_df["player_a"].unique()) | set(train_df["player_b"].unique())
-    )
-    player_to_id = {name: idx + 1 for idx, name in enumerate(train_players)}
-    # UNK_ID (0) is implicitly assigned to any name not in the dict
-
-    tiers  = sorted(train_df["tier"].unique())
-    tier_to_id = {t: i for i, t in enumerate(tiers)}
-
-    rounds = sorted(train_df["round"].unique())
-    round_to_id = {r: i for i, r in enumerate(rounds)}
-
-    vocab_sizes = {
-        "num_players": len(player_to_id) + 1,   # +1 for UNK slot
-        "num_tiers":   len(tier_to_id),
-        "num_rounds":  len(round_to_id),
-    }
-
-    # ------------------------------------------------------------------
-    # Fit scaler on train only
-    # ------------------------------------------------------------------
-    scaler = StandardScaler()
-    scaler.fit(train_df[CONT_COLS].values)
-
-    # ------------------------------------------------------------------
-    # Encode and scale both splits
-    # ------------------------------------------------------------------
-    def encode(split_df: pd.DataFrame):
-        cat = np.column_stack([
-            split_df["tier"].map(tier_to_id).values,
-            split_df["round"].map(round_to_id).fillna(0).values,      # unseen rounds → 0
-            split_df["player_a"].map(player_to_id).fillna(UNK_ID).values,
-            split_df["player_b"].map(player_to_id).fillna(UNK_ID).values,
-        ])
-        cont   = scaler.transform(split_df[CONT_COLS].values)
-        labels = split_df["player_a_won"].values
-        return cat, cont, labels
-
-    train_cat, train_cont, train_labels = encode(train_df)
-    val_cat,   val_cont,   val_labels   = encode(val_df)
+    train_cat, train_cont, train_labels = encode_split(train_df, preprocessors)
+    val_cat,   val_cont,   val_labels   = encode_split(val_df,   preprocessors)
 
     train_dataset = BWFDataset(train_cat, train_cont, train_labels)
     val_dataset   = BWFDataset(val_cat,   val_cont,   val_labels)
-
-    preprocessors = {
-        "scaler":       scaler,
-        "player_to_id": player_to_id,
-        "tier_to_id":   tier_to_id,
-        "round_to_id":  round_to_id,
-    }
 
     return train_dataset, val_dataset, vocab_sizes, preprocessors
 
@@ -191,14 +223,6 @@ if __name__ == "__main__":
     print(f"  num_tiers   : {vocab_sizes['num_tiers']}")
     print(f"  num_rounds  : {vocab_sizes['num_rounds']}")
 
-    print("\n=== train_ds[0] ===")
-    cat, cont, label = train_ds[0]
-    print(f"  cat_features  : {cat}  shape={tuple(cat.shape)}  dtype={cat.dtype}")
-    print(f"  cont_features : {cont}  shape={tuple(cont.shape)}  dtype={cont.dtype}")
-    print(f"  label         : {label}  shape={tuple(label.shape)}  dtype={label.dtype}")
-
-    print("\n=== val_ds[0] ===")
-    cat, cont, label = val_ds[0]
-    print(f"  cat_features  : {cat}  shape={tuple(cat.shape)}  dtype={cat.dtype}")
-    print(f"  cont_features : {cont}  shape={tuple(cont.shape)}  dtype={cont.dtype}")
-    print(f"  label         : {label}  shape={tuple(label.shape)}  dtype={label.dtype}")
+    X, y = extract_numpy(train_ds)
+    print(f"\n=== extract_numpy(train) ===")
+    print(f"  X: {X.shape} {X.dtype}  |  y: {y.shape} {y.dtype}")

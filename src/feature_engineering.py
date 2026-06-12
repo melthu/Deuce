@@ -66,6 +66,10 @@ def _elo_prepass(df: pd.DataFrame):
         streak_a_list.append(s_a)
         streak_b_list.append(s_b)
 
+        # Pending matches have no outcome yet — record pre-match state only
+        if int(row.get("is_pending", 0)) == 1:
+            continue
+
         # --- Post-match updates ---
         K = K_BY_TIER.get(tier, 24)
         expected_a = 1.0 / (1.0 + 10.0 ** ((elo_b - elo_a) / 400.0))
@@ -160,6 +164,10 @@ def _score_prepass(df: pd.DataFrame):
         margin_a_list.append(pa_margin)
         margin_b_list.append(pb_margin)
 
+        # Pending matches have no score yet — record pre-match state only
+        if int(row.get("is_pending", 0)) == 1:
+            continue
+
         # --- Post-match update (only when a score is available) ---
         parsed = _parse_score(row.get("score", ""), int(row["player_a_won"]))
         if parsed is not None:
@@ -181,7 +189,8 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
     df["start_date"] = pd.to_datetime(df["start_date"])
 
     # Backward-compat: fill columns that may be absent in older CSV versions
-    for col, default in [("score", ""), ("player_a_seed", 0), ("player_b_seed", 0)]:
+    for col, default in [("score", ""), ("player_a_seed", 0), ("player_b_seed", 0),
+                         ("is_pending", 0)]:
         if col not in df.columns:
             df[col] = default
 
@@ -193,8 +202,10 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
         if n_dropped:
             print(f"Dropped {n_dropped} walkover/retirement rows.")
 
-    # Golden Rule: sort chronologically so the row-wise history slice is always correct
-    df = df.sort_values("start_date").reset_index(drop=True)
+    # Golden Rule: sort chronologically so the row-wise history slice is always
+    # correct. MUST be a stable sort — rows within one tournament are in true
+    # bracket order, and the Monte Carlo engine depends on preserving it.
+    df = df.sort_values("start_date", kind="stable").reset_index(drop=True)
 
     # ------------------------------------------------------------------
     # Pre-pass: compute Elo, EMA, streak in a single chronological scan
@@ -217,8 +228,9 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
         pa = row["player_a"]
         pb = row["player_b"]
 
-        # Strict historical slice — excludes any match on the same date
-        hist = df[df["start_date"] < current_date]
+        # Strict historical slice — excludes any match on the same date,
+        # and pending matches (no outcome) can never count as history
+        hist = df[(df["start_date"] < current_date) & (df["is_pending"] == 0)]
 
         # ------------------------------------------------------------------
         # Feature 2: same_nationality
@@ -301,6 +313,7 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
             "player_b":             pb,
             "player_b_nat":         row["player_b_nat"],
             "player_a_won":         row["player_a_won"],
+            "is_pending":           int(row.get("is_pending", 0)),
             # --- Original 10 engineered features ---
             "same_nationality":                 same_nat,
             "h2h_win_rate_a_vs_b":              round(h2h_rate, 4),

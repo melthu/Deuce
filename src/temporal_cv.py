@@ -13,11 +13,12 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import numpy as np
-import pandas as pd
-from sklearn.preprocessing import StandardScaler
-
-from src.dataset import BWFDataset, CONT_COLS, UNK_ID, fill_missing_cont_cols
+from src.dataset import (
+    BWFDataset,
+    encode_split,
+    fit_preprocessors,
+    load_training_frame,
+)
 
 DATA_PATH = "data/processed/final_training_data.csv"
 
@@ -34,10 +35,7 @@ def get_temporal_folds(csv_path: str = DATA_PATH):
           preprocessors     : dict with scaler, player_to_id, tier_to_id, round_to_id
           fold_label        : human-readable string summarising the fold
     """
-    df = pd.read_csv(csv_path)
-    df["start_date"] = pd.to_datetime(df["start_date"])
-    df["round"] = df["round"].str.lower()
-    fill_missing_cont_cols(df)
+    df = load_training_frame(csv_path)
 
     years = sorted(df["start_date"].dt.year.unique())
     if len(years) < 4:
@@ -55,52 +53,14 @@ def get_temporal_folds(csv_path: str = DATA_PATH):
         if train_df.empty or val_df.empty:
             continue
 
-        # ── Vocabularies built from train only ──────────────────────────
-        train_players = sorted(
-            set(train_df["player_a"].unique()) | set(train_df["player_b"].unique())
-        )
-        player_to_id = {name: idx + 1 for idx, name in enumerate(train_players)}
+        # ── Vocab + scaler fit on train only, shared encode logic ───────
+        preprocessors, vocab_sizes = fit_preprocessors(train_df)
 
-        tiers      = sorted(train_df["tier"].unique())
-        tier_to_id = {t: i for i, t in enumerate(tiers)}
-
-        rounds      = sorted(train_df["round"].unique())
-        round_to_id = {r: i for i, r in enumerate(rounds)}
-
-        vocab_sizes = {
-            "num_players": len(player_to_id) + 1,   # +1 for UNK slot
-            "num_tiers":   len(tier_to_id),
-            "num_rounds":  len(round_to_id),
-        }
-
-        # ── Scaler fit on train only ─────────────────────────────────────
-        scaler = StandardScaler()
-        scaler.fit(train_df[CONT_COLS].values)
-
-        # ── Encode + scale ───────────────────────────────────────────────
-        def encode(split_df: pd.DataFrame):
-            cat = np.column_stack([
-                split_df["tier"].map(tier_to_id).values,
-                split_df["round"].map(round_to_id).fillna(0).values,
-                split_df["player_a"].map(player_to_id).fillna(UNK_ID).values,
-                split_df["player_b"].map(player_to_id).fillna(UNK_ID).values,
-            ])
-            cont   = scaler.transform(split_df[CONT_COLS].values)
-            labels = split_df["player_a_won"].values
-            return cat, cont, labels
-
-        train_cat, train_cont, train_labels = encode(train_df)
-        val_cat,   val_cont,   val_labels   = encode(val_df)
+        train_cat, train_cont, train_labels = encode_split(train_df, preprocessors)
+        val_cat,   val_cont,   val_labels   = encode_split(val_df,   preprocessors)
 
         train_dataset = BWFDataset(train_cat, train_cont, train_labels)
         val_dataset   = BWFDataset(val_cat,   val_cont,   val_labels)
-
-        preprocessors = {
-            "scaler":       scaler,
-            "player_to_id": player_to_id,
-            "tier_to_id":   tier_to_id,
-            "round_to_id":  round_to_id,
-        }
 
         fold_label = (
             f"val={val_year}  "

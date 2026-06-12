@@ -34,7 +34,6 @@ def load_and_mirror(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PATH
 
     # Swap all Player A <-> Player B columns simultaneously to avoid clobbering
     for col_a, col_b in SWAP_PAIRS:
-        df[col_a], df[col_b]  # just reference to confirm cols exist
         mirrored_df[col_a], mirrored_df[col_b] = df[col_b].copy(), df[col_a].copy()
 
     # Invert the target, H2H rate, and new directional features
