@@ -1,3 +1,4 @@
+import os
 import re
 from collections import deque
 
@@ -351,6 +352,7 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
         })
 
     result = pd.DataFrame(rows)
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)  # data/interim is git-ignored
     result.to_csv(output_path, index=False)
     print(f"Feature engineering complete: {len(result)} rows written to '{output_path}'.\n")
 

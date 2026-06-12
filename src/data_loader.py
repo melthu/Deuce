@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 
 INPUT_PATH = "data/interim/engineered_matches.csv"
@@ -44,6 +46,7 @@ def load_and_mirror(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PATH
     mirrored_df["player_a_avg_point_diff"]   = -mirrored_df["player_a_avg_point_diff"]
 
     final = pd.concat([df, mirrored_df], ignore_index=True)
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     final.to_csv(output_path, index=False)
 
     print(f"Original shape : {df.shape}")
