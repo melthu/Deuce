@@ -1,22 +1,33 @@
 # ShuttleCast
 
-**ShuttleCast** is a point-in-time prediction engine for BWF Men's Singles badminton tournaments. It scrapes match data from Wikipedia (241 tournaments, 2010–2026), engineers 34 temporal features with strict no-leakage slicing, trains an ensemble of gradient-boosted tree models, and exposes everything through an interactive Streamlit dashboard where you can select any tournament, run a Monte Carlo bracket simulation, and drill into SHAP explanations for individual matchups.
+**ShuttleCast** is a point-in-time prediction engine for BWF Men's Singles badminton tournaments. It scrapes match data from Wikipedia (300+ tournaments, 2010–present), engineers 30 leakage-free temporal features, trains gradient-boosted tree models, and serves everything through an interactive Streamlit dashboard: pick any tournament from a calendar, run a vectorised Monte Carlo bracket simulation, and drill into SHAP explanations for individual matchups.
+
+A scheduled GitHub Actions workflow keeps the deployment fresh: every Monday it scrapes newly finished tournaments (and newly published draws), re-engineers features, retrains the preloaded model, and commits — Streamlit Cloud redeploys automatically.
 
 ---
 
-## Model Results
+## How predictions work
 
-Validation set = all 2026 matches (334 rows). Training set = 2010–2025 (17,784 rows, mirrored).
+| Tournament | Model used |
+|------------|-----------|
+| **Upcoming** (starts after today) | Preloaded XGBoost (`models/best_model.pkl`), retrained weekly on all completed matches |
+| **Past or live** | Point-in-time XGBoost trained in-app on every match strictly before the tournament's start date — vocab, scaler, and model all fit on that slice only (no leakage), cached per tournament |
+
+Live tournaments get special treatment: matches already played are taken as fixed results, and the Monte Carlo simulation is conditioned on them — championship odds update as the real bracket unfolds with each weekly data refresh.
+
+### Benchmark results
+
+Train ≤ 2025, validation = all 2026 matches to date (leak-free temporal holdout; June 2026 data snapshot):
 
 | Model    | Val AUC |
 |----------|---------|
-| LightGBM | 0.7372  |
-| CatBoost | 0.7821  |
-| XGBoost  | **0.7872** ← best |
-| TabNet   | 0.7472  |
-| Ensemble | 0.7768  |
+| LightGBM | 0.6981  |
+| TabNet   | 0.7006  |
+| CatBoost | 0.7154  |
+| XGBoost  | 0.7161  |
+| Ensemble | **0.7171** |
 
-Best model: **XGBoost (single)** — saved to `models/best_model.pkl`.
+The production model deployed for upcoming tournaments is a full-data XGBoost (all completed matches, no holdout), refreshed weekly. Benchmark AUCs are reported on a strictly held-out temporal split and shift as the 2026 validation set grows.
 
 ---
 
@@ -31,56 +42,35 @@ pip install -r requirements.txt
 
 On Linux (e.g. Streamlit Cloud), `packages.txt` installs `libgomp1` for LightGBM automatically.
 
-The repo already includes:
-- `data/raw/raw_matches.csv` — 9,255 scraped match results
-- `data/config/tournaments_config.csv` — 241 tournament metadata rows
-- `models/best_model.pkl` + individual model `.pkl` files
-- `models/best_params.json` — Optuna best hyperparameters
-
-So you can go straight to `make features && make train` or just `make dashboard` if you want to use the pre-trained models.
-
----
+The repo already includes the scraped data (`data/raw/raw_matches.csv`), the processed training set, and trained model pickles — `make dashboard` works immediately.
 
 ## Quick Start
 
 ```bash
 make dashboard   # launch Streamlit at http://localhost:8501
 
+make update      # incremental scrape: new/pending/recent tournaments only
+make data        # full rescrape of every tournament (~15 min)
 make features    # re-engineer features from raw CSV (~1 min)
 make train       # retrain LightGBM + CatBoost + XGBoost + ensemble selection
-make train_tabnet  # train TabNet and re-run ensemble selection
-make tune        # Optuna hyperparameter search — 50 trials (~5 min)
+make tune        # Optuna hyperparameter search — 50 trials
 make cv          # rolling 3-fold temporal cross-validation
-make simulate    # Monte Carlo simulation (CLI, no UI)
-make data        # re-scrape Wikipedia — ~15 min, use only if needed
+make simulate ARGS="--date 2026-02-24 --tier 300 --sims 10000"
 ```
 
-Or run the full pipeline end-to-end:
-```bash
-python3 run_pipeline.py --all
-```
+Or run the full pipeline end-to-end: `python3 run_pipeline.py --all`
 
 ---
 
 ## Dashboard
 
-`app.py` is a Streamlit app with three tabs:
+`app.py` has a calendar sidebar (click any tournament block to select it) and three tabs:
 
-**Simulation tab**
-- Interactive FullCalendar sidebar — click any tournament block to select it
-- Year/month dropdowns for fast navigation; past events muted, upcoming events highlighted
-- Point-in-time engine: filters the dataset to `start_date < tournament_start`, builds a fresh vocab + scaler on that subset, then loads the pre-trained best model
-- Monte Carlo simulation (1,000–10,000 iterations) with a live progress bar, sims/s, ETA, and a running championship-probability leaderboard
-- "Reality Check" overlay: marks the actual tournament winner with a gold medal if the event is in the past
-- Stats panel comparing both finalists' point-in-time Elo, EMA form, win streak, and fatigue
+**📋 Draw & Predictions** — the full bracket, round by round. Completed matches show the real winner; unplayed matches show the model's win probability for each player. A match selector renders a SHAP waterfall explaining exactly which features drive any prediction.
 
-**SHAP Explainer tab**
-- Pick any two players from the active draw
-- SHAP waterfall plot explaining the XGBoost prediction for that matchup
-- Automatically trims the feature vector to the saved model's `n_features_in_` for backward compatibility
+**🎲 Monte Carlo** — simulate the bracket 100–10,000 times (vectorised: every match in a round across all simulations is one `predict_proba` call, so 10k sims take seconds). Outputs a championship-probability leaderboard, the most-likely bracket path, and a 🥇 reality-check marker when the actual winner is on record. Live tournaments are conditioned on results already played.
 
-**Form Trends tab**
-- Rolling Elo and win-rate charts for any player over their career
+**⚡ Matchup Analyzer** — pick any two players in the draw: win probability, stat comparison table, radar chart, SHAP waterfall, and last-5-matches form charts with point-in-time win-probability estimates.
 
 ---
 
@@ -88,10 +78,16 @@ python3 run_pipeline.py --all
 
 | Step | Script | Output |
 |------|--------|--------|
-| 1 | `src/build_config.py` | `data/config/tournaments_config.csv` — 241 tournaments 2010–2026, handles World Tour (2018+) and Super Series (2010–2017) Wikipedia formats |
-| 2 | `src/scraper_orchestrator.py` → `scraper_wiki_single.py` | `data/raw/raw_matches.csv` — 9,255 matches with per-game scores, seeds, walkover flags, nationalities |
-| 3 | `src/feature_engineering.py` | `data/interim/engineered_matches.csv` — 30 temporal features, walkovers filtered before any computation |
-| 4 | `src/data_loader.py` | `data/processed/final_training_data.csv` — 18,118 rows (every match mirrored by swapping Player A ↔ B for positional symmetry) |
+| 1 | `src/build_config.py` | `data/config/tournaments_config.csv` — tournament calendar 2010→present (year range is dynamic; new seasons appear automatically) |
+| 2 | `src/scraper_orchestrator.py` → `scraper_wiki_single.py` | `data/raw/raw_matches.csv` — matches in true bracket order with per-game scores, seeds, walkover + pending flags. `--incremental` merges only new/changed tournaments |
+| 3 | `src/feature_engineering.py` | `data/interim/engineered_matches.csv` — 30 temporal features; walkovers dropped, pending matches get features but never update history |
+| 4 | `src/data_loader.py` | `data/processed/final_training_data.csv` — every match mirrored A↔B for positional symmetry |
+
+`src/data_checks.py` is the sanity gate the weekly workflow runs before committing scraped data (row counts, nulls, duplicate keys, walkover/pending fractions).
+
+### Pending matches
+
+The scraper marks drawn-but-unplayed matches (`is_pending=1`, no bolded winner on Wikipedia). They flow through feature engineering — so the dashboard can predict upcoming draws — but are excluded from all history, Elo updates, and training.
 
 ---
 
@@ -106,9 +102,9 @@ python3 run_pipeline.py --all
 | Original | 10 | same\_nationality, h2h\_win\_rate, home advantage ×2, 14-day match count ×2, days since last match ×2, 180-day win rate ×2 |
 | Elo / EMA | 10 | player\_a/b Elo (K scaled by tier), Elo difference, player\_a/b EMA form (α=0.3), H2H last winner, win streak ×2, matches in last 7 days ×2 |
 | Score-derived | 4 | avg point differential ×2, avg games per match ×2 — rolling 10 matches |
-| Phase 5 | 6 | rubber-game rate ×2, avg victory margin ×2, seeding ×2 |
+| Bracket | 6 | rubber-game rate ×2, avg victory margin ×2, seeding ×2 |
 
-**No data leakage:** all temporal features use strict `hist = df[df['start_date'] < current_date]`.
+**No data leakage:** all temporal features use strict `start_date < current_date` slicing, with pending matches additionally excluded from history.
 
 **Elo K-factors by tier:** `{100: 20, 300: 24, 500: 28, 750: 32, 1000: 40, 1500: 50}`. Default Elo = 1500. EMA α = 0.3, default = 0.5.
 
@@ -116,46 +112,40 @@ python3 run_pipeline.py --all
 
 ## Models
 
-### Tree models
-- **LightGBM** (`src/train_lgbm.py`) — saved to `models/best_lgbm.pkl`
-- **CatBoost** (`src/train_catboost.py`) — saved to `models/best_catboost.pkl`
-- **XGBoost** (`src/train_xgb.py`) — saved to `models/best_xgb.pkl`
+- **XGBoost** (`src/train_xgb.py`) — the production model. Reads Optuna-tuned hyperparameters from `models/best_params.json`. `--full-data --promote` (used by the weekly retrain) trains on every completed match and writes `models/best_model.pkl`.
+- **LightGBM / CatBoost** (`src/train_lgbm.py`, `src/train_catboost.py`) — benchmark trainers.
+- **TabNet** (`src/train_tabnet.py`) and **DeepFM** (`src/model.py` + `src/train.py`) — neural baselines.
+- **Ensemble** (`src/train_ensemble.py`) — AUC-weighted average of all saved models; promoted only if it beats the best individual model on the 2026 holdout.
 
-Hyperparameters for XGBoost and LightGBM are searched via Optuna (`src/tune_hyperparams.py`) and stored in `models/best_params.json`. The search uses the penultimate validation year as the objective to keep the final 2026 split clean.
-
-### TabNet
-`src/train_tabnet.py` wraps `pytorch-tabnet`'s `TabNetClassifier` with categorical embeddings (dim=8) for the 4 categorical columns. Architecture: n_d=n_a=32, n_steps=5, γ=1.5, sparse λ=1e-4. Best epoch was 13/200 (early stopping at patience=25). Val AUC = 0.7472.
-
-### DeepFM
-`src/model.py` implements a custom `BWFDeepFM` in PyTorch: shared embedding layer (dim=32), FM interaction layer, and a deep MLP (256→128→64). `src/train.py` trains it with cosine-annealing LR, patience-5 early stopping. Val AUC = 0.7011.
-
-### Ensemble
-`src/train_ensemble.py` loads all available saved models and combines them with **AUC-weighted averaging** — each model's weight is proportional to (AUC − 0.5) so near-random models contribute almost nothing. The ensemble is saved only if it beats the best individual model.
+Hyperparameters are tuned with Optuna (`src/tune_hyperparams.py`) against the penultimate year so the final holdout stays clean.
 
 ---
 
 ## Monte Carlo Simulation
 
-`src/simulate_german_open.py` (also called by `app.py`) runs N iterations of a tournament bracket:
+`src/simulate.py` (imported by the app, also a CLI):
 
-1. Builds point-in-time player stats (Elo, EMA, streak, etc.) from data strictly before the tournament start date.
-2. For each simulated match: constructs a 34-feature vector for both draw positions, averages `P(A | slot_a)` and `1 − P(B | slot_a)` to eliminate positional bias, then samples the outcome stochastically.
-3. Applies in-bracket Elo and EMA updates after each match so later-round predictions reflect tournament form.
-4. Player stats are deep-copied per iteration so updates don't bleed between simulations.
+1. Builds point-in-time player stats (Elo, EMA, streak, …) from data strictly before the tournament start.
+2. Simulates all N brackets round-by-round. Each round batches every match across all simulations into a single `predict_proba` call, with both slot orders averaged — `P(A beats B) ≡ 1 − P(B beats A)` — to eliminate positional bias.
+3. Applies in-bracket Elo/EMA updates per simulation so later-round predictions reflect tournament form.
+4. Matches with real results on record are fixed to their actual outcome in every simulation.
+
+```bash
+python3 src/simulate.py --date 2026-02-24 --tier 300 --sims 10000
+```
 
 ---
 
-## Temporal Cross-Validation
+## Automation
 
-`src/temporal_cv.py` runs rolling 3-fold CV where the last three distinct years each serve as the validation fold:
+`.github/workflows/update-data.yml` runs every Monday 06:00 UTC (and on demand via *workflow_dispatch*):
 
-```
-Fold 1: train < year[-3],  val == year[-3]
-Fold 2: train < year[-2],  val == year[-2]
-Fold 3: train < year[-1],  val == year[-1]
-```
-
-Each fold fits its own vocab and scaler on the training slice only to prevent leakage.
+1. Rebuild the tournament calendar (picks up new seasons automatically)
+2. `scraper_orchestrator.py --incremental` — scrape only missing/pending/recent tournaments and merge
+3. `data_checks.py` — abort on anything suspicious before it can reach the deployed app
+4. Re-engineer features + mirror the dataset
+5. Retrain the preloaded XGBoost on all completed matches (`train_xgb.py --full-data --promote`)
+6. Commit & push → Streamlit Cloud redeploys
 
 ---
 
@@ -164,37 +154,33 @@ Each fold fits its own vocab and scaler on the training slice only to prevent le
 ```
 ShuttleCast/
 ├── run_pipeline.py              # Master CLI: --scrape --features --train --tune --all
-├── app.py                       # Streamlit dashboard (Monte Carlo + SHAP)
+├── app.py                       # Streamlit dashboard
 ├── Makefile
-├── requirements.txt
+├── requirements.txt             # full app/training deps
+├── requirements-ci.txt          # minimal deps for the weekly refresh (no torch)
 ├── packages.txt                 # apt deps for Streamlit Cloud (libgomp1)
+├── .github/workflows/update-data.yml   # weekly scrape + retrain + commit
 ├── src/
-│   ├── build_config.py          # Step 1 — BWF calendar scraper (2010-2026)
-│   ├── scraper_wiki_single.py   # Step 2a — single-tournament Wikipedia scraper
-│   ├── scraper_orchestrator.py  # Step 2b — orchestrates all tournaments
-│   ├── feature_engineering.py  # Step 3 — temporal feature engineering (30 features)
-│   ├── data_loader.py           # Step 4 — dataset mirroring for positional symmetry
-│   ├── dataset.py               # PyTorch dataset, extract_numpy, preprocessing
-│   ├── model.py                 # BWFDeepFM (PyTorch)
-│   ├── train.py                 # DeepFM training loop (standalone)
-│   ├── train_lgbm.py            # LightGBM trainer
-│   ├── train_catboost.py        # CatBoost trainer
-│   ├── train_xgb.py             # XGBoost trainer
-│   ├── train_tabnet.py          # TabNet trainer + TabNetWrapper
-│   ├── train_ensemble.py        # AUC-weighted ensemble selection + DeepFMWrapper
-│   ├── temporal_cv.py           # Rolling 3-fold temporal cross-validation
-│   ├── tune_hyperparams.py      # Optuna search for XGBoost + LightGBM
-│   └── simulate_german_open.py  # Monte Carlo tournament simulation
+│   ├── build_config.py          # tournament calendar scraper (dynamic year range)
+│   ├── scraper_wiki_single.py   # single-tournament scraper (bracket order, pending flags)
+│   ├── scraper_orchestrator.py  # all tournaments; --incremental merge mode
+│   ├── data_checks.py           # sanity gate for automated scrapes
+│   ├── feature_engineering.py   # 30 temporal features, leakage-free
+│   ├── data_loader.py           # A↔B mirroring
+│   ├── dataset.py               # shared preprocessing: vocab/scaler fitting, encoding
+│   ├── simulate.py              # vectorised Monte Carlo engine + CLI
+│   ├── train_xgb.py             # production trainer (--full-data --promote)
+│   ├── train_lgbm.py / train_catboost.py / train_tabnet.py / train.py
+│   ├── train_ensemble.py        # AUC-weighted ensemble selection
+│   ├── temporal_cv.py           # rolling 3-fold temporal cross-validation
+│   ├── tune_hyperparams.py      # Optuna search
+│   └── model.py                 # BWFDeepFM (PyTorch)
 ├── data/
-│   ├── config/tournaments_config.csv   # 241 tournaments 2010-2026 (tracked)
-│   ├── raw/raw_matches.csv             # 9,255 match results (tracked)
-│   ├── interim/                        # engineered features (git-ignored)
-│   └── processed/                      # ML-ready mirrored dataset (git-ignored)
-└── models/
-    ├── best_params.json         # Optuna best hyperparameters (tracked)
-    ├── best_model.pkl           # active best model or ensemble (tracked)
-    ├── best_lgbm.pkl / best_catboost.pkl / best_xgb.pkl / best_tabnet.pkl
-    └── best_deepfm.pt           # DeepFM checkpoint (git-ignored — large)
+│   ├── config/tournaments_config.csv   # tracked
+│   ├── raw/raw_matches.csv             # tracked
+│   ├── interim/                        # git-ignored
+│   └── processed/final_training_data.csv  # tracked (needed by the app)
+└── models/                      # best_model.pkl + per-model pickles (tracked)
 ```
 
 ---
