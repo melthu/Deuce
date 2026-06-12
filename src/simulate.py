@@ -59,10 +59,16 @@ def load_model(model_path: str = MODEL_PATH):
 
 
 def get_n_features(payload):
-    """Return n_features_in_ of the primary model, or None if unavailable."""
+    """Return the primary model's expected feature count, or None if unknown.
+    CatBoost fitted on a plain numpy array leaves n_features_in_ at 0 —
+    fall back to feature_names_ in that case."""
     m = (payload["model"] if payload["type"] == "single"
          else next(iter(payload["models"].values())))
-    return getattr(m, "n_features_in_", None)
+    n = getattr(m, "n_features_in_", None)
+    if not n:
+        names = getattr(m, "feature_names_", None)
+        n = len(names) if names else None
+    return n
 
 
 def model_predict_proba(payload, X):

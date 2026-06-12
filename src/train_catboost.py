@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 import pickle
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -11,6 +12,22 @@ from src.dataset import extract_numpy, get_train_val_datasets
 
 DATA_PATH   = "data/processed/final_training_data.csv"
 MODEL_PATH  = "models/best_catboost.pkl"
+PARAMS_PATH = "models/best_params.json"
+
+DEFAULT_PARAMS = {
+    "iterations":    2000,
+    "learning_rate": 0.05,
+    "depth":         6,
+}
+
+
+def load_tuned_params() -> tuple[dict, bool]:
+    if os.path.exists(PARAMS_PATH):
+        with open(PARAMS_PATH) as f:
+            all_params = json.load(f)
+        if "catboost" in all_params:
+            return dict(all_params["catboost"]), True
+    return dict(DEFAULT_PARAMS), False
 
 
 def train():
@@ -28,20 +45,13 @@ def train():
     # hstacked with float continuous features, producing a float64 array.
     # CatBoost treats them as numerical here; its ordered boosting still handles
     # low-cardinality integer features well.
-    model = CatBoostClassifier(
-        iterations=2000,
-        learning_rate=0.05,
-        depth=6,
-        eval_metric="AUC",
-        early_stopping_rounds=100,
-        random_seed=42,
-        verbose=100,
-    )
+    params, tuned = load_tuned_params()
+    print(f"Hyperparameters: {'Optuna-tuned (best_params.json)' if tuned else 'defaults'}")
+    if not tuned:
+        params["early_stopping_rounds"] = 100
 
-    model.fit(
-        X_train, y_train,
-        eval_set=(X_val, y_val),
-    )
+    model = CatBoostClassifier(**params, eval_metric="AUC", random_seed=42, verbose=0)
+    model.fit(X_train, y_train, eval_set=(X_val, y_val) if not tuned else None)
 
     val_probs = model.predict_proba(X_val)[:, 1]
     val_preds = (val_probs >= 0.5).astype(int)

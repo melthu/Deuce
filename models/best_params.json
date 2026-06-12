@@ -20,5 +20,13 @@
     "bagging_freq": 6,
     "lambda_l1": 2.93327003282751,
     "lambda_l2": 0.0001905478049954591
+  },
+  "catboost": {
+    "iterations": 1412,
+    "learning_rate": 0.08203611751033166,
+    "depth": 4,
+    "l2_leaf_reg": 0.4546695204089787,
+    "random_strength": 0.06989583391519472,
+    "bagging_temperature": 0.05812942145784521
   }
 }

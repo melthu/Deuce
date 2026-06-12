@@ -19,14 +19,14 @@ Live tournaments get special treatment: matches already played are taken as fixe
 
 Train ≤ 2025, validation = all 2026 matches to date (leak-free temporal holdout; June 2026 data snapshot):
 
-| Model    | Val AUC |
-|----------|---------|
-| LightGBM | 0.7126  |
+| Model (Optuna-tuned) | Val AUC |
+|----------------------|---------|
 | XGBoost  | 0.7156  |
-| Ensemble | 0.7210  |
-| CatBoost | **0.7222** |
+| LightGBM | 0.7190  |
+| Ensemble | 0.7229  |
+| CatBoost | **0.7233** |
 
-The production model deployed for upcoming tournaments is a full-data XGBoost (all completed matches, no holdout), refreshed weekly. Benchmark AUCs are reported on a strictly held-out temporal split and shift as the 2026 validation set grows.
+The production model for upcoming tournaments is chosen by `src/promote.py`: every week it benchmarks all tuned candidates on the latest season, retrains the **winner** on all completed matches, and promotes it to `models/best_model.pkl` — so the model type is re-decided automatically as the season's validation data grows (currently CatBoost). Benchmark AUCs shift as the 2026 validation set grows.
 
 ---
 
@@ -111,12 +111,12 @@ The scraper marks drawn-but-unplayed matches (`is_pending=1`, no bolded winner o
 
 ## Models
 
-- **XGBoost** (`src/train_xgb.py`) — the production model. Reads Optuna-tuned hyperparameters from `models/best_params.json`. `--full-data --promote` (used by the weekly retrain) trains on every completed match and writes `models/best_model.pkl`.
-- **LightGBM / CatBoost** (`src/train_lgbm.py`, `src/train_catboost.py`) — benchmark trainers.
+- **XGBoost / LightGBM / CatBoost** (`src/train_xgb.py`, `src/train_lgbm.py`, `src/train_catboost.py`) — benchmark trainers; all read Optuna-tuned hyperparameters from `models/best_params.json`.
+- **promote.py** — production selection: benchmarks all three tuned candidates on the latest season, retrains the winner on every completed match, writes `models/best_model.pkl`. Run weekly by CI.
 - **TabNet** (`src/train_tabnet.py`) and **DeepFM** (`src/model.py` + `src/train.py`) — neural baselines.
-- **Ensemble** (`src/train_ensemble.py`) — AUC-weighted average of all saved models; promoted only if it beats the best individual model on the 2026 holdout.
+- **Ensemble** (`src/train_ensemble.py`) — AUC-weighted average of all saved models, for benchmarking.
 
-Hyperparameters are tuned with Optuna (`src/tune_hyperparams.py`) against the penultimate year so the final holdout stays clean.
+Hyperparameters for all three tree models are tuned with Optuna (`src/tune_hyperparams.py`) against the penultimate year so the final holdout stays clean.
 
 ---
 
@@ -143,7 +143,7 @@ python3 src/simulate.py --date 2026-02-24 --tier 300 --sims 10000
 2. `scraper_orchestrator.py --incremental` — scrape only missing/pending/recent tournaments and merge
 3. `data_checks.py` — abort on anything suspicious before it can reach the deployed app
 4. Re-engineer features + mirror the dataset
-5. Retrain the preloaded XGBoost on all completed matches (`train_xgb.py --full-data --promote`)
+5. Re-select and retrain the production model (`promote.py` — best of tuned XGBoost/LightGBM/CatBoost on the latest season, retrained on all completed matches)
 6. Commit & push → Streamlit Cloud redeploys
 
 ---

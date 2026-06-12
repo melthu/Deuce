@@ -741,11 +741,14 @@ with st.sidebar:
 nat_map = NAT_MAP
 is_future = pd.Timestamp(tour_date).date() > TODAY
 
+MODEL_LABELS = {"xgb": "XGBoost", "lgbm": "LightGBM", "catboost": "CatBoost"}
+
 if is_future:
     payload, preprocessors = load_pretrained()
+    _label     = MODEL_LABELS.get(payload.get("name", ""), payload.get("name", "model"))
     model_key  = f"pretrained|{payload.get('trained_through', 'static')}"
     model_desc = (
-        f"**Preloaded XGBoost** — trained through "
+        f"**Preloaded {_label}** — trained through "
         f"{payload.get('trained_through', '2025 (initial release)')}"
     )
 else:
@@ -754,8 +757,9 @@ else:
         pit = get_point_in_time_model(tour_date)
     if pit is None:
         payload, preprocessors = load_pretrained()
+        _label     = MODEL_LABELS.get(payload.get("name", ""), payload.get("name", "model"))
         model_key  = f"pretrained|{payload.get('trained_through', 'static')}"
-        model_desc = ("**Preloaded XGBoost** — too little history before this "
+        model_desc = (f"**Preloaded {_label}** — too little history before this "
                       "tournament for a point-in-time model")
     else:
         payload, preprocessors = pit

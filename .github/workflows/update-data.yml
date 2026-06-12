@@ -51,9 +51,9 @@ jobs:
           python src/feature_engineering.py
           python src/data_loader.py
 
-      - name: Retrain preloaded model on all completed matches
+      - name: Select & retrain production model (best of xgb/lgbm/catboost)
         if: steps.diff.outputs.changed == 'true'
-        run: python src/train_xgb.py --full-data --promote
+        run: python src/promote.py
 
       - name: Commit & push
         if: steps.diff.outputs.changed == 'true'

@@ -4,5 +4,7 @@ numpy
 pandas
 scikit-learn
 xgboost
+lightgbm
+catboost
 requests
 beautifulsoup4
