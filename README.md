@@ -21,11 +21,10 @@ Train ≤ 2025, validation = all 2026 matches to date (leak-free temporal holdou
 
 | Model    | Val AUC |
 |----------|---------|
-| LightGBM | 0.6981  |
-| TabNet   | 0.7006  |
-| CatBoost | 0.7154  |
-| XGBoost  | 0.7161  |
-| Ensemble | **0.7171** |
+| LightGBM | 0.7126  |
+| XGBoost  | 0.7156  |
+| Ensemble | 0.7210  |
+| CatBoost | **0.7222** |
 
 The production model deployed for upcoming tournaments is a full-data XGBoost (all completed matches, no holdout), refreshed weekly. Benchmark AUCs are reported on a strictly held-out temporal split and shift as the 2026 validation set grows.
 

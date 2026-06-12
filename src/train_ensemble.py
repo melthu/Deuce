@@ -110,7 +110,15 @@ def train():
     individual_aucs:  dict[str, float]      = {}
 
     for name, model in tree_models.items():
-        probs = model.predict_proba(X_val)[:, 1]
+        try:
+            probs = model.predict_proba(X_val)[:, 1]
+        except Exception as e:
+            # Stale artifact (e.g. embedding tables sized for an older,
+            # smaller player vocabulary) — skip rather than crash; retrain
+            # the model to bring it back into selection.
+            print(f"  {name:<12} failed to predict ({type(e).__name__}) — "
+                  f"skipping stale artifact. Retrain to re-include it.")
+            continue
         auc   = roc_auc_score(y_val, probs)
         individual_probs[name] = probs
         individual_aucs[name]  = auc
@@ -118,7 +126,13 @@ def train():
 
     # Optionally add DeepFM
     if deepfm_wrapper is not None:
-        deepfm_probs = deepfm_wrapper.predict_proba(X_val)[:, 1]
+        try:
+            deepfm_probs = deepfm_wrapper.predict_proba(X_val)[:, 1]
+        except Exception as e:
+            print(f"  {'deepfm':<12} failed to predict ({type(e).__name__}) — "
+                  f"skipping stale checkpoint.")
+            deepfm_wrapper, deepfm_probs = None, None
+    if deepfm_wrapper is not None:
         deepfm_auc   = roc_auc_score(y_val, deepfm_probs)
         print(f"  {'deepfm':<12} AUC = {deepfm_auc:.4f}", end="")
         if deepfm_auc >= DEEPFM_AUC_THRESHOLD:
