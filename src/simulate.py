@@ -314,6 +314,13 @@ def run_monte_carlo(
 
     champions = current[:, 0]
     for round_i, round_name in enumerate(rounds):
+        # Defensive: an odd slot count means the bracket is malformed
+        # (a dropped slot somewhere) — give the trailing player a bye
+        # rather than crashing on mismatched pairing arrays.
+        carry = None
+        if current.shape[1] % 2 == 1:
+            carry = current[:, -1]
+            current = current[:, :-1]
         n_matches = current.shape[1] // 2
         if n_matches == 0:
             break
@@ -379,9 +386,11 @@ def run_monte_carlo(
         M[sim_idx, losers]  = (1 - EMA_ALPHA) * M[sim_idx, losers]
 
         current = winners.reshape(n_sims, n_matches)
+        if carry is not None:
+            current = np.column_stack([current, carry])
         if progress_cb:
             progress_cb(round_name, round_i + 1, n_rounds_total)
-        if n_matches == 1:
+        if current.shape[1] == 1:
             champions = current[:, 0]
             break
 

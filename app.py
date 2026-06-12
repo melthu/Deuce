@@ -773,7 +773,8 @@ round_to_id  = preprocessors["round_to_id"]
 r1_matchups, player_stats = _get_cached_tournament_state(tour_date, tier)
 h2h_rate_fn, h2h_last_fn  = _make_h2h_fns(_get_h2h_hist(tour_date))
 day_rows = get_tournament_rows(tour_date)
-roster   = sorted(player_stats.keys())
+# TBD qualifiers hold bracket slots but aren't analyzable players
+roster   = sorted(n for n in player_stats if not n.startswith("TBD ("))
 
 n_done    = int((day_rows["is_pending"] == 0).sum()) if not day_rows.empty else 0
 n_pending = int((day_rows["is_pending"] == 1).sum()) if not day_rows.empty else 0

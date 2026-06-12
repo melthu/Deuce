@@ -155,12 +155,19 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
                     player_link = a
                     break
 
-                if not player_link:
-                    continue
-                name = player_link.get("title") or player_link.get_text().strip()
-                name = re.sub(r"\s*\(.*?\)", "", name).strip()
-                if not name:
-                    continue
+                if player_link:
+                    name = player_link.get("title") or player_link.get_text().strip()
+                    name = re.sub(r"\s*\(.*?\)", "", name).strip()
+                else:
+                    # No link: either a player without a Wikipedia article
+                    # (plain text after the flag) or an empty placeholder slot
+                    # (TBD qualifier / future-round cell). Keep both — dropping
+                    # cells shifts the pairing and corrupts the bracket.
+                    name = cell.get_text().strip()
+                    name = re.sub(r"\[\d+\]", "", name)          # footnote refs
+                    name = re.sub(r"\s*\(.*?\)", "", name)       # (Q)/(WC) markers
+                    name = re.sub(r"^\d{1,2}\s+", "", name).strip()  # inline seed
+                    # name == "" → placeholder slot, resolved to TBD at pairing
 
                 # Winner detection — two Wikipedia formats:
                 #   Modern (2018+): <b><span class="flagicon">…</span><a>Name</a></b>
@@ -169,7 +176,8 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
                 #                        → player_link.find_parent("b") is not None
                 is_winner = (
                     flagicon.parent.name == "b"
-                    or player_link.find_parent("b") is not None
+                    or (player_link is not None
+                        and player_link.find_parent("b") is not None)
                 )
 
                 # Seed: cell immediately before player cell — bare integer 1-32
@@ -232,9 +240,24 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
                 i += 2
 
     matches = []
+    tbd_counter = 0
+    FIRST_ROUNDS = {"first round", "1st round", "group stage"}
     for round_name, cell_a, cell_b in all_pairs:
         _, _, player_a, nat_a, a_wins, scores_a, seed_a, ret_a = cell_a
         _, _, player_b, nat_b, b_wins, scores_b, seed_b, ret_b = cell_b
+
+        # Empty cells are placeholder slots. Two empties = an unfilled
+        # future-round slot pair — skip, EXCEPT in the first round where it's
+        # a real upcoming match between two yet-unknown qualifiers (keeping it
+        # preserves the power-of-two bracket the simulator needs).
+        if not player_a and not player_b and round_name.lower() not in FIRST_ROUNDS:
+            continue
+        if not player_a:
+            tbd_counter += 1
+            player_a, nat_a, a_wins = f"TBD (Q{tbd_counter})", None, False
+        if not player_b:
+            tbd_counter += 1
+            player_b, nat_b, b_wins = f"TBD (Q{tbd_counter})", None, False
 
         if player_a == player_b:
             continue
