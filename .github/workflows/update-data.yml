@@ -1,18 +1,37 @@
-name: Weekly data refresh & retrain
+name: Refresh data & publish site
 
-# Most BWF tournaments end on Sunday; Wikipedia editors usually fill in the
-# results within a day. Monday 06:00 UTC catches the fresh results, plus the
-# next tournament's draw if it's already published.
+# Most BWF tournaments end on Sunday and Wikipedia editors fill in results
+# within a day, so Monday catches a finished event plus the next draw. The
+# other days matter because a live tournament's predictions should move as
+# its rounds complete — the incremental scrape and export both no-op cheaply
+# when nothing has changed, so a daily run costs little.
 on:
   schedule:
-    - cron: "0 6 * * 1"
+    - cron: "0 6 * * *"
   workflow_dispatch: {}
+  # Frontend and exporter changes republish without waiting for the schedule.
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "src/serving/**"
+      - ".github/workflows/update-data.yml"
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+# Never let two runs deploy Pages at once; let an in-flight run finish so a
+# push mid-refresh doesn't abandon a half-committed dataset.
+concurrency:
+  group: shuttlecast-publish
+  cancel-in-progress: false
 
 jobs:
   refresh:
+    name: Scrape & retrain
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -63,3 +82,60 @@ jobs:
           git add data/config data/raw data/processed models/best_model.pkl
           git commit -m "Auto-refresh: new tournament data + retrained model ($(date -u +%F))"
           git push
+
+  publish:
+    name: Export & deploy to Pages
+    needs: [refresh]
+    # Runs whether or not `refresh` ran: a push skips it entirely, and a
+    # scheduled run with no new data still needs the site to exist.
+    if: always() && needs.refresh.result != 'failure'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      # Take main's tip rather than the triggering SHA, so we pick up the
+      # auto-refresh commit the job above may have just pushed.
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-ci.txt
+
+      # Restoring the previous payload is what makes this cheap: the exporter
+      # fingerprints each tournament's inputs and rewrites only what moved.
+      # A full build is ~20 min, an unchanged rerun seconds.
+      - name: Restore previous export
+        uses: actions/cache/restore@v4
+        with:
+          path: site/data
+          key: export-${{ github.run_id }}
+          restore-keys: export-
+
+      - name: Export static payload
+        run: python src/serving/export_static.py
+
+      - name: Publish gate
+        run: python src/serving/check_export.py site/data
+
+      - name: Save export for the next run
+        uses: actions/cache/save@v4
+        with:
+          path: site/data
+          key: export-${{ github.run_id }}
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy
+        id: deploy
+        uses: actions/deploy-pages@v4

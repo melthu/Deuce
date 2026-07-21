@@ -1,5 +1,6 @@
-# Minimal deps for the scheduled data refresh + retrain (no torch — the
-# dataset module degrades gracefully without it; only DeepFM needs torch)
+# Minimal deps for the scheduled data refresh + retrain + static export.
+# No torch — the dataset module degrades gracefully without it, and only
+# DeepFM needs it. No streamlit either: the export is a plain script.
 numpy
 pandas
 scikit-learn
@@ -8,3 +9,5 @@ lightgbm
 catboost
 requests
 beautifulsoup4
+# TreeSHAP attributions, precomputed into site/data by export_static.py
+shap

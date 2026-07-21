@@ -32,6 +32,27 @@ SWAP_PAIRS = [
 ]
 
 
+def _assert_mirror_symmetry(df: pd.DataFrame, mirrored_df: pd.DataFrame) -> None:
+    """
+    Every per-player column must simply travel with its player through the
+    mirror: A's value in the original is B's value in the counterpart, and
+    vice versa. Any extra transform applied on top of the swap breaks this.
+
+    Worth asserting rather than trusting, because the failure is invisible —
+    the file still has the right shape and plausible numbers, and the model
+    just quietly trains on inconsistent inputs.
+    """
+    bad = []
+    for col_a, col_b in SWAP_PAIRS:
+        if not df[col_a].equals(mirrored_df[col_b]) or not df[col_b].equals(mirrored_df[col_a]):
+            bad.append(col_a.replace("player_a_", "", 1))
+    if bad:
+        raise AssertionError(
+            "mirrored rows are not symmetric for: " + ", ".join(bad) +
+            ". A per-player feature must be swapped and nothing more; only "
+            "pair-level features (elo_diff, h2h_*) get inverted.")
+
+
 def load_and_mirror(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PATH) -> pd.DataFrame:
     df = pd.read_csv(input_path)
     df = df.drop(columns=METADATA_COLS)
@@ -42,12 +63,19 @@ def load_and_mirror(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PATH
     for col_a, col_b in SWAP_PAIRS:
         mirrored_df[col_a], mirrored_df[col_b] = df[col_b].copy(), df[col_a].copy()
 
-    # Invert the target, H2H rate, and new directional features
+    # Invert the features that describe the *pair* rather than one player. A
+    # per-player stat needs no inversion — swapping the column above already
+    # moved it to the right slot. player_a_avg_point_diff used to be negated
+    # here as well, which was double handling: it is that player's own average
+    # points-for minus points-against, so the swap alone is correct. Negating
+    # it left slot A wrong-signed on every mirrored row while slot B was
+    # untouched, breaking the order-invariance the mirroring exists to enforce.
     mirrored_df["player_a_won"]              = 1 - mirrored_df["player_a_won"]
     mirrored_df["h2h_win_rate_a_vs_b"]       = 1.0 - mirrored_df["h2h_win_rate_a_vs_b"]
     mirrored_df["elo_diff"]                  = -mirrored_df["elo_diff"]
     mirrored_df["h2h_last_winner"]           = 1.0 - mirrored_df["h2h_last_winner"]
-    mirrored_df["player_a_avg_point_diff"]   = -mirrored_df["player_a_avg_point_diff"]
+
+    _assert_mirror_symmetry(df, mirrored_df)
 
     final = pd.concat([df, mirrored_df], ignore_index=True)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)

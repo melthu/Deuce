@@ -1,8 +1,10 @@
 # ShuttleCast
 
-**ShuttleCast** is a point-in-time prediction engine for BWF Men's Singles badminton tournaments. It scrapes match data from Wikipedia (300+ tournaments, 2010–present), engineers 30 leakage-free temporal features, trains gradient-boosted tree models, and serves everything through an interactive Streamlit dashboard: pick any tournament from a calendar, run a vectorised Monte Carlo bracket simulation, and drill into SHAP explanations for individual matchups.
+**ShuttleCast** is a point-in-time prediction engine for BWF Men's Singles badminton tournaments. It scrapes match data from Wikipedia (300+ tournaments, 2010–present), engineers 30 leakage-free temporal features, trains gradient-boosted tree models, and publishes the results as a static site: pick any tournament, read the model's call on every match in the draw, simulate the bracket 10,000 times, and see which factors drove any individual prediction.
 
-A scheduled GitHub Actions workflow keeps the deployment fresh: every Monday it scrapes newly finished tournaments (and newly published draws), re-engineers features, retrains the preloaded model, and commits — Streamlit Cloud redeploys automatically.
+The point of "point-in-time" is that a past tournament is predicted by a model trained **only on matches before it started** — vocabulary, scaler and estimator all fit on that slice. It has never seen the tournament it is predicting, so its record on those draws is a genuine out-of-sample one, and the site shows where it was wrong as readily as where it was right.
+
+A scheduled GitHub Actions workflow keeps it fresh: daily it scrapes newly finished tournaments and newly published draws, re-engineers features, re-selects and retrains the production model, re-exports only what changed, and deploys to GitHub Pages.
 
 ---
 
@@ -63,9 +65,37 @@ Or run the full pipeline end-to-end: `python3 run_pipeline.py --all`
 
 ---
 
-## Dashboard
+## The site
 
-`app.py` has a calendar sidebar (click any tournament block to select it) and three tabs:
+The primary frontend is a static site on GitHub Pages — plain HTML/CSS/JS, no build step
+and no cold start. **No model runs in the browser.** Every model output is over a bounded
+set — a point-in-time model exists only to predict its own tournament's ~31 matches — so
+`src/serving/export_static.py` precomputes all of them into JSON and the page just draws
+the result. Shipping the models instead would be ~540 MB; shipping what they *said* is
+about 9 MB, sharded so nobody downloads more than the screen they're on.
+
+```
+site/data/tournaments.json     index; first paint
+site/data/tournament/<slug>    bracket, per-match predictions, grouped SHAP, leaderboards
+site/data/player/<slug>        current-form card
+site/data/matchup/<slug>       that player against every other active player
+```
+
+Each shard carries a fingerprint of the inputs behind it, so a rebuild only touches what
+actually moved: a full export is ~20 minutes, an unchanged rerun is seconds. That is also
+what keeps a live tournament current — its own rows change as results land, so the
+fingerprint misses and the file re-exports on the next run, no special-casing needed.
+
+`src/serving/check_export.py` gates publication on shard counts, payload size, empty
+brackets and the share of draws with no simulation.
+
+```bash
+make export && make site    # build, then browse at http://localhost:8000
+```
+
+## Streamlit dashboard
+
+`app.py` is kept as the correctness oracle for the static export. It has a calendar sidebar (click any tournament block to select it) and three tabs:
 
 **📋 Draw & Predictions** — the full bracket, round by round. Completed matches show the real winner; unplayed matches show the model's win probability for each player. A match selector renders a SHAP waterfall explaining exactly which features drive any prediction.
 
@@ -145,7 +175,9 @@ python3 src/serving/simulate.py --date 2026-02-24 --tier 300 --sims 10000
 
 ## Automation
 
-`.github/workflows/update-data.yml` runs every Monday 06:00 UTC (and on demand via *workflow_dispatch*):
+`.github/workflows/update-data.yml` runs daily at 06:00 UTC (and on demand via *workflow_dispatch*), in two jobs.
+
+**refresh** — scrape and retrain:
 
 1. Rebuild the tournament calendar (picks up new seasons automatically)
 2. `scraper_orchestrator.py --incremental` — scrape only missing/pending/recent tournaments and merge
@@ -153,6 +185,16 @@ python3 src/serving/simulate.py --date 2026-02-24 --tier 300 --sims 10000
 4. Re-engineer features + mirror the dataset
 5. Re-select and retrain the production model (`promote.py` — best of tuned XGBoost/LightGBM/CatBoost on the latest season, retrained on all completed matches)
 6. Commit & push → Streamlit Cloud redeploys
+
+**publish** — export and deploy:
+
+7. Restore the previous `site/data` from cache, then export incrementally
+8. `check_export.py` — refuse to deploy a payload that looks collapsed
+9. `upload-pages-artifact` → `deploy-pages`
+
+Daily rather than weekly because a live tournament's predictions should move as its rounds
+complete. Both the scrape and the export no-op cheaply when nothing has changed, so the
+extra runs cost little. A push touching `site/**` or `src/serving/**` runs **publish** only.
 
 ---
 
@@ -186,8 +228,10 @@ ShuttleCast/
 │   │   └── model.py                 # BWFDeepFM (PyTorch)
 │   └── serving/                 # everything that turns a model into an answer
 │       ├── simulate.py              # vectorised Monte Carlo engine + CLI
-│       └── export_static.py         # precomputes the static site payload
-├── site/                        # static frontend; site/data/ is generated + git-ignored
+│       ├── export_static.py         # precomputes the static site payload
+│       └── check_export.py          # publish gate for that payload
+├── site/                        # static frontend (index.html + app.js + styles.css)
+│   └── data/                        # generated by `make export`; git-ignored
 ├── data/
 │   ├── config/tournaments_config.csv   # tracked
 │   ├── raw/raw_matches.csv             # tracked
