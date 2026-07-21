@@ -1,4 +1,4 @@
-.PHONY: data update features train train_tabnet dashboard export site all
+.PHONY: data update features train train_tabnet dashboard export site all simulate cv tune help
 
 data:        ## Scrape Wikipedia + rebuild raw CSV (full rescrape)
 	python3 run_pipeline.py --scrape

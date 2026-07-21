@@ -10,23 +10,22 @@ A scheduled GitHub Actions workflow keeps the deployment fresh: every Monday it 
 
 | Tournament | Model used |
 |------------|-----------|
-| **Upcoming** (starts after today) | Preloaded XGBoost (`models/best_model.pkl`), retrained weekly on all completed matches |
-| **Past or live** | Point-in-time XGBoost trained in-app on every match strictly before the tournament's start date — vocab, scaler, and model all fit on that slice only (no leakage), cached per tournament |
+| **Upcoming** (starts after today) | The promoted model (`models/best_model.pkl`) — re-selected and retrained weekly on all completed matches. Currently LightGBM; the payload's `name` field says which |
+| **Past or live** | Point-in-time XGBoost trained on every match strictly before the tournament's start date — vocab, scaler, and model all fit on that slice only (no leakage), cached per tournament |
 
 Live tournaments get special treatment: matches already played are taken as fixed results, and the Monte Carlo simulation is conditioned on them — championship odds update as the real bracket unfolds with each weekly data refresh.
 
 ### Benchmark results
 
-Train ≤ 2025, validation = all 2026 matches to date (leak-free temporal holdout; June 2026 data snapshot):
+Train ≤ 2025, validation = all 2026 matches to date (leak-free temporal holdout; July 2026 data snapshot):
 
 | Model (Optuna-tuned) | Val AUC |
 |----------------------|---------|
-| XGBoost  | 0.7156  |
-| LightGBM | 0.7190  |
-| Ensemble | 0.7229  |
-| CatBoost | **0.7233** |
+| CatBoost | 0.7134  |
+| XGBoost  | 0.7196  |
+| LightGBM | **0.7240** |
 
-The production model for upcoming tournaments is chosen by `src/modeling/promote.py`: every week it benchmarks all tuned candidates on the latest season, retrains the **winner** on all completed matches, and promotes it to `models/best_model.pkl` — so the model type is re-decided automatically as the season's validation data grows (currently CatBoost). Benchmark AUCs shift as the 2026 validation set grows.
+The production model for upcoming tournaments is chosen by `src/modeling/promote.py`: every week it benchmarks all tuned candidates on the latest season, retrains the **winner** on all completed matches, and promotes it to `models/best_model.pkl` — so the model type is re-decided automatically as the season's validation data grows. Both the ranking and the AUCs move week to week; don't hardcode an assumption about which model wins.
 
 ---
 
@@ -55,6 +54,9 @@ make train       # retrain LightGBM + CatBoost + XGBoost + ensemble selection
 make tune        # Optuna hyperparameter search — 50 trials
 make cv          # rolling 3-fold temporal cross-validation
 make simulate ARGS="--date 2026-02-24 --tier 300 --sims 10000"
+
+make export      # precompute the static site payload (incremental; ARGS="--force" to rebuild)
+make site        # serve the built static site on http://localhost:8000
 ```
 
 Or run the full pipeline end-to-end: `python3 run_pipeline.py --all`
@@ -79,14 +81,20 @@ Or run the full pipeline end-to-end: `python3 run_pipeline.py --all`
 |------|--------|--------|
 | 1 | `src/pipeline/build_config.py` | `data/config/tournaments_config.csv` — tournament calendar 2010→present (year range is dynamic; new seasons appear automatically) |
 | 2 | `src/pipeline/scraper_orchestrator.py` → `scraper_wiki_single.py` | `data/raw/raw_matches.csv` — matches in true bracket order with per-game scores, seeds, walkover + pending flags. `--incremental` merges only new/changed tournaments |
-| 3 | `src/pipeline/feature_engineering.py` | `data/interim/engineered_matches.csv` — 30 temporal features; walkovers dropped, pending matches get features but never update history |
+| 3 | `src/pipeline/feature_engineering.py` | `data/interim/engineered_matches.csv` — 30 temporal features; walkovers and pending matches get features but never update history |
 | 4 | `src/pipeline/data_loader.py` | `data/processed/final_training_data.csv` — every match mirrored A↔B for positional symmetry |
 
 `src/pipeline/data_checks.py` is the sanity gate the weekly workflow runs before committing scraped data (row counts, nulls, duplicate keys, walkover/pending fractions).
 
-### Pending matches
+### Pending matches and walkovers
 
 The scraper marks drawn-but-unplayed matches (`is_pending=1`, no bolded winner on Wikipedia). They flow through feature engineering — so the dashboard can predict upcoming draws — but are excluded from all history, Elo updates, and training.
+
+Walkovers (`is_walkover=1`) are handled the same way, and for the same reason they used to be
+handled *differently*: dropping them left 76 of 222 post-2018 draws with a non-power-of-two
+first round, which silently broke bracket topology in the Monte Carlo. They are now kept as
+rows so the bracket resolves, but contribute nothing to Elo, EMA, head-to-head or training
+(`load_training_frame(drop_walkover=...)`, defaulting to `drop_pending`).
 
 ---
 
@@ -111,7 +119,7 @@ The scraper marks drawn-but-unplayed matches (`is_pending=1`, no bolded winner o
 
 ## Models
 
-- **XGBoost / LightGBM / CatBoost** (`src/modeling/train_xgb.py`, `src/modeling/train_lgbm.py`, `src/modeling/train_catboost.py`) — benchmark trainers; all read Optuna-tuned hyperparameters from `models/best_params.json`.
+- **XGBoost / LightGBM / CatBoost** (`src/modeling/train_xgb.py`, `src/modeling/train_lgbm.py`, `src/modeling/train_catboost.py`) — benchmark trainers; all read Optuna-tuned hyperparameters from `models/best_params.json`. Their per-candidate pickles are benchmark artifacts and stay untracked; only the promoted model is committed.
 - **promote.py** — production selection: benchmarks all three tuned candidates on the latest season, retrains the winner on every completed match, writes `models/best_model.pkl`. Run weekly by CI.
 - **TabNet** (`src/modeling/train_tabnet.py`) and **DeepFM** (`src/modeling/model.py` + `src/modeling/train.py`) — neural baselines.
 - **Ensemble** (`src/modeling/train_ensemble.py`) — AUC-weighted average of all saved models, for benchmarking.
@@ -160,27 +168,36 @@ ShuttleCast/
 ├── packages.txt                 # apt deps for Streamlit Cloud (libgomp1)
 ├── .github/workflows/update-data.yml   # weekly scrape + retrain + commit
 ├── src/
-│   ├── build_config.py          # tournament calendar scraper (dynamic year range)
-│   ├── scraper_wiki_single.py   # single-tournament scraper (bracket order, pending flags)
-│   ├── scraper_orchestrator.py  # all tournaments; --incremental merge mode
-│   ├── data_checks.py           # sanity gate for automated scrapes
-│   ├── feature_engineering.py   # 30 temporal features, leakage-free
-│   ├── data_loader.py           # A↔B mirroring
-│   ├── dataset.py               # shared preprocessing: vocab/scaler fitting, encoding
-│   ├── simulate.py              # vectorised Monte Carlo engine + CLI
-│   ├── train_xgb.py             # production trainer (--full-data --promote)
-│   ├── train_lgbm.py / train_catboost.py / train_tabnet.py / train.py
-│   ├── train_ensemble.py        # AUC-weighted ensemble selection
-│   ├── temporal_cv.py           # rolling 3-fold temporal cross-validation
-│   ├── tune_hyperparams.py      # Optuna search
-│   └── model.py                 # BWFDeepFM (PyTorch)
+│   ├── pipeline/                # data acquisition → training table
+│   │   ├── build_config.py          # tournament calendar scraper (dynamic year range)
+│   │   ├── scraper_wiki_single.py   # single-tournament scraper (bracket order, pending flags)
+│   │   ├── scraper_orchestrator.py  # all tournaments; --incremental merge mode
+│   │   ├── data_checks.py           # sanity gate for automated scrapes
+│   │   ├── feature_engineering.py   # 30 temporal features, leakage-free
+│   │   └── data_loader.py           # A↔B mirroring
+│   ├── modeling/                # preprocessing, trainers, model selection
+│   │   ├── dataset.py               # shared preprocessing: vocab/scaler fitting, encoding
+│   │   ├── pit_model.py             # point-in-time trainer (app + exporter share it)
+│   │   ├── promote.py               # weekly production model selection
+│   │   ├── train_xgb.py / train_lgbm.py / train_catboost.py / train_tabnet.py / train.py
+│   │   ├── train_ensemble.py        # AUC-weighted ensemble selection
+│   │   ├── temporal_cv.py           # rolling 3-fold temporal cross-validation
+│   │   ├── tune_hyperparams.py      # Optuna search
+│   │   └── model.py                 # BWFDeepFM (PyTorch)
+│   └── serving/                 # everything that turns a model into an answer
+│       ├── simulate.py              # vectorised Monte Carlo engine + CLI
+│       └── export_static.py         # precomputes the static site payload
+├── site/                        # static frontend; site/data/ is generated + git-ignored
 ├── data/
 │   ├── config/tournaments_config.csv   # tracked
 │   ├── raw/raw_matches.csv             # tracked
-│   ├── interim/                        # git-ignored
+│   ├── interim/                        # git-ignored (regenerated by `make features`)
 │   └── processed/final_training_data.csv  # tracked (needed by the app)
-└── models/                      # best_model.pkl + per-model pickles (tracked)
+└── models/                      # only best_model.pkl + best_params.json are tracked
 ```
+
+Every module bootstraps `sys.path` to the repo root, so scripts run the same whether
+invoked as `python3 src/serving/simulate.py` or imported as `src.serving.simulate`.
 
 ---
 
