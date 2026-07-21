@@ -1,27 +1,23 @@
-# Python
+# --- Python ---
 __pycache__/
 *.py[cod]
-
-# Virtual environment
 .venv/
 
-# CatBoost training logs
+# --- Local noise ---
+.DS_Store
 catboost_info/
 
-# Regenerable data — run `make features` to rebuild
+# --- Build output (regenerable; do not commit) ---
+# `make features` rebuilds these from data/raw
 data/interim/
-# data/processed is tracked for deployment (final_training_data.csv needed by app)
-
-# Trained model artifacts — kept for deployment
-# Regenerate with: make train && make train_tabnet
-# best_params.json is kept (represents hours of Optuna search)
-models/*.pt
-
-# Static site payload — ~9 MB across ~690 files, fully regenerable from the
-# tracked data by `make export`. The workflow builds it fresh and hands it to
-# upload-pages-artifact, so it is never committed; keeping it out of history
-# avoids growing the repo by several MB every week.
+# `make export` rebuilds this from data/processed; ~9 MB across ~690 files.
+# The workflow builds it fresh and uploads it as a Pages artifact.
 site/data/
 
-# macOS
-.DS_Store
+# --- Models ---
+# Only the promoted model and the Optuna params are tracked. The per-candidate
+# pickles are benchmark artifacts rebuilt by `make train`, and the weekly
+# workflow only ever commits best_model.pkl.
+models/*
+!models/best_model.pkl
+!models/best_params.json
