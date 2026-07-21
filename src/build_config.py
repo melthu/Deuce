@@ -1,6 +1,8 @@
+import os
 import re
 import time
 from datetime import date
+from urllib.parse import quote, unquote
 
 import pandas as pd
 import requests
@@ -94,23 +96,50 @@ def get_host_country(cell) -> str | None:
     return None
 
 
+def article_url(a) -> str | None:
+    """
+    Absolute URL of an <a> that points at a real Wikipedia article, else None.
+
+    Wikipedia serves three href flavours depending on which parser rendered the
+    page: legacy relative ('/wiki/Foo'), protocol-relative
+    ('//en.wikipedia.org/wiki/Foo') and Parsoid absolute
+    ('https://en.wikipedia.org/wiki/Foo'). Accept all three and normalise to
+    https. Redlinks ('/w/index.php?...&redlink=1') point at pages that don't
+    exist yet and are rejected either way.
+    """
+    href = a.get("href", "") or ""
+    if "redlink" in href or "/w/index.php" in href:
+        return None
+    path = None
+    if href.startswith("/wiki/"):
+        path = href
+    else:
+        m = re.match(r"(?:https?:)?//en\.wikipedia\.org(/wiki/.+)", href)
+        if m:
+            path = m.group(1)
+    if not path:
+        return None
+    # Parsoid serves non-ASCII titles unescaped; percent-encode so the config
+    # holds one canonical spelling regardless of which parser rendered the page.
+    return "https://en.wikipedia.org" + quote(unquote(path), safe="/:()_,'!.-")
+
+
 def get_draw_url(cell, year: int) -> str | None:
     """
-    Primary:  <a> with visible text 'Draw' that points to /wiki/ (not a redlink).
-    Fallback: first <a> whose href matches /wiki/{year}_ (the year-specific page).
-    Redlinks (/w/index.php?...&redlink=1) are intentionally ignored — the page
-    doesn't exist yet and can't be scraped.
+    Primary:  <a> with visible text 'Draw' pointing at an existing article.
+    Fallback: first <a> whose target page is year-specific ('.../{year}_…'),
+    i.e. the tournament-name link on 2021-era pages.
     """
     for a in cell.find_all("a"):
         if a.get_text().strip().lower() == "draw":
-            href = a.get("href", "")
-            if href.startswith("/wiki/"):
-                return "https://en.wikipedia.org" + href
+            url = article_url(a)
+            if url:
+                return url
     # Fallback: year-specific link on the tournament name itself (2021-era pages)
     for a in cell.find_all("a"):
-        href = a.get("href", "")
-        if re.match(rf"/wiki/{year}_", href):
-            return "https://en.wikipedia.org" + href
+        url = article_url(a)
+        if url and url.startswith(f"https://en.wikipedia.org/wiki/{year}_"):
+            return url
     return None
 
 
@@ -286,9 +315,8 @@ def scrape_superseries_year(year: int) -> list[dict]:
         # Draw URL = Report link
         draw_url = None
         for a in report_cell.find_all("a"):
-            href = a.get("href", "")
-            if href.startswith("/wiki/") and "redlink" not in href:
-                draw_url = "https://en.wikipedia.org" + href
+            draw_url = article_url(a)
+            if draw_url:
                 break
         if not draw_url or draw_url in seen_urls:
             continue
@@ -332,6 +360,20 @@ def build_config(output_path: str = OUTPUT_PATH) -> pd.DataFrame:
         .sort_values("start_date")
         .reset_index(drop=True)
     )
+
+    # A partially-failed scrape (Wikipedia markup change, rate limiting, a run
+    # of 404s) still yields *some* rows. Writing those would silently gut the
+    # calendar the dashboard reads — refuse rather than overwrite.
+    if os.path.exists(output_path):
+        old = pd.read_csv(output_path)
+        if len(df) < 0.95 * len(old):
+            print(
+                f"ERROR: scrape returned {len(df)} tournaments vs {len(old)} in the "
+                f"existing config — looks like a partial failure. Not overwriting "
+                f"{output_path}."
+            )
+            raise SystemExit(1)
+
     df.to_csv(output_path, index=False)
 
     print(f"\nFinal config shape : {df.shape}")
