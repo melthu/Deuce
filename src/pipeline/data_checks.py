@@ -6,9 +6,19 @@ looks corrupted, so a bad scrape never reaches the deployed app.
 
     python3 src/pipeline/data_checks.py
 """
+import collections
+import itertools
+import os
+import re
 import sys
+import unicodedata
 
 import pandas as pd
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))  # repo root
+
+from src.pipeline.player_names import ALIASES, REVIEWED_DISTINCT
 
 RAW_PATH = "data/raw/raw_matches.csv"
 
@@ -19,6 +29,48 @@ REQUIRED_COLS = [
 MIN_ROWS              = 9_000   # dataset only ever grows
 MAX_WALKOVER_FRACTION = 0.05
 MAX_PENDING_FRACTION  = 0.05
+
+
+def _name_tokens(name: str) -> frozenset:
+    ascii_name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
+    return frozenset(t for t in re.split(r"[^a-z0-9]+", ascii_name.lower()) if t)
+
+
+def find_name_collisions(df: pd.DataFrame) -> list:
+    """
+    Spellings that probably refer to one player but are not in ALIASES.
+
+    Reported, never auto-merged: two real players can normalise to the same
+    string (Huang Yu and Huang Yu-kai played each other), so a human decides.
+    Pairs that ever met are excluded — that is proof they are different people.
+    """
+    names = [n for n in set(df["player_a"]) | set(df["player_b"])
+             if isinstance(n, str) and n.strip() and n.strip().upper() != "TBD"]
+    toks = {n: _name_tokens(n) for n in names}
+    nat = {}
+    for side in ("a", "b"):
+        col = f"player_{side}_nat"
+        if col in df.columns:
+            for n, v in df[[f"player_{side}", col]].dropna().itertuples(index=False):
+                nat.setdefault(n, v)
+    met = {frozenset(p) for p in
+           df[["player_a", "player_b"]].itertuples(index=False)}
+
+    out = []
+    for a, b in itertools.combinations(sorted(names), 2):
+        ta, tb = toks[a], toks[b]
+        if not (ta == tb or ((ta < tb or tb < ta) and len(ta & tb) >= 2)):
+            continue
+        if frozenset((a, b)) in met:
+            continue
+        if a in nat and b in nat and nat[a] != nat[b]:
+            continue
+        if ALIASES.get(a, a) == ALIASES.get(b, b):
+            continue          # already folded together
+        if frozenset((a, b)) in REVIEWED_DISTINCT:
+            continue          # checked, judged distinct
+        out.append((a, b))
+    return out
 
 
 def main() -> int:
@@ -67,6 +119,17 @@ def main() -> int:
     n_pending = int(df["is_pending"].sum()) if "is_pending" in df.columns else 0
     print(f"Data checks passed: {len(df)} rows ({n_pending} pending), "
           f"{df['tournament'].nunique()} tournaments.")
+
+    # A warning, not a failure: an unreviewed variant splits one player's
+    # history in two, which is bad but not corrupt. It needs a human to look
+    # at it, so it must be visible rather than silent.
+    collisions = find_name_collisions(df)
+    if collisions:
+        print(f"\nWARNING: {len(collisions)} unreviewed player-name collision(s). "
+              f"Add to ALIASES in src/pipeline/player_names.py, or record why not:")
+        for a, b in collisions:
+            print(f"  ? {a!r}  <->  {b!r}")
+
     return 0
 
 

@@ -8,6 +8,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))))  # repo root
+from src.pipeline.player_names import canonicalise
 from src.pipeline.scraper_wiki_single import scrape_wiki_single
 
 CONFIG_PATH = "data/config/tournaments_config.csv"
@@ -130,6 +131,12 @@ def run_orchestrator(
                   .reset_index(drop=True))
     else:
         master = pd.concat(all_frames, ignore_index=True)
+
+    # Fold Wikipedia's spelling variants together before anything downstream
+    # sees them. Doing it here, at the single point raw_matches.csv is written,
+    # means every consumer (features, the app, the exporter) is consistent
+    # without each having to remember to canonicalise.
+    master = canonicalise(master)
 
     master.to_csv(output_path, index=False)
 
