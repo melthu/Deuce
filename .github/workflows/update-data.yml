@@ -9,12 +9,16 @@ on:
   schedule:
     - cron: "0 6 * * *"
   workflow_dispatch: {}
-  # Frontend and exporter changes republish without waiting for the schedule.
+  # Anything the exported payload depends on republishes without waiting for
+  # the schedule: the frontend, the code that builds it, the data it is built
+  # from, and the model that makes the calls.
   push:
     branches: [main]
     paths:
       - "site/**"
-      - "src/serving/**"
+      - "src/**"
+      - "data/**"
+      - "models/**"
       - ".github/workflows/update-data.yml"
 
 permissions:
