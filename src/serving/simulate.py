@@ -3,7 +3,7 @@ Monte Carlo tournament simulation engine.
 
 Used by the Streamlit dashboard and runnable as a CLI:
 
-    python3 src/simulate.py --date 2026-02-24 --tier 300 --sims 10000
+    python3 src/serving/simulate.py --date 2026-02-24 --tier 300 --sims 10000
 
 The engine is vectorised: each bracket round batches every pending match
 across all simulations into a single predict_proba call (both slot
@@ -17,7 +17,8 @@ import sys
 import os
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))  # repo root
 
 import argparse
 import pickle
@@ -25,8 +26,8 @@ import pickle
 import numpy as np
 import pandas as pd
 
-from src.dataset import get_train_val_datasets, load_training_frame
-from src.feature_engineering import K_BY_TIER, EMA_ALPHA
+from src.modeling.dataset import get_train_val_datasets, load_training_frame
+from src.pipeline.feature_engineering import K_BY_TIER, EMA_ALPHA
 
 DATA_PATH  = "data/processed/final_training_data.csv"
 MODEL_PATH = "models/best_model.pkl"
@@ -41,8 +42,13 @@ ROUND_ORDER = ["first round", "second round", "third round",
 
 def round_sequence(n_first_round_matches: int) -> list[str]:
     """Round names for a knockout bracket that opens with the given number of
-    first-round matches. 16 matches → 5 rounds, 32 matches → 6 rounds, etc."""
-    n_rounds = max(1, int(np.log2(max(1, n_first_round_matches))) + 1)
+    first-round matches. 16 matches → 5 rounds, 32 matches → 6 rounds, etc.
+
+    Rounds up: a draw missing a match (a walkover the scraper never recorded,
+    say) leaves e.g. 15 openers, and truncating there returns one round too
+    few — the bracket then never resolves to a single winner.
+    """
+    n_rounds = max(1, int(np.ceil(np.log2(max(1, n_first_round_matches)))) + 1)
     if n_rounds <= 3:
         return ROUND_ORDER[-n_rounds:]
     return ROUND_ORDER[:n_rounds - 3] + ROUND_ORDER[-3:]
@@ -156,6 +162,10 @@ def build_h2h_lookups(df, tour_date):
     hist = df[df["start_date"] < pd.Timestamp(tour_date)]
     if "is_pending" in hist.columns:
         hist = hist[hist["is_pending"] == 0]
+    # Walkovers are kept in the frame for bracket topology but were never
+    # counted as history during feature engineering — match that here.
+    if "is_walkover" in hist.columns:
+        hist = hist[hist["is_walkover"] == 0]
     hist = hist.sort_values("start_date")
 
     rate_cache = {}
@@ -318,7 +328,11 @@ def run_monte_carlo(
     rounds = round_sequence(len(r1_matchups))
     n_rounds_total = len(rounds)
 
-    champions = current[:, 0]
+    # None until a round actually reduces the bracket to one slot. Seeding this
+    # with current[:, 0] would report the first player of the first match as a
+    # 100%-certain champion whenever the bracket fails to resolve — a confident
+    # wrong answer instead of a visible failure.
+    champions = None
     for round_i, round_name in enumerate(rounds):
         # Defensive: an odd slot count means the bracket is malformed
         # (a dropped slot somewhere) — give the trailing player a bye
@@ -399,6 +413,13 @@ def run_monte_carlo(
         if current.shape[1] == 1:
             champions = current[:, 0]
             break
+
+    if champions is None:
+        raise ValueError(
+            f"Bracket never resolved to a single winner: {len(r1_matchups)} "
+            f"first-round matchups left {current.shape[1]} slots after "
+            f"{len(rounds)} rounds. The draw is incomplete."
+        )
 
     idx, counts = np.unique(champions, return_counts=True)
     return {players[i]: int(c) for i, c in zip(idx, counts)}

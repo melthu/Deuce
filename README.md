@@ -26,7 +26,7 @@ Train ≤ 2025, validation = all 2026 matches to date (leak-free temporal holdou
 | Ensemble | 0.7229  |
 | CatBoost | **0.7233** |
 
-The production model for upcoming tournaments is chosen by `src/promote.py`: every week it benchmarks all tuned candidates on the latest season, retrains the **winner** on all completed matches, and promotes it to `models/best_model.pkl` — so the model type is re-decided automatically as the season's validation data grows (currently CatBoost). Benchmark AUCs shift as the 2026 validation set grows.
+The production model for upcoming tournaments is chosen by `src/modeling/promote.py`: every week it benchmarks all tuned candidates on the latest season, retrains the **winner** on all completed matches, and promotes it to `models/best_model.pkl` — so the model type is re-decided automatically as the season's validation data grows (currently CatBoost). Benchmark AUCs shift as the 2026 validation set grows.
 
 ---
 
@@ -77,12 +77,12 @@ Or run the full pipeline end-to-end: `python3 run_pipeline.py --all`
 
 | Step | Script | Output |
 |------|--------|--------|
-| 1 | `src/build_config.py` | `data/config/tournaments_config.csv` — tournament calendar 2010→present (year range is dynamic; new seasons appear automatically) |
-| 2 | `src/scraper_orchestrator.py` → `scraper_wiki_single.py` | `data/raw/raw_matches.csv` — matches in true bracket order with per-game scores, seeds, walkover + pending flags. `--incremental` merges only new/changed tournaments |
-| 3 | `src/feature_engineering.py` | `data/interim/engineered_matches.csv` — 30 temporal features; walkovers dropped, pending matches get features but never update history |
-| 4 | `src/data_loader.py` | `data/processed/final_training_data.csv` — every match mirrored A↔B for positional symmetry |
+| 1 | `src/pipeline/build_config.py` | `data/config/tournaments_config.csv` — tournament calendar 2010→present (year range is dynamic; new seasons appear automatically) |
+| 2 | `src/pipeline/scraper_orchestrator.py` → `scraper_wiki_single.py` | `data/raw/raw_matches.csv` — matches in true bracket order with per-game scores, seeds, walkover + pending flags. `--incremental` merges only new/changed tournaments |
+| 3 | `src/pipeline/feature_engineering.py` | `data/interim/engineered_matches.csv` — 30 temporal features; walkovers dropped, pending matches get features but never update history |
+| 4 | `src/pipeline/data_loader.py` | `data/processed/final_training_data.csv` — every match mirrored A↔B for positional symmetry |
 
-`src/data_checks.py` is the sanity gate the weekly workflow runs before committing scraped data (row counts, nulls, duplicate keys, walkover/pending fractions).
+`src/pipeline/data_checks.py` is the sanity gate the weekly workflow runs before committing scraped data (row counts, nulls, duplicate keys, walkover/pending fractions).
 
 ### Pending matches
 
@@ -111,18 +111,18 @@ The scraper marks drawn-but-unplayed matches (`is_pending=1`, no bolded winner o
 
 ## Models
 
-- **XGBoost / LightGBM / CatBoost** (`src/train_xgb.py`, `src/train_lgbm.py`, `src/train_catboost.py`) — benchmark trainers; all read Optuna-tuned hyperparameters from `models/best_params.json`.
+- **XGBoost / LightGBM / CatBoost** (`src/modeling/train_xgb.py`, `src/modeling/train_lgbm.py`, `src/modeling/train_catboost.py`) — benchmark trainers; all read Optuna-tuned hyperparameters from `models/best_params.json`.
 - **promote.py** — production selection: benchmarks all three tuned candidates on the latest season, retrains the winner on every completed match, writes `models/best_model.pkl`. Run weekly by CI.
-- **TabNet** (`src/train_tabnet.py`) and **DeepFM** (`src/model.py` + `src/train.py`) — neural baselines.
-- **Ensemble** (`src/train_ensemble.py`) — AUC-weighted average of all saved models, for benchmarking.
+- **TabNet** (`src/modeling/train_tabnet.py`) and **DeepFM** (`src/modeling/model.py` + `src/modeling/train.py`) — neural baselines.
+- **Ensemble** (`src/modeling/train_ensemble.py`) — AUC-weighted average of all saved models, for benchmarking.
 
-Hyperparameters for all three tree models are tuned with Optuna (`src/tune_hyperparams.py`) against the penultimate year so the final holdout stays clean.
+Hyperparameters for all three tree models are tuned with Optuna (`src/modeling/tune_hyperparams.py`) against the penultimate year so the final holdout stays clean.
 
 ---
 
 ## Monte Carlo Simulation
 
-`src/simulate.py` (imported by the app, also a CLI):
+`src/serving/simulate.py` (imported by the app, also a CLI):
 
 1. Builds point-in-time player stats (Elo, EMA, streak, …) from data strictly before the tournament start.
 2. Simulates all N brackets round-by-round. Each round batches every match across all simulations into a single `predict_proba` call, with both slot orders averaged — `P(A beats B) ≡ 1 − P(B beats A)` — to eliminate positional bias.
@@ -130,7 +130,7 @@ Hyperparameters for all three tree models are tuned with Optuna (`src/tune_hyper
 4. Matches with real results on record are fixed to their actual outcome in every simulation.
 
 ```bash
-python3 src/simulate.py --date 2026-02-24 --tier 300 --sims 10000
+python3 src/serving/simulate.py --date 2026-02-24 --tier 300 --sims 10000
 ```
 
 ---

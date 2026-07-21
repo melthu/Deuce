@@ -67,8 +67,9 @@ def _elo_prepass(df: pd.DataFrame):
         streak_a_list.append(s_a)
         streak_b_list.append(s_b)
 
-        # Pending matches have no outcome yet — record pre-match state only
-        if int(row.get("is_pending", 0)) == 1:
+        # Pending matches have no outcome yet, and walkovers have no contested
+        # one — record pre-match state only, never update from them.
+        if int(row.get("is_pending", 0)) == 1 or int(row.get("is_walkover", 0)) == 1:
             continue
 
         # --- Post-match updates ---
@@ -165,8 +166,9 @@ def _score_prepass(df: pd.DataFrame):
         margin_a_list.append(pa_margin)
         margin_b_list.append(pb_margin)
 
-        # Pending matches have no score yet — record pre-match state only
-        if int(row.get("is_pending", 0)) == 1:
+        # Pending matches have no score yet; a walkover's score is a partial
+        # scoreline that would distort every rolling stat below.
+        if int(row.get("is_pending", 0)) == 1 or int(row.get("is_walkover", 0)) == 1:
             continue
 
         # --- Post-match update (only when a score is available) ---
@@ -191,17 +193,21 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
 
     # Backward-compat: fill columns that may be absent in older CSV versions
     for col, default in [("score", ""), ("player_a_seed", 0), ("player_b_seed", 0),
-                         ("is_pending", 0)]:
+                         ("is_pending", 0), ("is_walkover", 0)]:
         if col not in df.columns:
             df[col] = default
 
-    # Drop walkovers / retirements before feature engineering (they distort stats)
+    # Walkovers / retirements are kept as rows — they occupy a real bracket slot,
+    # and dropping them leaves a draw with 15 first-round matches instead of 16,
+    # which silently breaks round_sequence and the Monte Carlo. They are instead
+    # treated like pending rows below: pre-match state is recorded, but they never
+    # update Elo/EMA/scoring stats (a retirement at 6-2 distorts them), and
+    # load_training_frame excludes them from training by default.
     if "is_walkover" in df.columns:
-        n_before = len(df)
-        df = df[df["is_walkover"] != 1].copy()
-        n_dropped = n_before - len(df)
-        if n_dropped:
-            print(f"Dropped {n_dropped} walkover/retirement rows.")
+        n_wo = int((df["is_walkover"] == 1).sum())
+        if n_wo:
+            print(f"Keeping {n_wo} walkover/retirement rows for bracket "
+                  f"topology; excluded from stat updates and training.")
 
     # Golden Rule: sort chronologically so the row-wise history slice is always
     # correct. MUST be a stable sort — rows within one tournament are in true
@@ -229,9 +235,11 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
         pa = row["player_a"]
         pb = row["player_b"]
 
-        # Strict historical slice — excludes any match on the same date,
-        # and pending matches (no outcome) can never count as history
-        hist = df[(df["start_date"] < current_date) & (df["is_pending"] == 0)]
+        # Strict historical slice — excludes any match on the same date, plus
+        # pending matches (no outcome) and walkovers (no contested outcome);
+        # neither can count as history.
+        hist = df[(df["start_date"] < current_date) &
+                  (df["is_pending"] == 0) & (df["is_walkover"] == 0)]
 
         # ------------------------------------------------------------------
         # Feature 2: same_nationality
@@ -315,6 +323,7 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
             "player_b_nat":         row["player_b_nat"],
             "player_a_won":         row["player_a_won"],
             "is_pending":           int(row.get("is_pending", 0)),
+            "is_walkover":          int(row.get("is_walkover", 0)),
             # --- Original 10 engineered features ---
             "same_nationality":                 same_nat,
             "h2h_win_rate_a_vs_b":              round(h2h_rate, 4),

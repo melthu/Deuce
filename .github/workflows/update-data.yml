@@ -27,13 +27,13 @@ jobs:
         run: pip install -r requirements-ci.txt
 
       - name: Rebuild tournament calendar
-        run: python src/build_config.py
+        run: python src/pipeline/build_config.py
 
       - name: Incremental scrape (new / pending / recent tournaments)
-        run: python src/scraper_orchestrator.py --incremental
+        run: python src/pipeline/scraper_orchestrator.py --incremental
 
       - name: Sanity-check scraped data
-        run: python src/data_checks.py
+        run: python src/pipeline/data_checks.py
 
       - name: Detect data changes
         id: diff
@@ -48,12 +48,12 @@ jobs:
       - name: Re-engineer features + mirror dataset
         if: steps.diff.outputs.changed == 'true'
         run: |
-          python src/feature_engineering.py
-          python src/data_loader.py
+          python src/pipeline/feature_engineering.py
+          python src/pipeline/data_loader.py
 
       - name: Select & retrain production model (best of xgb/lgbm/catboost)
         if: steps.diff.outputs.changed == 'true'
-        run: python src/promote.py
+        run: python src/modeling/promote.py
 
       - name: Commit & push
         if: steps.diff.outputs.changed == 'true'

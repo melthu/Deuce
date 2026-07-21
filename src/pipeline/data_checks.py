@@ -4,7 +4,7 @@ Sanity gate for the scheduled data refresh.
 Run after scraping and before committing: exits non-zero if the raw CSV
 looks corrupted, so a bad scrape never reaches the deployed app.
 
-    python3 src/data_checks.py
+    python3 src/pipeline/data_checks.py
 """
 import sys
 

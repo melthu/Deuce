@@ -80,22 +80,37 @@ def fill_missing_cont_cols(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def load_training_frame(csv_path: str = DATA_PATH, drop_pending: bool = True) -> pd.DataFrame:
+def load_training_frame(csv_path: str = DATA_PATH, drop_pending: bool = True,
+                        drop_walkover: bool | None = None) -> pd.DataFrame:
     """
     Load the mirrored training CSV with standard cleaning applied:
     parsed dates, lower-cased rounds, backward-compat column fills.
 
-    Pending rows (scraped draw matches that have not been played yet) carry
-    no outcome — they are dropped for any training/eval use unless
-    drop_pending=False (the dashboard keeps them to display upcoming draws).
+    Two kinds of row carry no usable outcome and are dropped for training or
+    eval, but kept when the caller needs the full bracket (the dashboard and
+    the static exporter pass drop_pending=False to display draws):
+
+      * pending   — a published draw match that has not been played yet
+      * walkover  — a retirement or no-show; it fills a real bracket slot, so
+                    it must stay visible for topology, but its scoreline is
+                    partial and its result uncontested
+
+    drop_walkover defaults to whatever drop_pending is, so every existing
+    training caller keeps excluding them and every display caller keeps them.
     """
+    if drop_walkover is None:
+        drop_walkover = drop_pending
     df = pd.read_csv(csv_path)
     df["start_date"] = pd.to_datetime(df["start_date"])
     df["round"] = df["round"].str.lower().replace(ROUND_ALIASES)
     if "is_pending" not in df.columns:
         df["is_pending"] = 0
+    if "is_walkover" not in df.columns:
+        df["is_walkover"] = 0
     if drop_pending:
         df = df[df["is_pending"] != 1].reset_index(drop=True)
+    if drop_walkover:
+        df = df[df["is_walkover"] != 1].reset_index(drop=True)
     fill_missing_cont_cols(df)
     return df
 

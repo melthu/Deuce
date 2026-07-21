@@ -1,15 +1,16 @@
 import sys
 import os
 import pickle
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))  # repo root
 
 import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score
 
-from src.dataset import extract_numpy, get_train_val_datasets
-from src.model import BWFDeepFM
-from src.train_tabnet import TabNetWrapper  # noqa: F401 — needed for pickle unpickling
+from src.modeling.dataset import extract_numpy, get_train_val_datasets
+from src.modeling.model import BWFDeepFM
+from src.modeling.train_tabnet import TabNetWrapper  # noqa: F401 — needed for pickle unpickling
 
 DATA_PATH  = "data/processed/final_training_data.csv"
 MODEL_PATHS = {

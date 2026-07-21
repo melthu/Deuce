@@ -1,14 +1,15 @@
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))  # repo root
 
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from sklearn.metrics import roc_auc_score
 
-from src.dataset import get_train_val_datasets
-from src.model import BWFDeepFM
+from src.modeling.dataset import get_train_val_datasets
+from src.modeling.model import BWFDeepFM
 
 DATA_PATH    = "data/processed/final_training_data.csv"
 MODEL_PATH   = "models/best_deepfm.pt"

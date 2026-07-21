@@ -5,7 +5,11 @@ import pandas as pd
 INPUT_PATH = "data/interim/engineered_matches.csv"
 OUTPUT_PATH = "data/processed/final_training_data.csv"
 
-METADATA_COLS = ["tournament", "host_country", "player_a_nat", "player_b_nat"]
+# Nationality columns are directional and are NOT in SWAP_PAIRS, so they would
+# be wrong on mirrored rows — they must go. `tournament` is kept: two events can
+# share a start date (SaarLorLux and Macau Open both open 2020-10-27), and
+# without a name there is no way to tell their matches apart.
+METADATA_COLS = ["host_country", "player_a_nat", "player_b_nat"]
 
 SWAP_PAIRS = [
     ("player_a",                          "player_b"),

@@ -6,8 +6,9 @@ from datetime import date, timedelta
 
 import pandas as pd
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from scraper_wiki_single import scrape_wiki_single
+sys.path.insert(0, os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))  # repo root
+from src.pipeline.scraper_wiki_single import scrape_wiki_single
 
 CONFIG_PATH = "data/config/tournaments_config.csv"
 OUTPUT_PATH = "data/raw/raw_matches.csv"

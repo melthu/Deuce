@@ -11,9 +11,10 @@ so there is zero leakage between folds.
 """
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))  # repo root
 
-from src.dataset import (
+from src.modeling.dataset import (
     BWFDataset,
     encode_split,
     fit_preprocessors,

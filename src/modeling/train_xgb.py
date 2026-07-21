@@ -3,13 +3,14 @@ import os
 import json
 import pickle
 import argparse
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))  # repo root
 
 import pandas as pd
 import xgboost as xgb
 from sklearn.metrics import roc_auc_score
 
-from src.dataset import extract_numpy, get_train_val_datasets, load_training_frame, \
+from src.modeling.dataset import extract_numpy, get_train_val_datasets, load_training_frame, \
     fit_preprocessors, encode_split
 import numpy as np
 

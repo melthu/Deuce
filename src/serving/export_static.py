@@ -1,0 +1,476 @@
+"""
+Precompute every model output the dashboard shows, as static JSON.
+
+Run from the project root:
+
+    python src/serving/export_static.py                # incremental (default)
+    python src/serving/export_static.py --force        # rebuild everything
+    python src/serving/export_static.py --only 2026-07-21
+
+Design notes
+------------
+* **No model ever ships.** A point-in-time model exists only to predict its own
+  tournament's ~31 matches, so we export what it said, not the estimator.
+* **Sharded by access pattern.** The index is small enough to load on first
+  paint; tournament, player and matchup files are fetched on demand.
+* **Incremental.** Each tournament file carries a fingerprint of the inputs that
+  produced it. Unchanged inputs are skipped, so re-running costs almost nothing.
+  Because the fingerprint covers the tournament's own rows, a live event
+  re-exports automatically as results land — which is what lets the site show
+  semi-final predictions once the quarter-finals are in.
+"""
+import argparse
+import hashlib
+import json
+import os
+import re
+import sys
+import time
+import unicodedata
+
+import numpy as np
+import pandas as pd
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))  # repo root
+
+from src.modeling.dataset import CONT_COLS, encode_split, load_training_frame
+from src.modeling.pit_model import train_point_in_time
+from src.serving.simulate import (
+    build_fixed_results,
+    build_h2h_lookups,
+    build_time_zero_state,
+    load_model,
+    predict_match,
+    run_monte_carlo,
+)
+
+DATA_PATH   = "data/processed/final_training_data.csv"
+RAW_PATH    = "data/raw/raw_matches.csv"
+CONFIG_PATH = "data/config/tournaments_config.csv"
+OUT_DIR     = "site/data"
+
+FIRST_YEAR   = 2018      # World Tour era; browsable scope, not training scope
+N_SIMS       = 10_000
+ACTIVE_SINCE = "2025-01-01"
+
+# Bump when the payload shape or any exported computation changes, so a
+# rerun regenerates files that would otherwise look up to date.
+EXPORT_VERSION = 3
+
+FEATURE_NAMES = ["tier", "round", "player_a", "player_b"] + CONT_COLS
+
+# 34 raw features → 9 drivers. SHAP is additive, so summing within a group is
+# exact; the frontend never needs to know a feature name.
+_DRIVERS = {
+    "Rating": ["player_a_elo", "player_b_elo", "elo_diff"],
+    "Recent form": ["player_a_ema_form", "player_b_ema_form",
+                    "player_a_recent_win_rate", "player_b_recent_win_rate",
+                    "player_a_win_streak", "player_b_win_streak"],
+    "Head-to-head": ["h2h_win_rate_a_vs_b", "h2h_last_winner"],
+    "Seeding": ["player_a_seed", "player_b_seed"],
+    "Rest & workload": ["player_a_days_since_last_match", "player_b_days_since_last_match",
+                        "player_a_matches_last_7_days", "player_b_matches_last_7_days",
+                        "player_a_matches_last_14_days", "player_b_matches_last_14_days"],
+    "Scoring margin": ["player_a_avg_point_diff", "player_b_avg_point_diff",
+                       "player_a_avg_victory_margin", "player_b_avg_victory_margin",
+                       "player_a_avg_games_per_match", "player_b_avg_games_per_match",
+                       "player_a_rubber_game_rate", "player_b_rubber_game_rate"],
+    "Home & nation": ["player_a_is_home", "player_b_is_home", "same_nationality"],
+    "Player identity": ["player_a", "player_b"],
+    "Match context": ["tier", "round"],
+}
+DRIVER_OF = {f: d for d, fs in _DRIVERS.items() for f in fs}
+
+
+# ----------------------------------------------------------------------
+# helpers
+# ----------------------------------------------------------------------
+def slugify(name: str) -> str:
+    s = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
+    return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", s.lower())).strip("-")
+
+
+def write_json(path: str, obj) -> int:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    blob = json.dumps(obj, separators=(",", ":"))
+    with open(path, "w") as f:
+        f.write(blob)
+    return len(blob)
+
+
+def load_nat_map(raw: pd.DataFrame) -> dict:
+    out = {}
+    for side in ("a", "b"):
+        sub = raw[[f"player_{side}", f"player_{side}_nat"]].dropna()
+        for name, nat in sub.itertuples(index=False):
+            out.setdefault(name, nat)
+    return out
+
+
+def dedupe_day(day: pd.DataFrame) -> pd.DataFrame:
+    """One row per real match — the training frame carries both mirrorings."""
+    seen, keep = set(), []
+    for _, row in day.iterrows():
+        k = (row["round"], frozenset((row["player_a"], row["player_b"])))
+        if k not in seen:
+            seen.add(k)
+            keep.append(row)
+    return pd.DataFrame(keep).reset_index(drop=True) if keep else pd.DataFrame()
+
+
+def fingerprint(day: pd.DataFrame, hist: pd.DataFrame) -> str:
+    """
+    Identify the inputs behind a tournament's export: its own rows (which change
+    as a live event progresses) and all history before it (which changes on a
+    rescrape). Cheap enough to compute for every tournament on every run.
+    """
+    h = hashlib.sha1()
+    h.update(str(EXPORT_VERSION).encode())
+    h.update(str(int(pd.util.hash_pandas_object(day, index=False).sum())).encode())
+    h.update(str(len(hist)).encode())
+    h.update(str(int(pd.util.hash_pandas_object(hist, index=False).sum())).encode())
+    return h.hexdigest()[:16]
+
+
+def group_shap(sv: np.ndarray) -> list:
+    agg = {}
+    for name, val in zip(FEATURE_NAMES[:len(sv)], sv):
+        agg[DRIVER_OF[name]] = agg.get(DRIVER_OF[name], 0.0) + float(val)
+    return [{"f": k, "s": round(v, 4)}
+            for k, v in sorted(agg.items(), key=lambda t: -abs(t[1]))]
+
+
+# ----------------------------------------------------------------------
+# per-tournament export
+# ----------------------------------------------------------------------
+def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
+    """Returns (status, bytes) where status is 'skip' | 'write' | 'thin'."""
+    import shap
+
+    tour_date = pd.Timestamp(cfg_row["start_date"])
+    date_key  = tour_date.strftime("%Y-%m-%d")
+    name      = cfg_row["tournament_name"]
+    tier      = int(cfg_row["tier"])
+    # Keyed by name, not date: two tournaments can open on the same day.
+    path      = os.path.join(out_dir, "tournament", f"{slugify(name)}.json")
+
+    same_day = df["start_date"] == tour_date
+    mine     = same_day & (df["tournament"] == name)
+    day      = dedupe_day(df[mine])
+    hist     = df[(df["start_date"] < tour_date) & (df["is_pending"] == 0)]
+    if day.empty:
+        return "thin", 0
+
+    fp = fingerprint(day, hist)
+    if os.path.exists(path):
+        try:
+            with open(path) as f:
+                if json.load(f).get("fp") == fp:
+                    return "skip", 0
+        except (ValueError, OSError):
+            pass  # unreadable or truncated — regenerate
+
+    pit = train_point_in_time(df, date_key)
+    if pit is None:
+        payload, pre = fallback_payload
+        model_label  = "preloaded (insufficient history)"
+    else:
+        payload, pre = pit
+        model_label  = "point-in-time"
+
+    df_t = df[~same_day | mine]          # drop a co-dated tournament's rows
+    r1, stats = build_time_zero_state(df_t, date_key, tier)
+    if r1.empty:
+        return "thin", 0
+    h2h_rate, h2h_last = build_h2h_lookups(df, date_key)
+    scaler, p2i, t2i, r2i = (pre["scaler"], pre["player_to_id"],
+                             pre["tier_to_id"], pre["round_to_id"])
+
+    est = payload["model"]
+    explainer = shap.TreeExplainer(est)
+    n_feat = getattr(est, "n_features_in_", 0) or len(FEATURE_NAMES)
+
+    # Seeds and scores live in the raw scrape, not the engineered frame.
+    # Scores are stored winner-perspective, so they read correctly regardless
+    # of which way round this frame happens to hold the pair.
+    seeds, scores = {}, {}
+    day_raw = raw[raw["tournament"] == name]
+    for _, r in day_raw.iterrows():
+        for side in ("a", "b"):
+            s = r.get(f"player_{side}_seed")
+            if pd.notna(s) and int(s) > 0:
+                seeds[r[f"player_{side}"]] = int(s)
+        sc = r.get("score")
+        if pd.notna(sc):
+            scores[(r["round"], frozenset((r["player_a"], r["player_b"])))] = str(sc)
+
+    matches = []
+    for _, row in day.iterrows():
+        pa, pb, rnd = row["player_a"], row["player_b"], row["round"]
+        p = predict_match(pa, pb, rnd, stats, h2h_rate, h2h_last,
+                          scaler, p2i, t2i, r2i, payload, tier=tier, nat_map=nat_map)
+
+        cat, cont, _ = encode_split(row.to_frame().T, pre)
+        X  = np.hstack([cat.astype(np.float64), cont])[:, :n_feat]
+        sv = np.array(explainer.shap_values(X))
+        if sv.ndim == 3:
+            sv = sv[..., 1] if sv.shape[-1] == 2 else sv[0]
+
+        pending = int(row.get("is_pending", 0)) == 1
+        matches.append({
+            "round": rnd, "a": pa, "b": pb,
+            "a_nat": nat_map.get(pa, ""), "b_nat": nat_map.get(pb, ""),
+            "a_seed": seeds.get(pa), "b_seed": seeds.get(pb),
+            "a_elo": round(float(stats[pa]["elo"]), 1) if pa in stats else None,
+            "b_elo": round(float(stats[pb]["elo"]), 1) if pb in stats else None,
+            "p": round(float(p), 4),
+            "pending": pending,
+            "a_won": None if pending else bool(row["player_a_won"]),
+            "score": "" if pending else scores.get((rnd, frozenset((pa, pb))), ""),
+            "shap": group_shap(sv.reshape(-1)),
+        })
+
+    played = [m for m in matches if not m["pending"]]
+    hits = sum(1 for m in played if (m["p"] > .5) == m["a_won"])
+    n_pending = len(matches) - len(played)
+    status = "upcoming" if not played else ("live" if n_pending else "complete")
+
+    def simulate(fixed):
+        # A handful of draws are genuinely incomplete on Wikipedia. Ship the
+        # bracket without a forecast rather than a fabricated one, and say so.
+        try:
+            counts = run_monte_carlo(N_SIMS, r1, stats, h2h_rate, h2h_last,
+                                     scaler, p2i, t2i, r2i, payload,
+                                     np.random.default_rng(42), tier=tier,
+                                     nat_map=nat_map, fixed_results=fixed)
+        except ValueError as e:
+            print(f"    no simulation for {date_key}: {e}")
+            return None
+        return [{"name": k, "nat": nat_map.get(k, ""), "p": round(v / N_SIMS, 4)}
+                for k, v in sorted(counts.items(), key=lambda t: -t[1]) if v > 0]
+
+    # Always ship the pre-tournament forecast: conditioning a finished event on
+    # its own results just returns the champion at 100%.
+    leaderboard = simulate({})
+
+    # A live event additionally gets a forecast conditioned on what has actually
+    # been played, so once the quarter-finals are in the site shows the model's
+    # updated view of the semi-finals.
+    leaderboard_live = simulate(build_fixed_results(day)) if status == "live" else None
+
+    doc = {
+        "fp": fp,
+        "slug": slugify(name),
+        "tournament": name,
+        "date": date_key,
+        "tier": tier,
+        "host": cfg_row["host_country"],
+        "model": model_label,
+        "trained_through": payload.get("trained_through"),
+        "n_train_rows": payload.get("n_train_rows"),
+        "sims": N_SIMS,
+        "status": status,
+        "accuracy": {"hit": hits, "n": len(played)},
+        "matches": matches,
+        "leaderboard": leaderboard,
+        "leaderboard_live": leaderboard_live,
+    }
+    return "write", write_json(path, doc)
+
+
+# ----------------------------------------------------------------------
+# players & matchups
+# ----------------------------------------------------------------------
+_STAT_COLS = {
+    "is_home": "is_home", "matches_last_14_days": "matches_14d",
+    "days_since_last_match": "days_since", "recent_win_rate": "recent_win_rate",
+    "elo": "elo", "ema_form": "ema_form", "win_streak": "win_streak",
+    "matches_last_7_days": "matches_7d", "avg_point_diff": "avg_point_diff",
+    "avg_games_per_match": "avg_games_pm", "rubber_game_rate": "rubber_game_rate",
+    "avg_victory_margin": "avg_margin", "seed": "seed",
+}
+
+
+def latest_player_state(df: pd.DataFrame) -> dict:
+    """
+    Each player's most recent feature row, in the shape build_time_zero_state
+    returns. Features are pre-match values, so this is a player's form going
+    into their latest appearance — the global analogue of Day-1 tournament state.
+
+    Scanning slot A alone suffices: the frame is mirrored, so every player
+    appears in slot A of some row for every match they played.
+    """
+    ordered = df.sort_values("start_date")
+    out = {}
+    for _, row in ordered.iterrows():
+        name = row["player_a"]
+        st = {}
+        for col, key in _STAT_COLS.items():
+            v = row.get(f"player_a_{col}")
+            st[key] = float(v) if pd.notna(v) else 0.0
+        for k in ("is_home", "matches_14d", "win_streak", "matches_7d"):
+            st[k] = int(st[k])
+        out[name] = st
+    return out
+
+
+def export_players(df, raw, nat_map, out_dir):
+    """Current-form cards, the roster index, and each player's matchup row."""
+    from src.modeling.dataset import get_train_val_datasets
+    _, _, _, pre = get_train_val_datasets(DATA_PATH)
+    payload = load_model()
+
+    recent = raw[pd.to_datetime(raw["start_date"]) >= pd.Timestamp(ACTIVE_SINCE)]
+    roster = sorted(set(recent["player_a"]) | set(recent["player_b"]))
+    roster = [p for p in roster if isinstance(p, str) and p and p.upper() != "TBD"]
+
+    stats = latest_player_state(df)
+    roster = [p for p in roster if p in stats]
+
+    as_of = (df["start_date"].max() + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+    h2h_rate, h2h_last = build_h2h_lookups(df, as_of)
+
+    completed = df[df["is_pending"] == 0].sort_values("start_date")
+    total = 0
+    for name in roster:
+        s = stats[name]
+        mine = completed[completed["player_a"] == name].tail(5)
+        card = {
+            "name": name, "nat": nat_map.get(name, ""), "slug": slugify(name),
+            "elo": round(s["elo"], 1),
+            "ema": round(s["ema_form"], 4),
+            "recent_win_rate": round(s["recent_win_rate"], 3),
+            "avg_point_diff": round(s["avg_point_diff"], 2),
+            "avg_margin": round(s["avg_margin"], 2),
+            "rubber_rate": round(s["rubber_game_rate"], 3),
+            "streak": int(s["win_streak"]),
+            "form": [{"opp": r["player_b"], "won": bool(r["player_a_won"])}
+                     for _, r in mine.iterrows()],
+        }
+        total += write_json(os.path.join(out_dir, "player", f"{slugify(name)}.json"), card)
+
+    total += write_json(os.path.join(out_dir, "players.json"),
+                        [{"name": n, "nat": nat_map.get(n, ""), "slug": slugify(n),
+                          "elo": round(stats[n]["elo"], 1)} for n in roster])
+
+    total += export_matchups(roster, stats, h2h_rate, h2h_last, pre,
+                             payload, nat_map, out_dir)
+    return roster, total
+
+
+def export_matchups(roster, stats, h2h_rate, h2h_last, pre, payload,
+                    nat_map, out_dir):
+    """
+    Every pairing among the active roster, sharded one file per player.
+
+    Order-invariance means P(a beats b) == 1 - P(b beats a) exactly, so each
+    unordered pair is predicted once and written into both players' files.
+    """
+    scaler, p2i, t2i, r2i = (pre["scaler"], pre["player_to_id"],
+                             pre["tier_to_id"], pre["round_to_id"])
+    rows = {n: {} for n in roster}
+    for i, a in enumerate(roster):
+        for b in roster[i + 1:]:
+            p = float(predict_match(a, b, "quarter-finals", stats,
+                                    h2h_rate, h2h_last, scaler, p2i, t2i, r2i,
+                                    payload, tier=750, nat_map=nat_map))
+            rows[a][b] = round(p, 4)
+            rows[b][a] = round(1.0 - p, 4)
+
+    total = 0
+    for name in roster:
+        total += write_json(
+            os.path.join(out_dir, "matchup", f"{slugify(name)}.json"),
+            {"name": name,
+             "vs": [{"slug": slugify(o), "name": o, "p": p}
+                    for o, p in sorted(rows[name].items(), key=lambda t: -t[1])]})
+    return total
+
+
+# ----------------------------------------------------------------------
+# index
+# ----------------------------------------------------------------------
+def export_index(cfg, df, out_dir):
+    rows = []
+    for _, c in cfg.iterrows():
+        d = pd.Timestamp(c["start_date"])
+        day = df[(df["start_date"] == d) & (df["tournament"] == c["tournament_name"])]
+        if day.empty:
+            continue
+        pending = int((day["is_pending"] == 1).sum())
+        played  = int((day["is_pending"] == 0).sum())
+        rows.append({
+            "name": c["tournament_name"],
+            "slug": slugify(c["tournament_name"]),
+            "date": d.strftime("%Y-%m-%d"),
+            "tier": int(c["tier"]),
+            "host": c["host_country"],
+            "status": "upcoming" if played == 0 else ("live" if pending else "complete"),
+        })
+    rows.sort(key=lambda r: r["date"], reverse=True)
+    return rows, write_json(os.path.join(out_dir, "tournaments.json"), rows)
+
+
+# ----------------------------------------------------------------------
+def main():
+    ap = argparse.ArgumentParser(description="Export ShuttleCast as static JSON")
+    ap.add_argument("--out", default=OUT_DIR)
+    ap.add_argument("--force", action="store_true", help="ignore fingerprints")
+    ap.add_argument("--only", help="single tournament start date (YYYY-MM-DD)")
+    ap.add_argument("--since", type=int, default=FIRST_YEAR)
+    ap.add_argument("--skip-players", action="store_true")
+    args = ap.parse_args()
+
+    t0 = time.time()
+    df  = load_training_frame(DATA_PATH, drop_pending=False)
+    raw = pd.read_csv(RAW_PATH)
+    cfg = pd.read_csv(CONFIG_PATH)
+    cfg["start_date"] = pd.to_datetime(cfg["start_date"], errors="coerce")
+    cfg = cfg.dropna(subset=["start_date"])
+    cfg = cfg[cfg["start_date"].dt.year >= args.since].sort_values("start_date")
+    if args.only:
+        cfg = cfg[cfg["start_date"] == pd.Timestamp(args.only)]
+    if args.force:
+        tdir = os.path.join(args.out, "tournament")
+        if os.path.isdir(tdir):
+            for f in os.listdir(tdir):
+                os.remove(os.path.join(tdir, f))
+
+    nat_map = load_nat_map(raw)
+    from src.modeling.dataset import get_train_val_datasets
+    _, _, _, global_pre = get_train_val_datasets(DATA_PATH)
+    fallback = (load_model(), global_pre)
+
+    print(f"Exporting {len(cfg)} tournaments ({args.since}+) to {args.out}/")
+    n_write = n_skip = n_thin = 0
+    total_bytes = 0
+    for _, row in cfg.iterrows():
+        status, size = export_tournament(row, df, raw, nat_map, fallback, args.out)
+        total_bytes += size
+        if status == "write":
+            n_write += 1
+            print(f"  [write] {row['start_date'].date()}  {row['tournament_name']:<34} "
+                  f"{size/1024:6.1f} KB")
+        elif status == "skip":
+            n_skip += 1
+        else:
+            n_thin += 1
+
+    index, idx_bytes = export_index(cfg, df, args.out)
+    total_bytes += idx_bytes
+
+    if not args.skip_players:
+        roster, pbytes = export_players(df, raw, nat_map, args.out)
+        total_bytes += pbytes
+        print(f"  {len(roster)} active players -> player/*.json ({pbytes/1024:.0f} KB)")
+
+    print(f"\n{'='*62}")
+    print(f"  written {n_write} · skipped {n_skip} · no data {n_thin}")
+    print(f"  index: {len(index)} tournaments · total written {total_bytes/1024:.0f} KB")
+    print(f"  {time.time()-t0:.1f}s")
+    print(f"{'='*62}")
+
+
+if __name__ == "__main__":
+    main()

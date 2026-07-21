@@ -17,5 +17,11 @@ data/interim/
 # best_params.json is kept (represents hours of Optuna search)
 models/*.pt
 
+# Static site payload — ~9 MB across ~690 files, fully regenerable from the
+# tracked data by `make export`. The workflow builds it fresh and hands it to
+# upload-pages-artifact, so it is never committed; keeping it out of history
+# avoids growing the repo by several MB every week.
+site/data/
+
 # macOS
 .DS_Store

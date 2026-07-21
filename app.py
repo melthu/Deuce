@@ -16,14 +16,14 @@ import shap
 import streamlit as st
 from streamlit_calendar import calendar as st_calendar
 
-from src.dataset import (
+from src.modeling.dataset import (
     CONT_COLS,
     encode_split,
     fit_preprocessors,
     get_train_val_datasets,
     load_training_frame,
 )
-from src.simulate import (
+from src.serving.simulate import (
     ROUND_ORDER,
     STAT_KEYS,
     _cont_matrix,
@@ -35,7 +35,8 @@ from src.simulate import (
     round_sequence,
     run_monte_carlo,
 )
-from src.train_xgb import load_tuned_params
+from src.modeling.pit_model import train_point_in_time
+from src.modeling.train_xgb import load_tuned_params
 
 # ------------------------------------------------------------------
 # Constants
@@ -47,8 +48,6 @@ CONFIG_PATH = "data/config/tournaments_config.csv"
 MODEL_PATH  = "models/best_model.pkl"
 
 FEATURE_NAMES = ["tier_id", "round_id", "player_a_id", "player_b_id"] + CONT_COLS
-
-MIN_PIT_ROWS = 1000   # minimum completed rows needed to train a point-in-time model
 
 TIER_LABELS: dict[int, str] = {
     1500: "Finals",
@@ -119,34 +118,11 @@ def load_pretrained():
 @st.cache_resource(max_entries=4, show_spinner=False)
 def get_point_in_time_model(tour_date: str):
     """
-    Train an XGBoost on every completed match strictly before tour_date,
-    with vocab + scaler fit on that same slice — a true point-in-time model.
-    Returns (payload, preprocessors), or None when there is too little history.
+    Cached wrapper over the shared point-in-time trainer. The implementation
+    lives in src/modeling/pit_model.py so the static exporter produces byte-identical
+    predictions to what this dashboard shows.
     """
-    import xgboost as xgb
-
-    df = load_df()
-    train_df = df[(df["start_date"] < pd.Timestamp(tour_date)) & (df["is_pending"] == 0)]
-    if len(train_df) < MIN_PIT_ROWS:
-        return None
-
-    preprocessors, _ = fit_preprocessors(train_df)
-    cat, cont, y = encode_split(train_df, preprocessors)
-    X = np.hstack([cat.astype(np.float64), cont])
-
-    params, _ = load_tuned_params()
-    model = xgb.XGBClassifier(**params, random_state=42, eval_metric="auc",
-                              tree_method="hist", verbosity=0)
-    model.fit(X, y, verbose=False)
-
-    payload = {
-        "type":            "single",
-        "model":           model,
-        "name":            "xgb (point-in-time)",
-        "trained_through": str(train_df["start_date"].max().date()),
-        "n_train_rows":    int(len(train_df)),
-    }
-    return payload, preprocessors
+    return train_point_in_time(load_df(), tour_date)
 
 
 @st.cache_data(show_spinner=False)
@@ -193,7 +169,8 @@ def get_all_tournaments() -> pd.DataFrame:
 def _get_h2h_hist(tour_date: str) -> pd.DataFrame:
     """Completed-match history strictly before the tournament (for H2H)."""
     df = load_df()
-    hist = df[(df["start_date"] < pd.Timestamp(tour_date)) & (df["is_pending"] == 0)].copy()
+    hist = df[(df["start_date"] < pd.Timestamp(tour_date)) &
+              (df["is_pending"] == 0) & (df["is_walkover"] == 0)].copy()
     return hist.sort_values("start_date").reset_index(drop=True)
 
 

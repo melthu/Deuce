@@ -4,24 +4,24 @@ import time
 import argparse
 
 SCRAPE_STEPS = [
-    ("Building tournament config (2010-present)", "src/build_config.py"),
-    ("Scraping Wikipedia match results",          "src/scraper_orchestrator.py"),
+    ("Building tournament config (2010-present)", "src/pipeline/build_config.py"),
+    ("Scraping Wikipedia match results",          "src/pipeline/scraper_orchestrator.py"),
 ]
 
 FEATURE_STEPS = [
-    ("Engineering temporal features",      "src/feature_engineering.py"),
-    ("Mirroring dataset for ML readiness", "src/data_loader.py"),
+    ("Engineering temporal features",      "src/pipeline/feature_engineering.py"),
+    ("Mirroring dataset for ML readiness", "src/pipeline/data_loader.py"),
 ]
 
 TRAIN_STEPS = [
-    ("Training LightGBM",   "src/train_lgbm.py"),
-    ("Training CatBoost",   "src/train_catboost.py"),
-    ("Training XGBoost",    "src/train_xgb.py"),
-    ("Selecting best model (ensemble)", "src/train_ensemble.py"),
+    ("Training LightGBM",   "src/modeling/train_lgbm.py"),
+    ("Training CatBoost",   "src/modeling/train_catboost.py"),
+    ("Training XGBoost",    "src/modeling/train_xgb.py"),
+    ("Selecting best model (ensemble)", "src/modeling/train_ensemble.py"),
 ]
 
 TUNE_STEPS = [
-    ("Optuna hyperparameter search (XGBoost + LightGBM)", "src/tune_hyperparams.py"),
+    ("Optuna hyperparameter search (XGBoost + LightGBM)", "src/modeling/tune_hyperparams.py"),
 ]
 
 
@@ -79,7 +79,7 @@ def main():
             print(f"\n[tune] Running Optuna hyperparameter search (all models, 50 trials)...")
             step_start = time.time()
             result = subprocess.run(
-                [sys.executable, "src/tune_hyperparams.py",
+                [sys.executable, "src/modeling/tune_hyperparams.py",
                  "--model", "all", "--trials", "50", "--retrain"],
                 capture_output=False,
             )
@@ -89,7 +89,7 @@ def main():
                 sys.exit(result.returncode)
             print(f"[tune] Done in {elapsed:.1f}s")
             # Rebuild ensemble with newly tuned models
-            run_steps([("Selecting best model (ensemble)", "src/train_ensemble.py")],
+            run_steps([("Selecting best model (ensemble)", "src/modeling/train_ensemble.py")],
                       step_offset=0, total_steps=1)
 
     total = time.time() - pipeline_start

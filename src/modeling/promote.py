@@ -11,18 +11,19 @@ Run weekly by .github/workflows/update-data.yml, so the production model
 type is re-decided automatically as the current season's validation data
 grows.
 
-    python3 src/promote.py
+    python3 src/modeling/promote.py
 """
 import sys
 import os
 import json
 import pickle
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))  # repo root
 
 import numpy as np
 from sklearn.metrics import roc_auc_score
 
-from src.dataset import encode_split, fit_preprocessors, load_training_frame
+from src.modeling.dataset import encode_split, fit_preprocessors, load_training_frame
 
 DATA_PATH       = "data/processed/final_training_data.csv"
 BEST_MODEL_PATH = "models/best_model.pkl"
