@@ -57,6 +57,15 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
                 break
         if sib.name == "table":
             ms_tables.append(sib)
+        elif sib.name == "section":
+            # Newer Wikipedia markup wraps each subsection ("Seeds", "Finals",
+            # "Top half", …) in its own <section>, so the bracket tables are no
+            # longer flat siblings of the heading. Only the discipline's own
+            # subsections are siblings here, but check the heading anyway.
+            sub_h = sib.find(["h2", "h3", "h4"])
+            if sub_h and stop_pattern.search(sub_h.get_text()):
+                break
+            ms_tables.extend(sib.find_all("table"))
 
     if not ms_tables:
         print("ERROR: Found the Men's Singles header but no bracket tables beneath it.")
