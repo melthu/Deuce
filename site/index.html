@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShuttleCast — BWF men's singles predictions</title>
+<meta name="description" content="Point-in-time match predictions, bracket simulations and model explanations for BWF World Tour men's singles.">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏸</text></svg>">
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <h1>Shuttle<span>Cast</span></h1>
+      <p>BWF men's singles · World Tour era</p>
+    </div>
+
+    <nav class="nav">
+      <button type="button" data-view="tournaments" aria-selected="true">Tournaments</button>
+      <button type="button" data-view="matchup" aria-selected="false">Matchup</button>
+      <button type="button" id="theme" class="iconbtn" style="flex:none" title="Toggle light / dark">◐</button>
+    </nav>
+
+    <div id="browse">
+      <div class="filters">
+        <select id="season" aria-label="Season"></select>
+      </div>
+      <div class="filters" style="padding-top:0">
+        <input type="search" id="tsearch" placeholder="Search tournaments…" aria-label="Search tournaments">
+      </div>
+      <div class="tlist" id="tlist"></div>
+    </div>
+
+    <div id="ratings" hidden>
+      <div class="filters" style="padding-bottom:4px">
+        <span class="pill">Rating leaders</span>
+      </div>
+      <div class="tlist" id="rlist"></div>
+    </div>
+  </aside>
+
+  <main class="main" id="main">
+    <div class="empty">Loading…</div>
+  </main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
