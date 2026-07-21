@@ -60,6 +60,12 @@ function flag(nat) {
 
 const pct = p => (p * 100).toFixed(p >= 0.995 || p < 0.005 ? 1 : 0) + '%';
 
+// A published draw can name a slot before the qualifier is known. The model
+// still scores it — against an unknown player it has no history for, so the
+// number is an artifact of the defaults rather than a prediction. Show the
+// slot, withhold the probability.
+const isPlaceholder = name => /\bTBD\b|qualifier/i.test(name || '');
+
 function fmtDate(iso) {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d))
@@ -181,17 +187,20 @@ function matchCard(m) {
   const node = el('button', 'match' + (m.pending ? ' pending' : ''));
   node.type = 'button';
   node.setAttribute('aria-pressed', String(state.selected === m.i));
+  const unknown = isPlaceholder(m.a) || isPlaceholder(m.b);
 
   const side = (who, name, nat, seed, prob, won) => {
     const s = el('div', `side ${who}` + (won === true ? ' won' : won === false ? ' lost' : ''));
-    s.style.setProperty('--fill', (prob * 100).toFixed(1) + '%');
+    s.style.setProperty('--fill', unknown ? '0%' : (prob * 100).toFixed(1) + '%');
     s.append(el('span', 'seed num', seed ? String(seed) : ''));
     const n = el('span', 'pname');
     const f = flag(nat);
     if (f) { const fl = el('span', 'flag', f); fl.title = nat; n.append(fl); }
     n.append(document.createTextNode(name));
     s.append(n);
-    s.append(el('span', 'prob num', pct(prob)));
+    const p = el('span', 'prob num', unknown ? '—' : pct(prob));
+    if (unknown) p.title = 'Opponent not yet determined';
+    s.append(p);
     return s;
   };
 
@@ -200,7 +209,9 @@ function matchCard(m) {
   node.append(side('b', m.b, m.b_nat, m.b_seed, 1 - m.p, aWon === null ? null : !aWon));
 
   const foot = el('div', 'match-foot');
-  if (m.pending) {
+  if (unknown) {
+    foot.append(el('span', null, 'Opponent not yet determined'));
+  } else if (m.pending) {
     foot.append(el('span', null, 'Not yet played'));
   } else {
     foot.append(el('span', 'score', m.score || ''));
@@ -243,6 +254,14 @@ function renderBracket(doc) {
 function renderExplain(m) {
   const box = el('div', 'explain');
   box.append(el('h3', null, `${m.a} vs ${m.b}`));
+
+  if (isPlaceholder(m.a) || isPlaceholder(m.b)) {
+    box.append(el('p', 'lede',
+      'One slot in this match is still open. The model can only score a named '
+      + 'player it has history for, so there is no meaningful prediction to '
+      + 'explain until the qualifier is decided.'));
+    return box;
+  }
 
   const fav = m.p >= 0.5 ? m.a : m.b;
   const favP = m.p >= 0.5 ? m.p : 1 - m.p;

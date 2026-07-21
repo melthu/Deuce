@@ -110,11 +110,26 @@ make export && make site    # build, then browse at http://localhost:8000
 | Step | Script | Output |
 |------|--------|--------|
 | 1 | `src/pipeline/build_config.py` | `data/config/tournaments_config.csv` — tournament calendar 2010→present (year range is dynamic; new seasons appear automatically) |
-| 2 | `src/pipeline/scraper_orchestrator.py` → `scraper_wiki_single.py` | `data/raw/raw_matches.csv` — matches in true bracket order with per-game scores, seeds, walkover + pending flags. `--incremental` merges only new/changed tournaments |
+| 2 | `src/pipeline/scraper_orchestrator.py` → `scraper_wiki_single.py` | `data/raw/raw_matches.csv` — matches in true bracket order with per-game scores, seeds, walkover + pending flags. `--incremental` merges only new/changed tournaments. Player names are canonicalised on write (`player_names.py`) |
 | 3 | `src/pipeline/feature_engineering.py` | `data/interim/engineered_matches.csv` — 30 temporal features; walkovers and pending matches get features but never update history |
 | 4 | `src/pipeline/data_loader.py` | `data/processed/final_training_data.csv` — every match mirrored A↔B for positional symmetry |
 
 `src/pipeline/data_checks.py` is the sanity gate the weekly workflow runs before committing scraped data (row counts, nulls, duplicate keys, walkover/pending fractions).
+
+### Player identity
+
+Wikipedia spells the same player several ways — word order (`Kidambi Srikanth` /
+`Srikanth Kidambi`), optional name parts (`Anthony Ginting` / `Anthony Sinisuka Ginting`),
+case, hyphenation and diacritics. Every spelling was otherwise a separate player with its
+own Elo, form and head-to-head: Parupalli Kashyap's career was split 121/65 and Prannoy's
+four ways. `src/pipeline/player_names.py` folds 78 alternate spellings into 68 canonical
+identities at the point the raw CSV is written.
+
+The map is explicit rather than a normalisation rule, because normalising is not safe in
+general: **Huang Yu and Huang Yu-kai reduce to the same string but played each other** in
+the third round of Kaohsiung Masters 2023. Every merge was checked against nationality,
+career span, and whether the two names ever shared a draw or met. `data_checks.py` reports
+new collisions but never merges them.
 
 ### Pending matches and walkovers
 

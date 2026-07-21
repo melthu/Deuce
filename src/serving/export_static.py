@@ -26,7 +26,6 @@ import os
 import re
 import sys
 import time
-import unicodedata
 
 import numpy as np
 import pandas as pd
@@ -35,6 +34,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))))  # repo root
 
 from src.modeling.dataset import CONT_COLS, encode_split, load_training_frame
+from src.pipeline.player_names import fold_ascii
 from src.modeling.pit_model import train_point_in_time
 from src.serving.simulate import (
     build_fixed_results,
@@ -87,7 +87,7 @@ DRIVER_OF = {f: d for d, fs in _DRIVERS.items() for f in fs}
 # helpers
 # ----------------------------------------------------------------------
 def slugify(name: str) -> str:
-    s = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
+    s = fold_ascii(name)
     return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", s.lower())).strip("-")
 
 
@@ -356,7 +356,28 @@ def export_players(df, raw, nat_map, out_dir):
 
     total += export_matchups(roster, stats, h2h_rate, h2h_last, pre,
                              payload, nat_map, out_dir)
+    prune_stale(roster, out_dir)
     return roster, total
+
+
+def prune_stale(roster, out_dir):
+    """
+    Drop player/matchup shards no longer in the roster.
+
+    CI restores site/data from cache, so nothing is deleted implicitly: a
+    player who drops out of the active window, or whose slug changes, would
+    otherwise leave an orphan behind forever. That also breaks the publish
+    gate, which asserts one matchup shard per player card.
+    """
+    keep = {slugify(n) + ".json" for n in roster}
+    for sub in ("player", "matchup"):
+        d = os.path.join(out_dir, sub)
+        if not os.path.isdir(d):
+            continue
+        for fname in os.listdir(d):
+            if fname.endswith(".json") and fname not in keep:
+                os.remove(os.path.join(d, fname))
+                print(f"    pruned stale {sub}/{fname}")
 
 
 def export_matchups(roster, stats, h2h_rate, h2h_last, pre, payload,

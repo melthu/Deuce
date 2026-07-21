@@ -20,9 +20,11 @@ Deliberately NOT merged, despite looking alike:
 * "Huang Yu" / "Huang Yu-kai" — they played each other in the third round of
   Kaohsiung Masters 2023. Different people.
 * "Munawar Mohammed" (India, 2018) / "Mohammed Munawar" (UAE, 2025).
-* "Georges Paul" / "Julien Paul" / "Georges Julien Paul" — all Mauritius, no
-  shared draw, but plausibly two distinct players. Left split pending evidence.
 * "Ravi" / "Ravi Ravi" — a single-token name is too ambiguous to merge on.
+
+The Mauritian "Georges Paul" / "Julien Paul" / "Georges Julien Paul" trio read
+the same way and were held back until confirmed; they are one player and are
+merged below.
 
 Note that sharing a draw is not on its own disqualifying: a player can advance
 through a bracket under two spellings when Wikipedia's own page is
@@ -33,8 +35,16 @@ inconsistent (Parupalli Kashyap, China Open 2012; Arnaud Merklé, Syed Modi
 future spelling gets reviewed rather than silently splitting a player again.
 """
 
+import unicodedata
+
 # alias -> canonical. Canonical is the most frequent spelling, breaking ties
 # toward diacritics, then the shorter and less capitalised form.
+#
+# Vietnamese names are the exception: they are rendered without diacritics
+# throughout, matching how BWF and Wikipedia's English pages write them. That
+# keeps "Nguyen Tien Minh" (which won on frequency) and "Nguyen Hai Dang"
+# (which would otherwise have won its tie on the diacritic rule) consistent
+# with each other.
 ALIASES = {
     "Chou Tien-Chen": "Chou Tien-chen",
     "Chen Chou-tien": "Chou Tien-chen",
@@ -92,11 +102,39 @@ ALIASES = {
     "Yuhan Tan": "Tan Yuhan",
     "M Atef Haikal Taufik": "M. Atef Haikal Taufik",
     "Chan Jie Ying": "Jie Ying Chan",
-    "Nguyen Hai Dang": "Nguyễn Hai Dang",
+    "Nguyễn Hai Dang": "Nguyen Hai Dang",
     "Kho Henrikho Wibowo": "Henrikho Kho Wibowo",
     "Ryan Ng Zin Rei": "Ryan Ng",
     "K. Ajay Kumar": "Ajay Kumar K.",
     "Hsieh Yu-Hsin": "Hsieh Yu-hsin",
+    # Confirmed one player. Unlike the other merges this one keeps the *fullest*
+    # spelling rather than the most frequent: the counts are 5/4/1, so there is
+    # no dominant rendering to defer to, and picking between two truncations on
+    # a one-match margin would be arbitrary.
+    "Georges Paul": "Georges Julien Paul",
+    "Julien Paul": "Georges Julien Paul",
+
+    # Vietnamese names are rendered without diacritics throughout, matching
+    # BWF and the English Wikipedia. Folding "Nguyễn Hải Đăng" also reunites
+    # it with the "Nguyen Hai Dang" spelling it had been split from.
+    "Bùi Thành Đạt": "Bui Thanh Dat",
+    "Lê Đức Phát": "Le Duc Phat",
+    "Nguyễn Hoàng Nam": "Nguyen Hoang Nam",
+    "Nguyễn Hải Đăng": "Nguyen Hai Dang",
+    "Nguyễn Thu Thảo": "Nguyen Thu Thao",
+    "Nguyễn Tiến Tuấn": "Nguyen Tien Tuan",
+    "Nguyễn Văn Mai": "Nguyen Van Mai",
+    "Nguyễn Đình Hoàng": "Nguyen Dinh Hoang",
+    "Phan Phúc Thịnh": "Phan Phuc Thinh",
+    "Phạm Cao Cường": "Pham Cao Cuong",
+    "Trần Lê Mạnh An": "Tran Le Manh An",
+    "Trần Quốc Khánh": "Tran Quoc Khanh",
+
+    # Diacritic variants elsewhere fold toward the correct spelling, which
+    # is also the majority one in each case.
+    "Ditlev Jaeger Holm": "Ditlev Jæger Holm",
+    "Michal Rogalski": "Michał Rogalski",
+    "Przemyslaw Wacha": "Przemysław Wacha",
 }
 
 
@@ -106,10 +144,32 @@ ALIASES = {
 REVIEWED_DISTINCT = {
     frozenset(("Huang Yu", "Huang Yu-kai")),
     frozenset(("Munawar Mohammed", "Mohammed Munawar")),
-    frozenset(("Georges Paul", "Georges Julien Paul")),
-    frozenset(("Julien Paul", "Georges Julien Paul")),
     frozenset(("Ravi", "Ravi Ravi")),
 }
+
+
+# Letters formed with a stroke or slash are single codepoints, not a base plus
+# a combining mark, so NFKD leaves them intact and the ASCII pass then drops
+# them outright: "Đăng" folds to "ang", "Mikołaj" to "mikoaj". That silently
+# hid a split player and produced mangled URL slugs, so fold them explicitly.
+_STROKE_LETTERS = str.maketrans({
+    "Đ": "D", "đ": "d", "Ð": "D", "ð": "d",
+    "Ł": "L", "ł": "l",
+    "Ø": "O", "ø": "o",
+    "Æ": "AE", "æ": "ae",
+    "Œ": "OE", "œ": "oe",
+    "Þ": "Th", "þ": "th",
+    "ß": "ss",
+    "Ħ": "H", "ħ": "h",
+    "Ŧ": "T", "ŧ": "t",
+    "Ɖ": "D", "Ƶ": "Z", "ƶ": "z",
+})
+
+
+def fold_ascii(name: str) -> str:
+    """Diacritic-free ASCII form of a name, for comparison and URL slugs."""
+    return (unicodedata.normalize("NFKD", name.translate(_STROKE_LETTERS))
+            .encode("ascii", "ignore").decode())
 
 
 def canonical(name):

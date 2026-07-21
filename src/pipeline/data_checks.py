@@ -11,14 +11,13 @@ import itertools
 import os
 import re
 import sys
-import unicodedata
 
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))))  # repo root
 
-from src.pipeline.player_names import ALIASES, REVIEWED_DISTINCT
+from src.pipeline.player_names import ALIASES, REVIEWED_DISTINCT, fold_ascii
 
 RAW_PATH = "data/raw/raw_matches.csv"
 
@@ -32,8 +31,7 @@ MAX_PENDING_FRACTION  = 0.05
 
 
 def _name_tokens(name: str) -> frozenset:
-    ascii_name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
-    return frozenset(t for t in re.split(r"[^a-z0-9]+", ascii_name.lower()) if t)
+    return frozenset(t for t in re.split(r"[^a-z0-9]+", fold_ascii(name).lower()) if t)
 
 
 def find_name_collisions(df: pd.DataFrame) -> list:
