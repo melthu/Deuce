@@ -6,6 +6,8 @@ __pycache__/
 # --- Local noise ---
 .DS_Store
 catboost_info/
+# Scratch notes for the in-flight static-site migration; delete when it lands
+HANDOFF.md
 
 # --- Build output (regenerable; do not commit) ---
 # `make features` rebuilds these from data/raw
