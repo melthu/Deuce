@@ -1043,9 +1043,13 @@ async function boot() {
   };
   // Collapsed, the whole strip is the target. It is 45px of dead space
   // otherwise, and hitting a 32px button to get the list back is fussy.
-  // Fires after the toggle's own handler, which has already reopened it.
-  document.querySelector('.sidebar').onclick = () => {
-    if (!state.navCollapsed) return;
+  //
+  // The toggle lives inside the sidebar, so a click that collapses it bubbles
+  // straight into this handler, which would see the collapsed state and undo
+  // it: the button looked dead because every press was cancelled by the press
+  // itself. Clicks originating on the toggle belong to the toggle alone.
+  document.querySelector('.sidebar').onclick = e => {
+    if (!state.navCollapsed || e.target.closest('#navtoggle')) return;
     state.navCollapsed = false;
     applyNav();
   };

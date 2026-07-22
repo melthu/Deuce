@@ -168,39 +168,46 @@ def build_h2h_lookups(df, tour_date):
         hist = hist[hist["is_walkover"] == 0]
     hist = hist.sort_values("start_date")
 
-    rate_cache = {}
-    last_cache = {}
+    # One pass over history, indexed by UNORDERED pair. These used to be two
+    # closures that scanned the whole ~20k-row frame per call and memoised on
+    # the ordered pair (pa, pb) - so a caller asking both directions of a
+    # matchup, which every order-invariant prediction does, missed the cache on
+    # every single call. The static export asks for 26k pairs both ways: 105k
+    # full-frame scans, 191 s of the 237 s run. Indexing here makes each lookup
+    # a dict read.
+    #
+    # `key` is the pair sorted, and `wins` counts them for the FIRST name in
+    # that key, so both directions read off one entry.
+    index = {}
+    for pa, pb, won in zip(
+        hist["player_a"].to_numpy(),
+        hist["player_b"].to_numpy(),
+        hist["player_a_won"].to_numpy(),
+    ):
+        key = (pa, pb) if pa <= pb else (pb, pa)
+        winner = pa if won == 1 else pb
+        entry = index.get(key)
+        if entry is None:
+            index[key] = [1 if winner == key[0] else 0, 1, winner]
+        else:
+            entry[0] += winner == key[0]
+            entry[1] += 1
+            entry[2] = winner          # hist is date-sorted, so last row wins
 
     def h2h_rate(pa, pb):
-        key = (pa, pb)
-        if key in rate_cache:
-            return rate_cache[key]
-        rows_a = hist[(hist["player_a"] == pa) & (hist["player_b"] == pb)]
-        rows_b = hist[(hist["player_a"] == pb) & (hist["player_b"] == pa)]
-        wins  = rows_a["player_a_won"].sum() + (1 - rows_b["player_a_won"]).sum()
-        total = len(rows_a) + len(rows_b)
-        result = float(wins / total) if total > 0 else 0.5
-        rate_cache[key] = result
-        return result
+        key = (pa, pb) if pa <= pb else (pb, pa)
+        entry = index.get(key)
+        if entry is None:
+            return 0.5
+        wins = entry[0] if pa == key[0] else entry[1] - entry[0]
+        return float(wins / entry[1])
 
     def h2h_last(pa, pb):
-        key = (pa, pb)
-        if key in last_cache:
-            return last_cache[key]
-        meetings = hist[
-            ((hist["player_a"] == pa) & (hist["player_b"] == pb)) |
-            ((hist["player_a"] == pb) & (hist["player_b"] == pa))
-        ].sort_values("start_date")
-        if meetings.empty:
-            result = 0.5
-        else:
-            last_row = meetings.iloc[-1]
-            if last_row["player_a"] == pa:
-                result = float(last_row["player_a_won"])
-            else:
-                result = float(1 - last_row["player_a_won"])
-        last_cache[key] = result
-        return result
+        key = (pa, pb) if pa <= pb else (pb, pa)
+        entry = index.get(key)
+        if entry is None:
+            return 0.5
+        return 1.0 if entry[2] == pa else 0.0
 
     return h2h_rate, h2h_last
 
