@@ -685,6 +685,19 @@ async function renderTournament() {
     const row = (pre || []).find(r => r.name === champ);
     stats.append(stat('Actual champion', row ? pct(row.p, true) : '\u2013', null,
       champ + (row && row.nat ? ` \u00b7 ${row.nat}` : ''), 'flag'));
+  } else if (doc.leaderboard_live && doc.leaderboard_live.length) {
+    // A draw still running has no champion, which left the row a box short and
+    // its most interesting number off the header entirely: who the model likes
+    // *now*, with the rounds already played taken as given. Same slot, same
+    // treatment - the pair reads as "thought then, thinks now".
+    const now = doc.leaderboard_live[0];
+    // The old price is only worth the words when the lead has changed hands:
+    // when it has not, the box to the left is already showing exactly it.
+    const moved = pre && pre.length && pre[0].name !== now.name;
+    const was = moved ? pre.find(r => r.name === now.name) : null;
+    stats.append(stat('Favourite now', pct(now.p, true), null,
+      now.name + (now.nat ? ` \u00b7 ${now.nat}` : '')
+      + (was ? ` \u00b7 was ${pct(was.p, true)}` : ''), 'flag'));
   }
 
   const acc = doc.accuracy;
