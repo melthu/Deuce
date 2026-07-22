@@ -120,6 +120,42 @@ def test_every_player_shard_has_a_matchup_shard():
     )
 
 
+def test_index_status_agrees_with_the_shard():
+    """
+    The index and the shard used to derive status independently, and drifted:
+    eleven finished tournaments were still labelled "live" in the index after
+    the shards had been corrected. The index is what the sidebar renders, so
+    that is the one the user actually sees.
+    """
+    index_path = os.path.join(OUT, "tournaments.json")
+    if not os.path.exists(index_path):
+        pytest.skip("index not built")
+    index = {e["slug"]: e["status"] for e in json.loads(open(index_path).read())}
+
+    mismatches = []
+    for path in _shards("tournament"):
+        doc = json.loads(open(path).read())
+        if doc["slug"] in index and index[doc["slug"]] != doc["status"]:
+            mismatches.append(f"{doc['slug']}: index={index[doc['slug']]} shard={doc['status']}")
+    assert not mismatches, "index and shard disagree on status: " + ", ".join(mismatches)
+
+
+def test_only_current_tournaments_are_live():
+    """A draw weeks past its start date with an unplayed match is an incomplete
+    page, not a live event — and "live" drives the conditioned leaderboard."""
+    from src.serving.export_static import STALE_AFTER_DAYS
+
+    index_path = os.path.join(OUT, "tournaments.json")
+    if not os.path.exists(index_path):
+        pytest.skip("index not built")
+    today = pd.Timestamp.today().normalize()
+    stale_live = [
+        e["slug"] for e in json.loads(open(index_path).read())
+        if e["status"] == "live" and (today - pd.Timestamp(e["date"])).days > STALE_AFTER_DAYS
+    ]
+    assert not stale_live, f"finished tournaments labelled live: {stale_live}"
+
+
 def test_every_shard_is_reachable_from_the_index():
     """
     The index is the only entry point, so a shard missing from it is dead

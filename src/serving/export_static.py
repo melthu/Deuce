@@ -105,6 +105,24 @@ def is_placeholder(name: str) -> bool:
     return bool(re.search(r"\bTBD\b|qualifier", str(name), re.IGNORECASE))
 
 
+def derive_status(n_played: int, n_pending: int, tour_date) -> str:
+    """
+    Where a tournament is in its life, from its own rows.
+
+    Shared by the per-tournament shard and the index because they used to
+    decide this separately, and drifted: the index went on calling eleven
+    finished events "live" after the shards had been corrected.
+
+    "live" gates the results-conditioned leaderboard in the frontend, so it has
+    to mean the event is actually running. A draw still missing a result weeks
+    after it opened is an incomplete Wikipedia page, not a match in progress.
+    """
+    if n_played == 0:
+        return "upcoming"
+    age = (pd.Timestamp.today().normalize() - pd.Timestamp(tour_date)).days
+    return "live" if n_pending and age <= STALE_AFTER_DAYS else "complete"
+
+
 def slugify(name: str) -> str:
     s = fold_ascii(name)
     return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", s.lower())).strip("-")
@@ -253,16 +271,7 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
     played = [m for m in matches if not m["pending"]]
     hits = sum(1 for m in played if (m["p"] > .5) == m["a_won"])
     n_pending = len(matches) - len(played)
-    # "live" has to mean the event is actually running, because the frontend
-    # defaults a live draw to the results-conditioned leaderboard. A draw whose
-    # last unplayed match is years old is just an incomplete page.
-    stale = (pd.Timestamp.today().normalize() - tour_date).days > STALE_AFTER_DAYS
-    if not played:
-        status = "upcoming"
-    elif n_pending and not stale:
-        status = "live"
-    else:
-        status = "complete"
+    status = derive_status(len(played), n_pending, tour_date)
 
     def simulate(fixed):
         # A handful of draws are genuinely incomplete on Wikipedia. Ship the
@@ -462,7 +471,7 @@ def export_index(cfg, df, out_dir):
             "date": d.strftime("%Y-%m-%d"),
             "tier": int(c["tier"]),
             "host": c["host_country"],
-            "status": "upcoming" if played == 0 else ("live" if pending else "complete"),
+            "status": derive_status(played, pending, d),
         })
     rows.sort(key=lambda r: r["date"], reverse=True)
     return rows, write_json(os.path.join(out_dir, "tournaments.json"), rows)
