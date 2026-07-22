@@ -1,7 +1,7 @@
 """
 Monte Carlo tournament simulation engine.
 
-Used by the Streamlit dashboard and runnable as a CLI:
+Used by the static exporter and runnable as a CLI:
 
     python3 src/serving/simulate.py --date 2026-02-24 --tier 300 --sims 10000
 
