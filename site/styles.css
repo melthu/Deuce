@@ -455,7 +455,13 @@ input[type="search"]:focus {
      and "trained on matches up to Jul 1..." is worse than two lines. */
   overflow-wrap: anywhere;
 }
-.stat.flag .v { color: var(--claret); }
+/* The champion / current-favourite tile is scored the same way a match is:
+   green when the player in it is the one the model named before the draw
+   started, claret when the lead has moved. `flag` used to paint it claret
+   unconditionally, which read as a warning even when the model had called the
+   whole thing correctly. */
+.stat.good .v { color: var(--court); }
+.stat.bad .v  { color: var(--claret); }
 
 /* A person's name, not a measurement: smaller than the numeric tiles, and
    allowed the full width of the tile before it ellipsises. */

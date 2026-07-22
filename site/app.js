@@ -681,10 +681,24 @@ async function renderTournament() {
   // The champion's own pre-tournament price, next to the favourite's. It is
   // often a long shot, and saying so is the honest framing - a UI that only
   // showed the favourite would look better than the model deserves.
+  // Whichever of the two fills this slot, its colour answers one question: is
+  // the player in it the one the model named before a ball was hit? Green if
+  // the pick is holding or came in, claret if the lead has moved. With no
+  // pre-tournament board there is nothing to have been right or wrong about,
+  // so the tile stays unmarked rather than guessing.
+  const favourite = pre && pre.length ? pre[0].name : null;
+  const verdict = who => !favourite ? '' : who === favourite ? ' good' : ' bad';
+
   if (champ) {
     const row = (pre || []).find(r => r.name === champ);
-    stats.append(stat('Actual champion', row ? pct(row.p, true) : '\u2013', null,
-      champ + (row && row.nat ? ` \u00b7 ${row.nat}` : ''), 'flag'));
+    const tile = stat('Actual champion', row ? pct(row.p, true) : '\u2013', null,
+      champ + (row && row.nat ? ` \u00b7 ${row.nat}` : ''), verdict(champ).trim());
+    if (favourite) {
+      tile.title = champ === favourite
+        ? 'The model\u2019s favourite won this one.'
+        : `The model favoured ${favourite}.`;
+    }
+    stats.append(tile);
   } else if (doc.leaderboard_live && doc.leaderboard_live.length) {
     // A draw still running has no champion, which left the row a box short and
     // its most interesting number off the header entirely: who the model likes
@@ -693,11 +707,17 @@ async function renderTournament() {
     const now = doc.leaderboard_live[0];
     // The old price is only worth the words when the lead has changed hands:
     // when it has not, the box to the left is already showing exactly it.
-    const moved = pre && pre.length && pre[0].name !== now.name;
+    const moved = favourite && favourite !== now.name;
     const was = moved ? pre.find(r => r.name === now.name) : null;
-    stats.append(stat('Favourite now', pct(now.p, true), null,
+    const tile = stat('Favourite now', pct(now.p, true), null,
       now.name + (now.nat ? ` \u00b7 ${now.nat}` : '')
-      + (was ? ` \u00b7 was ${pct(was.p, true)}` : ''), 'flag'));
+      + (was ? ` \u00b7 was ${pct(was.p, true)}` : ''), verdict(now.name).trim());
+    if (favourite) {
+      tile.title = moved
+        ? `The draw has moved away from ${favourite}.`
+        : 'Still the model\u2019s pre-tournament favourite.';
+    }
+    stats.append(tile);
   }
 
   const acc = doc.accuracy;
