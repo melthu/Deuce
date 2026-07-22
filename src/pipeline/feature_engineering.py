@@ -1,14 +1,21 @@
 import os
 import re
+import sys
 from collections import deque
 
 import pandas as pd
+
+# run_pipeline.py invokes this as a script from the repo root, so the package
+# root is not on sys.path the way it is for `python3 -m`.
+sys.path.insert(0, os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))
+
+from src.pipeline import elo as elo_model
 
 INPUT_PATH  = "data/raw/raw_matches.csv"
 OUTPUT_PATH = "data/interim/engineered_matches.csv"
 
 EMA_ALPHA    = 0.3
-K_BY_TIER    = {100: 20, 300: 24, 500: 28, 750: 32, 1000: 40, 1500: 50}
 SCORE_WINDOW = 10   # rolling window for point-differential features
 
 _GAME_RE = re.compile(r"(\d+)\s*[–\-]\s*(\d+)")
@@ -29,17 +36,27 @@ def count_wins(player_df: pd.DataFrame, player: str) -> int:
 
 def _elo_prepass(df: pd.DataFrame):
     """
-    Single O(n) chronological scan to compute pre-match Elo, EMA form, and win
-    streak for every row. Returns six parallel lists aligned to df.index.
+    Single O(n) chronological scan to compute pre-match Elo, its implied win
+    probability, EMA form, and win streak for every row. Returns seven parallel
+    lists aligned to df.index.
 
     All values represent the state BEFORE the match is played (no leakage).
+
+    The rating itself lives in src/pipeline/elo.py, whose constants are fitted
+    rather than hand-set - see that module for what changed and what it bought.
+    Three of them need state this loop has to carry: how many matches a player
+    has played (provisional K), when they last played (inactivity decay), and
+    the scoreline (margin of victory).
     """
-    elo    = {}   # player -> current Elo (default 1500)
-    ema    = {}   # player -> current EMA form (default 0.5)
-    streak = {}   # player -> current streak int (0)
+    elo       = {}   # player -> current Elo (default elo_model.START)
+    ema       = {}   # player -> current EMA form (default 0.5)
+    streak    = {}   # player -> current streak int (0)
+    n_played  = {}   # player -> matches contributing to their rating
+    last_seen = {}   # player -> date of their last completed match
 
     elo_a_list    = []
     elo_b_list    = []
+    expected_list = []
     ema_a_list    = []
     ema_b_list    = []
     streak_a_list = []
@@ -49,19 +66,28 @@ def _elo_prepass(df: pd.DataFrame):
         pa      = row["player_a"]
         pb      = row["player_b"]
         tier    = row["tier"]
+        date    = row["start_date"]
         actual_a = int(row["player_a_won"])
         actual_b = 1 - actual_a
 
         # --- Record PRE-match state ---
-        elo_a = elo.get(pa, 1500.0)
-        elo_b = elo.get(pb, 1500.0)
+        # A layoff decays a rating toward the mean, so it has to be applied
+        # before the rating is read, not after the match.
+        for p in (pa, pb):
+            if p in elo and p in last_seen:
+                elo[p] = elo_model.decayed(elo[p], (date - last_seen[p]).days)
+
+        elo_a = elo.get(pa, elo_model.START)
+        elo_b = elo.get(pb, elo_model.START)
         ema_a = ema.get(pa, 0.5)
         ema_b = ema.get(pb, 0.5)
         s_a   = streak.get(pa, 0)
         s_b   = streak.get(pb, 0)
+        expected_a = elo_model.expected(elo_a, elo_b)
 
         elo_a_list.append(elo_a)
         elo_b_list.append(elo_b)
+        expected_list.append(expected_a)
         ema_a_list.append(ema_a)
         ema_b_list.append(ema_b)
         streak_a_list.append(s_a)
@@ -73,10 +99,14 @@ def _elo_prepass(df: pd.DataFrame):
             continue
 
         # --- Post-match updates ---
-        K = K_BY_TIER.get(tier, 24)
-        expected_a = 1.0 / (1.0 + 10.0 ** ((elo_b - elo_a) / 400.0))
-        elo[pa] = elo_a + K * (actual_a - expected_a)
-        elo[pb] = elo_b + K * (actual_b - (1.0 - expected_a))
+        mult = elo_model.mov_multiplier(row.get("score", ""))
+        elo[pa] = elo_model.update(elo_a, elo_model.k_for(tier, n_played.get(pa, 0)),
+                                   mult, actual_a, expected_a)
+        elo[pb] = elo_model.update(elo_b, elo_model.k_for(tier, n_played.get(pb, 0)),
+                                   mult, actual_b, 1.0 - expected_a)
+        for p in (pa, pb):
+            n_played[p] = n_played.get(p, 0) + 1
+            last_seen[p] = date
 
         ema[pa] = EMA_ALPHA * actual_a + (1 - EMA_ALPHA) * ema_a
         ema[pb] = EMA_ALPHA * actual_b + (1 - EMA_ALPHA) * ema_b
@@ -88,7 +118,7 @@ def _elo_prepass(df: pd.DataFrame):
             streak[pa] = min(s_a, 0) - 1
             streak[pb] = max(s_b, 0) + 1
 
-    return (elo_a_list, elo_b_list, ema_a_list, ema_b_list,
+    return (elo_a_list, elo_b_list, expected_list, ema_a_list, ema_b_list,
             streak_a_list, streak_b_list)
 
 
@@ -217,7 +247,7 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
     # ------------------------------------------------------------------
     # Pre-pass: compute Elo, EMA, streak in a single chronological scan
     # ------------------------------------------------------------------
-    (elo_a_pre, elo_b_pre, ema_a_pre, ema_b_pre,
+    (elo_a_pre, elo_b_pre, elo_expected_pre, ema_a_pre, ema_b_pre,
      streak_a_pre, streak_b_pre) = _elo_prepass(df)
 
     # ------------------------------------------------------------------
@@ -339,6 +369,10 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
             "player_a_elo":                     round(elo_a_pre[i], 2),
             "player_b_elo":                     round(elo_b_pre[i], 2),
             "elo_diff":                         round(elo_a_pre[i] - elo_b_pre[i], 2),
+            # The rating's own P(A wins). A tree has to approximate the
+            # logistic with a staircase of splits on elo_diff; handing it the
+            # curve directly is most of why the fitted rating helps the model.
+            "elo_expected":                     round(elo_expected_pre[i], 6),
             "player_a_ema_form":                round(ema_a_pre[i], 4),
             "player_b_ema_form":                round(ema_b_pre[i], 4),
             "h2h_last_winner":                  h2h_last,

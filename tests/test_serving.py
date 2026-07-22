@@ -163,7 +163,9 @@ def test_every_feature_maps_to_exactly_one_driver():
     """
     missing = [f for f in FEATURE_NAMES if f not in DRIVER_OF]
     assert not missing, f"features with no SHAP driver: {missing}"
-    assert len(FEATURE_NAMES) == 34
+    # 35 since elo_expected joined the Rating driver; update deliberately, so
+    # that a feature appearing by accident still trips this.
+    assert len(FEATURE_NAMES) == 35
 
 
 def test_grouped_shap_is_exact():

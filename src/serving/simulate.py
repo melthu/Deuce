@@ -27,7 +27,8 @@ import numpy as np
 import pandas as pd
 
 from src.modeling.dataset import get_train_val_datasets, load_training_frame
-from src.pipeline.feature_engineering import K_BY_TIER, EMA_ALPHA
+from src.pipeline import elo as elo_model
+from src.pipeline.feature_engineering import EMA_ALPHA
 
 DATA_PATH  = "data/processed/final_training_data.csv"
 MODEL_PATH = "models/best_model.pkl"
@@ -220,13 +221,13 @@ def _same_nationality(pa, pb, nat_map):
 
 
 def _cont_matrix(SA, SB, eA, eB, mA, mB, same, rate, last):
-    """Assemble the (R, 30) continuous-feature matrix in CONT_COLS order.
+    """Assemble the (R, 31) continuous-feature matrix in CONT_COLS order.
     SA/SB are (R, 11) static-stat slices in STAT_KEYS order."""
     return np.column_stack([
         same, rate,
         SA[:, 0], SA[:, 1], SA[:, 2], SA[:, 3],
         SB[:, 0], SB[:, 1], SB[:, 2], SB[:, 3],
-        eA, eB, eA - eB, mA, mB, last,
+        eA, eB, eA - eB, elo_model.expected(eA, eB), mA, mB, last,
         SA[:, 4], SB[:, 4], SA[:, 5], SB[:, 5],
         SA[:, 6], SB[:, 6], SA[:, 7], SB[:, 7],
         SA[:, 8], SB[:, 8], SA[:, 9], SB[:, 9],
@@ -318,7 +319,9 @@ def run_monte_carlo(
     {round_name: {player_name: n_sims_reached}} when return_rounds is set.
     """
     t = DEFAULT_TIER if tier is None else tier
-    K = K_BY_TIER.get(t, 24)
+    # Everyone in a draw is an established player by definition, so the
+    # provisional-K branch never applies to an in-bracket update.
+    K = elo_model.k_for(t, elo_model.PROVISIONAL_N)
     fixed_results = fixed_results or {}
 
     players = sorted(player_stats)
@@ -419,8 +422,10 @@ def run_monte_carlo(
 
         # In-bracket Elo/EMA updates (each player plays once per round/sim,
         # so the fancy-indexed assignments never collide)
+        # The margin-of-victory multiplier has no counterpart here: a simulated
+        # match has a winner but no scoreline, so the update uses the plain K.
         elo_w, elo_l = E[sim_idx, winners], E[sim_idx, losers]
-        exp_w = 1.0 / (1.0 + 10.0 ** ((elo_l - elo_w) / 400.0))
+        exp_w = elo_model.expected(elo_w, elo_l)
         E[sim_idx, winners] = elo_w + K * (1.0 - exp_w)
         E[sim_idx, losers]  = elo_l - K * (1.0 - exp_w)
         M[sim_idx, winners] = EMA_ALPHA + (1 - EMA_ALPHA) * M[sim_idx, winners]

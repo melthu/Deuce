@@ -24,9 +24,14 @@ that transform under a swap.
 """
 import os
 import sys
+import warnings
 
 import numpy as np
 import pandas as pd
+
+# Every fit here goes through numpy, so sklearn's "X does not have valid
+# feature names" fires once per predict and buries the actual results.
+warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
 from sklearn.metrics import roc_auc_score, log_loss, brier_score_loss
 from sklearn.preprocessing import StandardScaler
 

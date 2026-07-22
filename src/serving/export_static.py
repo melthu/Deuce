@@ -63,14 +63,14 @@ STALE_AFTER_DAYS = 21
 
 # Bump when the payload shape or any exported computation changes, so a
 # rerun regenerates files that would otherwise look up to date.
-EXPORT_VERSION = 6
+EXPORT_VERSION = 7
 
 FEATURE_NAMES = ["tier", "round", "player_a", "player_b"] + CONT_COLS
 
-# 34 raw features → 9 drivers. SHAP is additive, so summing within a group is
+# 35 raw features → 9 drivers. SHAP is additive, so summing within a group is
 # exact; the frontend never needs to know a feature name.
 _DRIVERS = {
-    "Rating": ["player_a_elo", "player_b_elo", "elo_diff"],
+    "Rating": ["player_a_elo", "player_b_elo", "elo_diff", "elo_expected"],
     "Recent form": ["player_a_ema_form", "player_b_ema_form",
                     "player_a_recent_win_rate", "player_b_recent_win_rate",
                     "player_a_win_streak", "player_b_win_streak"],

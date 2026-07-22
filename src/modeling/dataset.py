@@ -27,6 +27,7 @@ CONT_COLS = [
     "player_a_elo",
     "player_b_elo",
     "elo_diff",
+    "elo_expected",
     "player_a_ema_form",
     "player_b_ema_form",
     "h2h_last_winner",
