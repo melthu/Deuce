@@ -383,8 +383,7 @@ function renderBracket(doc) {
   const chead = el('div', 'card-head');
   chead.append(el('span', 'lbl', 'Men’s singles bracket'));
   chead.append(el('span', 'hint',
-    'Left edge marks whether the model called it · ✓ marks who '
-    + 'advanced · click any match'));
+    'Left edge: called or missed · ✓ advanced · click any match'));
   card.append(chead);
   card.append(scroller);
 
