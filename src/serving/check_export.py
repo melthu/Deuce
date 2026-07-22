@@ -1,8 +1,8 @@
 """
 Publish gate for the static site.
 
-Every bug this project has hit — the truncated calendar, the broken scrapers,
-the brackets that never resolved — failed silently and confidently: the run
+Every bug this project has hit - the truncated calendar, the broken scrapers,
+the brackets that never resolved - failed silently and confidently: the run
 went green and shipped something plausible but wrong. This is the check that
 stands between a bad export and the live site.
 
@@ -30,7 +30,7 @@ def fail(msg: str):
 
 def main(out_dir: str = "site/data"):
     if not os.path.isdir(out_dir):
-        fail(f"{out_dir} does not exist — run `make export` first")
+        fail(f"{out_dir} does not exist - run `make export` first")
 
     index_path = os.path.join(out_dir, "tournaments.json")
     if not os.path.exists(index_path):
@@ -49,7 +49,7 @@ def main(out_dir: str = "site/data"):
     if len(players) < MIN_PLAYERS:
         fail(f"{len(players)} player cards, expected at least {MIN_PLAYERS}")
     if len(matchups) != len(players):
-        fail(f"{len(matchups)} matchup shards vs {len(players)} player cards — "
+        fail(f"{len(matchups)} matchup shards vs {len(players)} player cards - "
              "every active player needs both")
 
     total = sum(os.path.getsize(p) for p in
@@ -82,7 +82,7 @@ def main(out_dir: str = "site/data"):
     share = len(unsimulated) / len(files)
     if share > MAX_UNSIMULATED:
         fail(f"{len(unsimulated)} of {len(files)} draws ({share:.0%}) have no "
-             f"simulation, above the {MAX_UNSIMULATED:.0%} ceiling — this is "
+             f"simulation, above the {MAX_UNSIMULATED:.0%} ceiling - this is "
              "what a bracket-topology regression looks like")
 
     print(f"OK: {len(files)} tournaments · {len(players)} players · {mb:.1f} MB")

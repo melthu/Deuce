@@ -46,7 +46,7 @@ def find_name_collisions(df: pd.DataFrame) -> list:
 
     Reported, never auto-merged: two real players can normalise to the same
     string (Huang Yu and Huang Yu-kai played each other), so a human decides.
-    Pairs that ever met are excluded — that is proof they are different people.
+    Pairs that ever met are excluded - that is proof they are different people.
     """
     names = [n for n in set(df["player_a"]) | set(df["player_b"])
              if isinstance(n, str) and n.strip() and n.strip().upper() != "TBD"]
@@ -91,7 +91,7 @@ def check_config() -> list:
     genuinely does not exist for most of the season.
     """
     if not os.path.exists(CONFIG_PATH):
-        return [f"{CONFIG_PATH} is missing — run build_config.py"]
+        return [f"{CONFIG_PATH} is missing - run build_config.py"]
 
     cfg = pd.read_csv(CONFIG_PATH)
     errors = []
@@ -105,7 +105,7 @@ def check_config() -> list:
     for year in range(FIRST_YEAR, this_year + 1):
         n = int(counts.get(year, 0))
         if n == 0:
-            errors.append(f"config has no tournaments for {year} — that season's page failed to scrape")
+            errors.append(f"config has no tournaments for {year} - that season's page failed to scrape")
         elif n < MIN_PER_YEAR:
             errors.append(f"config has only {n} tournaments for {year} (expected >= {MIN_PER_YEAR})")
 
@@ -129,7 +129,7 @@ def main() -> int:
         errors.append(f"missing columns: {missing}")
 
     if len(df) < MIN_ROWS:
-        errors.append(f"row count {len(df)} < {MIN_ROWS} — scrape lost data")
+        errors.append(f"row count {len(df)} < {MIN_ROWS} - scrape lost data")
 
     if not missing:
         for col in ["tournament", "player_a", "player_b", "start_date"]:

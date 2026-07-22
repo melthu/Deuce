@@ -27,7 +27,7 @@ def test_mirroring_swaps_per_player_features_without_negating(df):
         b = rounded(df[col_b]).sort_values().reset_index(drop=True)
         pd.testing.assert_series_equal(
             a, b, check_names=False,
-            obj=f"{col_a} vs {col_b} — mirrored per-player values must match",
+            obj=f"{col_a} vs {col_b} - mirrored per-player values must match",
         )
 
 
@@ -39,7 +39,7 @@ def test_pair_level_features_are_inverted_not_swapped(df):
     """
     assert abs(df["elo_diff"].sum()) < 1e-6, "elo_diff is not sign-symmetric across mirrors"
     assert df["player_a_won"].mean() == pytest.approx(0.5, abs=1e-9), (
-        "labels are not balanced — mirroring should make each match appear as both outcomes"
+        "labels are not balanced - mirroring should make each match appear as both outcomes"
     )
 
 
@@ -66,7 +66,7 @@ def test_config_check_accepts_the_real_calendar():
 def test_config_check_catches_a_single_lost_season(cfg, tmp_path, monkeypatch):
     """
     The gap this closes. build_config.py refuses a config that shrank by more
-    than 5%, but 2021 is 16 of 357 rows — 4.5%, under the threshold. A whole
+    than 5%, but 2021 is 16 of 357 rows - 4.5%, under the threshold. A whole
     season could vanish while the total still looked healthy.
     """
     from src.pipeline import data_checks

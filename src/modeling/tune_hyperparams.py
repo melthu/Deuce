@@ -196,7 +196,7 @@ def main():
         print(f"  Best AUC: {best_auc:.4f}")
         print(f"  Best params: {json.dumps(best_params, indent=4)}")
 
-    # ── Save params (merge — tuning one model must not wipe the others) ──────
+    # ── Save params (merge - tuning one model must not wipe the others) ──────
     os.makedirs("models", exist_ok=True)
     merged = {}
     if os.path.exists(PARAMS_PATH):

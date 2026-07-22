@@ -1,7 +1,7 @@
 """
 Canonical player names.
 
-Wikipedia spells the same player several ways — different word order
+Wikipedia spells the same player several ways - different word order
 ("Kidambi Srikanth" / "Srikanth Kidambi"), optional name parts ("Anthony
 Ginting" / "Anthony Sinisuka Ginting"), inconsistent hyphenation and case,
 and dropped diacritics. Left alone, each spelling becomes a separate player:
@@ -12,12 +12,12 @@ This map is deliberately explicit rather than a normalisation rule applied at
 runtime. Two real players can have names that normalise to the same string,
 and silently merging them is a far worse error than leaving one player split.
 Every entry below was checked against three pieces of evidence: same
-nationality, plausible career span, and — decisively — whether the two names
+nationality, plausible career span, and - decisively - whether the two names
 ever appear in the same draw or play each other.
 
 Deliberately NOT merged, despite looking alike:
 
-* "Huang Yu" / "Huang Yu-kai" — they played each other in the third round of
+* "Huang Yu" / "Huang Yu-kai" - they played each other in the third round of
   Kaohsiung Masters 2023. Different people.
 * "Munawar Mohammed" (India, 2018) / "Mohammed Munawar" (UAE, 2025).
 

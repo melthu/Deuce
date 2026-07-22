@@ -1,7 +1,7 @@
 """
 Player identity: folding, slugs, and the integrity of the alias map.
 
-Getting this wrong does not raise — it silently splits one player's Elo, form
+Getting this wrong does not raise - it silently splits one player's Elo, form
 and head-to-head across two identities, or worse, fuses two real players.
 """
 import pandas as pd
@@ -29,7 +29,7 @@ def test_fold_ascii_preserves_letters(raw_name, folded):
 
 
 def test_folding_never_drops_a_letter():
-    """A name must not lose characters to folding — that is how 'Đăng' became 'ang'."""
+    """A name must not lose characters to folding - that is how 'Đăng' became 'ang'."""
     for name in list(ALIASES) + list(ALIASES.values()):
         assert len(fold_ascii(name)) >= len(name.replace("æ", "").replace("ß", "")), name
         assert fold_ascii(name).strip(), name
@@ -49,7 +49,7 @@ def test_alias_map_has_no_chains():
     """Every canonical name must be a fixed point: canonical(canonical(x)) == canonical(x)."""
     for alias, target in ALIASES.items():
         assert target not in ALIASES, (
-            f"{alias!r} -> {target!r}, but {target!r} is itself an alias — "
+            f"{alias!r} -> {target!r}, but {target!r} is itself an alias - "
             "canonicalisation is applied once, so a chain silently half-resolves"
         )
         assert canonical(canonical(alias)) == canonical(alias)
@@ -86,12 +86,12 @@ def test_raw_data_is_canonicalised(raw):
 def test_no_unreviewed_collisions(raw):
     """
     Mirrors the warning `data_checks.py` prints. Not fatal there, because a new
-    spelling is a review task rather than corruption — but the suite should say
+    spelling is a review task rather than corruption - but the suite should say
     so out loud rather than let it accumulate.
     """
     collisions = find_name_collisions(raw)
     assert not collisions, (
-        "unreviewed name collisions — add to ALIASES or REVIEWED_DISTINCT: "
+        "unreviewed name collisions - add to ALIASES or REVIEWED_DISTINCT: "
         + ", ".join(f"{a!r}<->{b!r}" for a, b in collisions)
     )
 

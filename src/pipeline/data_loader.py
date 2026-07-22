@@ -6,7 +6,7 @@ INPUT_PATH = "data/interim/engineered_matches.csv"
 OUTPUT_PATH = "data/processed/final_training_data.csv"
 
 # Nationality columns are directional and are NOT in SWAP_PAIRS, so they would
-# be wrong on mirrored rows — they must go. `tournament` is kept: two events can
+# be wrong on mirrored rows - they must go. `tournament` is kept: two events can
 # share a start date (SaarLorLux and Macau Open both open 2020-10-27), and
 # without a name there is no way to tell their matches apart.
 METADATA_COLS = ["host_country", "player_a_nat", "player_b_nat"]
@@ -38,7 +38,7 @@ def _assert_mirror_symmetry(df: pd.DataFrame, mirrored_df: pd.DataFrame) -> None
     mirror: A's value in the original is B's value in the counterpart, and
     vice versa. Any extra transform applied on top of the swap breaks this.
 
-    Worth asserting rather than trusting, because the failure is invisible —
+    Worth asserting rather than trusting, because the failure is invisible,
     the file still has the right shape and plausible numbers, and the model
     just quietly trains on inconsistent inputs.
     """
@@ -64,7 +64,7 @@ def load_and_mirror(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PATH
         mirrored_df[col_a], mirrored_df[col_b] = df[col_b].copy(), df[col_a].copy()
 
     # Invert the features that describe the *pair* rather than one player. A
-    # per-player stat needs no inversion — swapping the column above already
+    # per-player stat needs no inversion - swapping the column above already
     # moved it to the right slot. player_a_avg_point_diff used to be negated
     # here as well, which was double handling: it is that player's own average
     # points-for minus points-against, so the swap alone is correct. Negating

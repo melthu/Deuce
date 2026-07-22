@@ -68,7 +68,7 @@ def _elo_prepass(df: pd.DataFrame):
         streak_b_list.append(s_b)
 
         # Pending matches have no outcome yet, and walkovers have no contested
-        # one — record pre-match state only, never update from them.
+        # one - record pre-match state only, never update from them.
         if int(row.get("is_pending", 0)) == 1 or int(row.get("is_walkover", 0)) == 1:
             continue
 
@@ -101,7 +101,7 @@ def _parse_score(score_str, player_a_won: int):
     player_b won so that the returned values are always from player_a's POV.
 
     Returns:
-        (a_pts, b_pts, n_games) — ints — or None if string is empty/unparseable.
+        (a_pts, b_pts, n_games) - ints - or None if string is empty/unparseable.
     """
     if not score_str or not isinstance(score_str, str) or not score_str.strip():
         return None
@@ -197,7 +197,7 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
         if col not in df.columns:
             df[col] = default
 
-    # Walkovers / retirements are kept as rows — they occupy a real bracket slot,
+    # Walkovers / retirements are kept as rows - they occupy a real bracket slot,
     # and dropping them leaves a draw with 15 first-round matches instead of 16,
     # which silently breaks round_sequence and the Monte Carlo. They are instead
     # treated like pending rows below: pre-match state is recorded, but they never
@@ -210,7 +210,7 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
                   f"topology; excluded from stat updates and training.")
 
     # Golden Rule: sort chronologically so the row-wise history slice is always
-    # correct. MUST be a stable sort — rows within one tournament are in true
+    # correct. MUST be a stable sort - rows within one tournament are in true
     # bracket order, and the Monte Carlo engine depends on preserving it.
     df = df.sort_values("start_date", kind="stable").reset_index(drop=True)
 
@@ -235,7 +235,7 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
         pa = row["player_a"]
         pb = row["player_b"]
 
-        # Strict historical slice — excludes any match on the same date, plus
+        # Strict historical slice - excludes any match on the same date, plus
         # pending matches (no outcome) and walkovers (no contested outcome);
         # neither can count as history.
         hist = df[(df["start_date"] < current_date) &
@@ -351,7 +351,7 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
             "player_b_avg_point_diff":          round(pdiff_b_pre[i], 4),
             "player_a_avg_games_per_match":     round(gpm_a_pre[i], 4),
             "player_b_avg_games_per_match":     round(gpm_b_pre[i], 4),
-            # New 6 — rubber-game rate, victory margin, seeding
+            # New 6 - rubber-game rate, victory margin, seeding
             "player_a_rubber_game_rate":        round(rubber_a_pre[i], 4),
             "player_b_rubber_game_rate":        round(rubber_b_pre[i], 4),
             "player_a_avg_victory_margin":      round(margin_a_pre[i], 4),
@@ -375,7 +375,7 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
         "player_a_avg_victory_margin", "player_b_avg_victory_margin",
         "player_a_seed", "player_b_seed",
     ]
-    print("TAIL (5) — new feature columns:")
+    print("TAIL (5) - new feature columns:")
     print(result[display_cols].tail(5).to_string(index=True))
 
     return result

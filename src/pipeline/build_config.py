@@ -45,7 +45,7 @@ def parse_start_date(date_text: str, year: int) -> str | None:
       '7–12 January'  → day-first   (World Tour 2018+)
       'January 18'    → month-first  (Super Series 2010-2017)
     """
-    text = re.sub(r"[–—−]", "-", date_text.strip())
+    text = re.sub(r"[–, −]", "-", date_text.strip())
     # Day-first: "18 January" or "18-23 January"
     m = re.match(r"(\d+)\s*(?:-\s*\d+\s*)?([A-Za-z]+)", text)
     if m:
@@ -172,11 +172,11 @@ def _scrape_calendar_page(url: str, year: int, level_map: dict) -> list[dict]:
     try:
         resp = requests.get(url, headers=HEADERS, timeout=15)
         if resp.status_code == 404:
-            print(f"  {year}: page not found (404) — skipping.")
+            print(f"  {year}: page not found (404) - skipping.")
             return []
         resp.raise_for_status()
     except requests.RequestException as e:
-        print(f"  {year}: request failed — {e}")
+        print(f"  {year}: request failed - {e}")
         return []
 
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -238,7 +238,7 @@ def scrape_superseries_year(year: int) -> list[dict]:
     These pages use a flat wikitable with columns:
       Tour# | Official title | Venue | City | Start | Finish | Prize | Report
 
-    Unlike World Tour pages (2018+), there is no 'Level:' field — tier is
+    Unlike World Tour pages (2018+), there is no 'Level:' field - tier is
     inferred from the tournament name:
       'Finals'          → 1500
       'Premier'         → 750
@@ -249,11 +249,11 @@ def scrape_superseries_year(year: int) -> list[dict]:
     try:
         resp = requests.get(url, headers=HEADERS, timeout=15)
         if resp.status_code == 404:
-            print(f"  {year}: page not found (404) — skipping.")
+            print(f"  {year}: page not found (404) - skipping.")
             return []
         resp.raise_for_status()
     except requests.RequestException as e:
-        print(f"  {year}: request failed — {e}")
+        print(f"  {year}: request failed - {e}")
         return []
 
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -262,7 +262,7 @@ def scrape_superseries_year(year: int) -> list[dict]:
 
     table = soup.find("table", class_="wikitable")
     if not table:
-        print(f"  {year}: no wikitable found — skipping.")
+        print(f"  {year}: no wikitable found - skipping.")
         return []
 
     for row in table.find_all("tr"):
@@ -363,13 +363,13 @@ def build_config(output_path: str = OUTPUT_PATH) -> pd.DataFrame:
 
     # A partially-failed scrape (Wikipedia markup change, rate limiting, a run
     # of 404s) still yields *some* rows. Writing those would silently gut the
-    # calendar the dashboard reads — refuse rather than overwrite.
+    # calendar the dashboard reads - refuse rather than overwrite.
     if os.path.exists(output_path):
         old = pd.read_csv(output_path)
         if len(df) < 0.95 * len(old):
             print(
                 f"ERROR: scrape returned {len(df)} tournaments vs {len(old)} in the "
-                f"existing config — looks like a partial failure. Not overwriting "
+                f"existing config - looks like a partial failure. Not overwriting "
                 f"{output_path}."
             )
             raise SystemExit(1)

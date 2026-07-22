@@ -170,7 +170,7 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
                 else:
                     # No link: either a player without a Wikipedia article
                     # (plain text after the flag) or an empty placeholder slot
-                    # (TBD qualifier / future-round cell). Keep both — dropping
+                    # (TBD qualifier / future-round cell). Keep both - dropping
                     # cells shifts the pairing and corrupts the bracket.
                     name = cell.get_text().strip()
                     name = re.sub(r"\[\d+\]", "", name)          # footnote refs
@@ -178,7 +178,7 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
                     name = re.sub(r"^\d{1,2}\s+", "", name).strip()  # inline seed
                     # name == "" → placeholder slot, resolved to TBD at pairing
 
-                # Winner detection — two Wikipedia formats:
+                # Winner detection - two Wikipedia formats:
                 #   Modern (2018+): <b><span class="flagicon">…</span><a>Name</a></b>
                 #                   → flagicon.parent is the <b> tag
                 #   Classic (2010-2017): <span class="flagicon">…</span><b><a>Name</a></b>
@@ -189,7 +189,7 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
                         and player_link.find_parent("b") is not None)
                 )
 
-                # Seed: cell immediately before player cell — bare integer 1-32
+                # Seed: cell immediately before player cell - bare integer 1-32
                 seed = 0
                 if pos > 0:
                     prev_text = row_cells[pos - 1][2]
@@ -224,7 +224,7 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
     # Within a bracket table, one round = one column; the two players of a
     # match occupy vertically adjacent cells of that column. Sorting by
     # (column, row) and pairing within each column therefore yields matches
-    # in real bracket order — essential for simulating the right topology
+    # in real bracket order - essential for simulating the right topology
     # (round N winners [::2] must meet in round N+1).
     all_pairs = []  # (round_name, cell_a, cell_b)
     for table in ms_tables:
@@ -243,7 +243,7 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
             while i < len(cells) - 1:
                 a, b = cells[i], cells[i + 1]
                 if a[1] != b[1]:
-                    i += 1   # column boundary — unpaired cell (bye/champion box)
+                    i += 1   # column boundary - unpaired cell (bye/champion box)
                     continue
                 all_pairs.append((col_to_round(a[1], round_ranges), a, b))
                 i += 2
@@ -256,7 +256,7 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
         _, _, player_b, nat_b, b_wins, scores_b, seed_b, ret_b = cell_b
 
         # Empty cells are placeholder slots. Two empties = an unfilled
-        # future-round slot pair — skip, EXCEPT in the first round where it's
+        # future-round slot pair - skip, EXCEPT in the first round where it's
         # a real upcoming match between two yet-unknown qualifiers (keeping it
         # preserves the power-of-two bracket the simulator needs).
         if not player_a and not player_b and round_name.lower() not in FIRST_ROUNDS:
@@ -304,7 +304,7 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
         )
 
     # Classic-era (2010-2017) pages repeat the semi-finals in both the
-    # half-bracket tables and the "Finals" table — dedupe on (round, pair),
+    # half-bracket tables and the "Finals" table - dedupe on (round, pair),
     # preferring the later occurrence that has a score (the finals table's
     # scores parse cleanly; the half-bracket copies are often misaligned).
     deduped: dict = {}

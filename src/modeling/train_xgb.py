@@ -32,7 +32,7 @@ DEFAULT_PARAMS = {
 
 
 def load_tuned_params() -> tuple[dict, bool]:
-    """Return (params, tuned) — Optuna params from best_params.json if present."""
+    """Return (params, tuned) - Optuna params from best_params.json if present."""
     if os.path.exists(PARAMS_PATH):
         with open(PARAMS_PATH) as f:
             all_params = json.load(f)
@@ -46,7 +46,7 @@ def train(full_data: bool = False, promote: bool = False):
     print(f"Hyperparameters: {'Optuna-tuned (best_params.json)' if tuned else 'defaults'}")
 
     if full_data:
-        # Train on every completed match — used by the scheduled retrain that
+        # Train on every completed match - used by the scheduled retrain that
         # refreshes the preloaded model for upcoming tournaments. No holdout.
         df = load_training_frame(DATA_PATH)
         preprocessors, _ = fit_preprocessors(df)
@@ -112,7 +112,7 @@ def train(full_data: bool = False, promote: bool = False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train XGBoost match predictor")
     parser.add_argument("--full-data", action="store_true",
-                        help="Train on all completed matches (no holdout) — "
+                        help="Train on all completed matches (no holdout) - "
                              "used by the scheduled retrain")
     parser.add_argument("--promote", action="store_true",
                         help="Also write the model to models/best_model.pkl "

@@ -39,7 +39,7 @@ def load_tuned_params() -> tuple[dict, bool]:
 
 def train():
     # ------------------------------------------------------------------
-    # Data — identical split/scaling/vocab as the DeepFM run
+    # Data - identical split/scaling/vocab as the DeepFM run
     # ------------------------------------------------------------------
     train_ds, val_ds, vocab_sizes, _ = get_train_val_datasets(DATA_PATH)
 
@@ -52,7 +52,7 @@ def train():
     print(f"X_train shape: {X_train.shape}  |  X_val shape: {X_val.shape}\n")
 
     # ------------------------------------------------------------------
-    # LightGBM — first 4 columns are the encoded categoricals
+    # LightGBM - first 4 columns are the encoded categoricals
     # ------------------------------------------------------------------
     params, tuned = load_tuned_params()
     print(f"Hyperparameters: {'Optuna-tuned (best_params.json)' if tuned else 'defaults'}")

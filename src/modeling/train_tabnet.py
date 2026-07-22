@@ -32,7 +32,7 @@ class TabNetWrapper:
 
 def train():
     # ------------------------------------------------------------------
-    # Data — same split/encoding/scaling as all other trainers
+    # Data - same split/encoding/scaling as all other trainers
     # ------------------------------------------------------------------
     train_ds, val_ds, vocab_sizes, _ = get_train_val_datasets(DATA_PATH)
 

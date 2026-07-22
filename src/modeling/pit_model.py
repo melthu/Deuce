@@ -2,7 +2,7 @@
 Point-in-time model training, used by the static exporter.
 
 A point-in-time model is fit only on matches that finished strictly before a
-given tournament's date — vocabulary, scaler and estimator alike — so its
+given tournament's date - vocabulary, scaler and estimator alike - so its
 predictions for that tournament have never seen the tournament's own future,
 nor anything that happened after it.
 

@@ -5,7 +5,7 @@ from sklearn.preprocessing import StandardScaler
 try:
     import torch
     from torch.utils.data import Dataset as _TorchDataset
-except ImportError:        # torch is optional — only the DeepFM/TabNet paths need it
+except ImportError:        # torch is optional - only the DeepFM/TabNet paths need it
     torch = None
     _TorchDataset = object
 
@@ -90,8 +90,8 @@ def load_training_frame(csv_path: str = DATA_PATH, drop_pending: bool = True,
     eval, but kept when the caller needs the full bracket (the dashboard and
     the static exporter pass drop_pending=False to display draws):
 
-      * pending   — a published draw match that has not been played yet
-      * walkover  — a retirement or no-show; it fills a real bracket slot, so
+      * pending   - a published draw match that has not been played yet
+      * walkover  - a retirement or no-show; it fills a real bracket slot, so
                     it must stay visible for topology, but its scoreline is
                     partial and its result uncontested
 
@@ -118,7 +118,7 @@ def load_training_frame(csv_path: str = DATA_PATH, drop_pending: bool = True,
 def fit_preprocessors(train_df: pd.DataFrame):
     """
     Fit vocabularies (players, tiers, rounds) and a StandardScaler on the
-    given training slice ONLY — the caller guarantees the slice contains no
+    given training slice ONLY - the caller guarantees the slice contains no
     future data relative to what will be predicted.
 
     Returns:
@@ -182,9 +182,9 @@ class BWFDataset(_TorchDataset):
     def __getitem__(self, idx: int):
         """
         Returns:
-            cat_features  : LongTensor  (4,)  — [tier, round, player_a, player_b]
-            cont_features : FloatTensor (30,) — scaled continuous features
-            label         : FloatTensor (1,)  — player_a_won
+            cat_features  : LongTensor  (4,)  - [tier, round, player_a, player_b]
+            cont_features : FloatTensor (30,) - scaled continuous features
+            label         : FloatTensor (1,)  - player_a_won
         """
         if torch is None:
             raise ImportError("torch is required to iterate BWFDataset as tensors")

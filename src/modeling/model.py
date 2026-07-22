@@ -10,9 +10,9 @@ class BWFDeepFM(nn.Module):
     Continuous inputs (10): scaled numerical features
 
     Architecture:
-      FM component  — 2nd-order pairwise interactions between the 4 embeddings
-      Deep component — MLP over concatenated embeddings + continuous features
-      Output         — single logit (use BCEWithLogitsLoss, no sigmoid here)
+      FM component  - 2nd-order pairwise interactions between the 4 embeddings
+      Deep component - MLP over concatenated embeddings + continuous features
+      Output         - single logit (use BCEWithLogitsLoss, no sigmoid here)
     """
 
     def __init__(
@@ -59,7 +59,7 @@ class BWFDeepFM(nn.Module):
     def forward(self, cat_features: torch.Tensor, cont_features: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            cat_features  : LongTensor  (B, 4)  — [tier, round, player_a, player_b]
+            cat_features  : LongTensor  (B, 4)  - [tier, round, player_a, player_b]
             cont_features : FloatTensor (B, 10)
         Returns:
             logits        : FloatTensor (B, 1)

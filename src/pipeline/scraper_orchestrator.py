@@ -32,7 +32,7 @@ def _select_incremental(config: pd.DataFrame, existing: pd.DataFrame) -> pd.Data
     have = set(existing["tournament"].unique())
     # Pending rows trigger a rescrape only for recent events. Old tournaments
     # can carry permanent pending rows (group-stage matches where Wikipedia
-    # never marks a winner) — rescraping those weekly would be pointless.
+    # never marks a winner) - rescraping those weekly would be pointless.
     if "is_pending" in existing.columns:
         recent_cutoff = (today - timedelta(days=60)).isoformat()
         pending = set(existing.loc[
@@ -85,11 +85,11 @@ def run_orchestrator(
                 tier=int(row["tier"]),
             )
         except Exception as e:
-            print(f"  WARNING: scrape failed ({e}) — skipping.\n")
+            print(f"  WARNING: scrape failed ({e}) - skipping.\n")
             continue
 
         if df.empty:
-            print(f"  WARNING: No matches extracted — skipping.\n")
+            print(f"  WARNING: No matches extracted - skipping.\n")
             continue
 
         df.insert(3, "start_date", row["start_date"])
@@ -121,12 +121,12 @@ def run_orchestrator(
             ).sum() if not new.empty else 0
             if new_done < old_done:
                 print(f"ABORT: '{name}' shrank from {old_done} to {new_done} completed "
-                      f"matches — keeping the existing CSV untouched.")
+                      f"matches - keeping the existing CSV untouched.")
                 return existing
 
         master = pd.concat([kept, new], ignore_index=True)
         master["start_date"] = master["start_date"].astype(str)
-        # Stable sort — preserves in-tournament bracket order (MC topology)
+        # Stable sort - preserves in-tournament bracket order (MC topology)
         master = (master.sort_values(["start_date", "tournament"], kind="stable")
                   .reset_index(drop=True))
     else:

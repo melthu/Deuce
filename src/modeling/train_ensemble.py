@@ -10,7 +10,7 @@ from sklearn.metrics import roc_auc_score
 
 from src.modeling.dataset import extract_numpy, get_train_val_datasets
 from src.modeling.model import BWFDeepFM
-from src.modeling.train_tabnet import TabNetWrapper  # noqa: F401 — needed for pickle unpickling
+from src.modeling.train_tabnet import TabNetWrapper  # noqa: F401 - needed for pickle unpickling
 
 DATA_PATH  = "data/processed/final_training_data.csv"
 MODEL_PATHS = {
@@ -47,7 +47,7 @@ class DeepFMWrapper:
         with torch.no_grad():
             logits = self.model(cat, cont).squeeze(1)
             probs  = torch.sigmoid(logits).numpy()
-        # Return (N, 2) to match sklearn convention — col 1 = P(class=1)
+        # Return (N, 2) to match sklearn convention - col 1 = P(class=1)
         return np.column_stack([1 - probs, probs])
 
 
@@ -55,7 +55,7 @@ def load_tree_models():
     models = {}
     for name, path in MODEL_PATHS.items():
         if not os.path.exists(path):
-            print(f"  {name:<12} not found at {path} — skipping.")
+            print(f"  {name:<12} not found at {path} - skipping.")
             continue
         with open(path, "rb") as f:
             models[name] = pickle.load(f)
@@ -66,12 +66,12 @@ def load_tree_models():
 def load_deepfm_wrapper():
     """Try to load the DeepFM checkpoint; return (wrapper, auc) or (None, None)."""
     if not os.path.exists(DEEPFM_PATH):
-        print(f"  DeepFM checkpoint not found at {DEEPFM_PATH} — skipping.")
+        print(f"  DeepFM checkpoint not found at {DEEPFM_PATH} - skipping.")
         return None, None
 
     ckpt = torch.load(DEEPFM_PATH, map_location="cpu")
     if "vocab_sizes" not in ckpt:
-        print(f"  DeepFM checkpoint at {DEEPFM_PATH} is missing 'vocab_sizes' — skipping.")
+        print(f"  DeepFM checkpoint at {DEEPFM_PATH} is missing 'vocab_sizes' - skipping.")
         return None, None
     vocab_sizes = ckpt["vocab_sizes"]
     saved_auc   = ckpt.get("val_auc", 0.0)
@@ -115,9 +115,9 @@ def train():
             probs = model.predict_proba(X_val)[:, 1]
         except Exception as e:
             # Stale artifact (e.g. embedding tables sized for an older,
-            # smaller player vocabulary) — skip rather than crash; retrain
+            # smaller player vocabulary) - skip rather than crash; retrain
             # the model to bring it back into selection.
-            print(f"  {name:<12} failed to predict ({type(e).__name__}) — "
+            print(f"  {name:<12} failed to predict ({type(e).__name__}) - "
                   f"skipping stale artifact. Retrain to re-include it.")
             continue
         auc   = roc_auc_score(y_val, probs)
@@ -130,7 +130,7 @@ def train():
         try:
             deepfm_probs = deepfm_wrapper.predict_proba(X_val)[:, 1]
         except Exception as e:
-            print(f"  {'deepfm':<12} failed to predict ({type(e).__name__}) — "
+            print(f"  {'deepfm':<12} failed to predict ({type(e).__name__}) - "
                   f"skipping stale checkpoint.")
             deepfm_wrapper, deepfm_probs = None, None
     if deepfm_wrapper is not None:
@@ -149,7 +149,7 @@ def train():
     best_single_auc  = individual_aucs[best_single_name]
 
     # ------------------------------------------------------------------
-    # AUC-weighted ensemble — weight proportional to (AUC - 0.5)
+    # AUC-weighted ensemble - weight proportional to (AUC - 0.5)
     # so models closer to chance contribute less
     # ------------------------------------------------------------------
     names  = list(individual_probs.keys())
@@ -177,7 +177,7 @@ def train():
     print(f"{'='*46}")
 
     # ------------------------------------------------------------------
-    # Build payload — include DeepFMWrapper only if it was added to ensemble
+    # Build payload - include DeepFMWrapper only if it was added to ensemble
     # ------------------------------------------------------------------
     all_models: dict = {}
     for name, m in tree_models.items():

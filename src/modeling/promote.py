@@ -2,8 +2,8 @@
 Production model selection + promotion.
 
 Benchmarks every candidate model type (Optuna-tuned params where available)
-on a temporal holdout — train < latest season, validate on the latest
-season — then retrains the WINNER on all completed matches and writes it to
+on a temporal holdout - train < latest season, validate on the latest
+season - then retrains the WINNER on all completed matches and writes it to
 models/best_model.pkl (the dashboard's preloaded model for upcoming
 tournaments).
 
@@ -96,7 +96,7 @@ def main():
         print(f"  {name:<10} holdout AUC = {aucs[name]:.4f}")
 
     winner = max(aucs, key=aucs.get)
-    print(f"\nWinner: {winner} ({aucs[winner]:.4f}) — retraining on all data...")
+    print(f"\nWinner: {winner} ({aucs[winner]:.4f}) - retraining on all data...")
 
     # Retrain the winner on everything, with preprocessors fit on everything
     full_prep, _ = fit_preprocessors(df)
