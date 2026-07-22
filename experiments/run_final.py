@@ -113,24 +113,18 @@ def main():
     quality = [c for c in GROUPS["QUALITY"] if c in df.columns]
     no_elo = [c for c in base if c not in SHIPPED_ELO]
 
-    # run_combined established tuned-elo as the best feature set on every
-    # column, so the model-level changes are stacked on that rather than on the
-    # shipped one - the question is what beats the new best, not the old.
-    telo = no_elo + ELO_T
+    # The fitted rating has landed in src/, so `base` here IS the tuned-elo
+    # feature set - data/interim is rebuilt from the new pipeline. The
+    # tuned_elo.py columns would now be near-duplicates of it and are excluded.
+    # What is left to test is model-level, on top of the new baseline.
+    out = [search(df, base, "baseline (fitted elo)"),
+           search(df, base + quality, "+quality")]
 
-    out = []
-    for label, cols in {
-        "baseline":           base,
-        "tuned-elo":          telo,
-        "tuned-elo +quality": telo + quality,
-    }.items():
-        out.append(search(df, cols, label))
-
-    out.append(search_wrapped(df, telo, "tuned-elo blend", lambda cfg: (
+    out.append(search_wrapped(df, base, "blend lgb+xgb+cat", lambda cfg: (
         lambda: Blend([_lgbm(cfg),
                        factory("xgb", tuned_params("xgb")),
                        factory("catboost", tuned_params("catboost"))]))))
-    out.append(search_wrapped(df, telo, "tuned-elo calibrated",
+    out.append(search_wrapped(df, base, "isotonic-calibrated",
                               lambda cfg: (lambda: Calibrated(_lgbm(cfg)))))
 
     os.makedirs(os.path.dirname(RESULTS), exist_ok=True)
