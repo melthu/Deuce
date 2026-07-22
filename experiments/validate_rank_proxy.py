@@ -184,6 +184,47 @@ def validate_current(events):
         print(f"\n  only {len(pairs)}/20 names matched - too few to correlate")
 
 
+def validate_xlsx(events):
+    """The official weekly XLSX rankings, wherever they could be obtained."""
+    from experiments.bwf_rankings import load_all
+    snaps = load_all()
+    if not snaps:
+        print("\nno official XLSX snapshots available - skipping")
+        return
+
+    rows = []
+    for as_of, real in snaps:
+        proxy = proxy_rank_at(events, as_of)
+        proxy_by_key = {}
+        for p, r in proxy.items():
+            proxy_by_key.setdefault(name_key(p), r)
+        pairs = [(int(r["rank"]), proxy_by_key[name_key(r["player"])])
+                 for _, r in real.iterrows() if name_key(r["player"]) in proxy_by_key]
+        if len(pairs) < 30:
+            continue
+        a = np.array([x for x, _ in pairs])
+        b = np.array([y for _, y in pairs])
+        top10 = {name_key(r["player"]) for _, r in real[real["rank"] <= 10].iterrows()}
+        prox10 = {k for k, v in proxy_by_key.items() if v <= 10}
+        rows.append({"date": as_of.date(), "matched": len(pairs),
+                     "spearman": spearmanr(a, b).statistic,
+                     "top10_overlap": len(top10 & prox10),
+                     "median_abs_err": float(np.median(np.abs(a - b)))})
+
+    if not rows:
+        print("\nofficial XLSX snapshots found but too few names matched")
+        return
+    out = pd.DataFrame(rows)
+    print(f"\n=== proxy vs official BWF weekly XLSX "
+          f"({out['date'].min()} .. {out['date'].max()}) ===")
+    print(f"  snapshots compared        : {len(out)}")
+    print(f"  players matched per week  : {out['matched'].median():.0f} median")
+    print(f"  Spearman rho              : {out['spearman'].mean():.3f} "
+          f"(min {out['spearman'].min():.3f}, max {out['spearman'].max():.3f})")
+    print(f"  real top-10 also in proxy top-10 : {out['top10_overlap'].mean():.1f} / 10")
+    print(f"  median absolute rank error       : {out['median_abs_err'].mean():.1f} places")
+
+
 def main():
     events = proxy_standings()
 
@@ -234,6 +275,7 @@ def main():
     print(f"  real top-10 also in proxy top-10 : {out['top10_overlap'].mean():.1f} / 10")
     print(f"  median absolute rank error       : {out['median_abs_err'].mean():.1f} places")
 
+    validate_xlsx(events)
     validate_current(events)
 
 
