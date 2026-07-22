@@ -16,7 +16,7 @@ Design notes
 * **Incremental.** Each tournament file carries a fingerprint of the inputs that
   produced it. Unchanged inputs are skipped, so re-running costs almost nothing.
   Because the fingerprint covers the tournament's own rows, a live event
-  re-exports automatically as results land — which is what lets the site show
+  re-exports automatically as results land - which is what lets the site show
   semi-final predictions once the quarter-finals are in.
 """
 import argparse
@@ -37,6 +37,7 @@ from src.modeling.dataset import CONT_COLS, encode_split, load_training_frame
 from src.pipeline.player_names import fold_ascii
 from src.modeling.pit_model import train_point_in_time
 from src.serving.simulate import (
+    ROUND_ORDER,
     build_fixed_results,
     build_h2h_lookups,
     build_time_zero_state,
@@ -62,7 +63,7 @@ STALE_AFTER_DAYS = 21
 
 # Bump when the payload shape or any exported computation changes, so a
 # rerun regenerates files that would otherwise look up to date.
-EXPORT_VERSION = 4
+EXPORT_VERSION = 6
 
 FEATURE_NAMES = ["tier", "round", "player_a", "player_b"] + CONT_COLS
 
@@ -97,7 +98,7 @@ def is_placeholder(name: str) -> bool:
     An unfilled draw slot ("TBD (Q1)", "Qualifier 3"), not a person.
 
     These reach the model with default Elo and everything else, so nothing
-    downstream refuses them — they simply get predicted like anyone else. Kept
+    downstream refuses them - they simply get predicted like anyone else. Kept
     in the bracket, because the pairing depends on the slot existing; excluded
     anywhere a name is presented as a player. The frontend applies the same
     rule when it renders a match.
@@ -146,7 +147,7 @@ def load_nat_map(raw: pd.DataFrame) -> dict:
 
 
 def dedupe_day(day: pd.DataFrame) -> pd.DataFrame:
-    """One row per real match — the training frame carries both mirrorings."""
+    """One row per real match - the training frame carries both mirrorings."""
     seen, keep = set(), []
     for _, row in day.iterrows():
         k = (row["round"], frozenset((row["player_a"], row["player_b"])))
@@ -206,7 +207,7 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
                 if json.load(f).get("fp") == fp:
                     return "skip", 0
         except (ValueError, OSError):
-            pass  # unreadable or truncated — regenerate
+            pass  # unreadable or truncated - regenerate
 
     pit = train_point_in_time(df, date_key)
     if pit is None:
@@ -265,11 +266,23 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
             "pending": pending,
             "a_won": None if pending else bool(row["player_a_won"]),
             "score": "" if pending else scores.get((rnd, frozenset((pa, pb))), ""),
+            # A match that ended in a retirement or a walkover. Without this the
+            # frontend renders the partial score it left behind ("18-21, 6-2")
+            # as if it were a completed result. These rows are excluded from
+            # Elo, form, h2h and training, so the prediction beside them is
+            # real but the result never fed anything back.
+            "wo": int(row.get("is_walkover", 0)) == 1,
             "shap": group_shap(sv.reshape(-1)),
         })
 
     played = [m for m in matches if not m["pending"]]
-    hits = sum(1 for m in played if (m["p"] > .5) == m["a_won"])
+    # Score the model only on matches that were actually contested. A retirement
+    # is decided by injury, so counting it either way reads meaning into a result
+    # the model's inputs could not speak to - and the rest of the pipeline
+    # already treats these rows this way, excluding them from Elo, form, h2h and
+    # training. Judged, not pending: they stay in `played` for status.
+    judged = [m for m in played if not m["wo"]]
+    hits = sum(1 for m in judged if (m["p"] > .5) == m["a_won"])
     n_pending = len(matches) - len(played)
     status = derive_status(len(played), n_pending, tour_date)
 
@@ -277,10 +290,11 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
         # A handful of draws are genuinely incomplete on Wikipedia. Ship the
         # bracket without a forecast rather than a fabricated one, and say so.
         try:
-            counts = run_monte_carlo(N_SIMS, r1, stats, h2h_rate, h2h_last,
-                                     scaler, p2i, t2i, r2i, payload,
-                                     np.random.default_rng(42), tier=tier,
-                                     nat_map=nat_map, fixed_results=fixed)
+            counts, reached = run_monte_carlo(
+                N_SIMS, r1, stats, h2h_rate, h2h_last,
+                scaler, p2i, t2i, r2i, payload,
+                np.random.default_rng(42), tier=tier,
+                nat_map=nat_map, fixed_results=fixed, return_rounds=True)
         except ValueError as e:
             print(f"    no simulation for {date_key}: {e}")
             return None
@@ -291,17 +305,38 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
         total = sum(real.values())
         if not total:
             return None
-        return [{"name": k, "nat": nat_map.get(k, ""), "p": round(v / total, 4)}
-                for k, v in sorted(real.items(), key=lambda t: -t[1]) if v > 0]
+        # Every round but the first: reaching round one is just being in the
+        # draw. Deliberately NOT renormalised the way `p` is - "reaches the
+        # semi-final" is a per-player marginal, not a distribution over players,
+        # so it sums to the number of slots in that round rather than to 1.
+        rounds_seen = [r for r in ROUND_ORDER if r in reached]
+        adv_rounds  = rounds_seen[1:]
+
+        # Everyone in the draw, not just everyone who won a simulation. Keying
+        # the board off the champion counts dropped every player who never took
+        # the title in 10,000 runs - fine when the only column was title odds,
+        # wrong once the row also carries how far they got. Akita Masters 2018
+        # lost two of its sixteen second-round entrants that way.
+        entrants = [k for k in reached[rounds_seen[0]] if not is_placeholder(k)]
+        board = sorted(
+            ({"name": k, "nat": nat_map.get(k, ""),
+              "p": round(counts.get(k, 0) / total, 4),
+              "adv": [round(reached[r].get(k, 0) / N_SIMS, 4) for r in adv_rounds]}
+             for k in entrants),
+            key=lambda e: (-e["p"], *(-a for a in e["adv"])),
+        )
+        return adv_rounds, board
 
     # Always ship the pre-tournament forecast: conditioning a finished event on
     # its own results just returns the champion at 100%.
-    leaderboard = simulate({})
+    pre = simulate({})
+    adv_rounds, leaderboard = pre if pre else ([], None)
 
     # A live event additionally gets a forecast conditioned on what has actually
     # been played, so once the quarter-finals are in the site shows the model's
     # updated view of the semi-finals.
-    leaderboard_live = simulate(build_fixed_results(day)) if status == "live" else None
+    live = simulate(build_fixed_results(day)) if status == "live" else None
+    leaderboard_live = live[1] if live else None
 
     doc = {
         "fp": fp,
@@ -311,12 +346,18 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
         "tier": tier,
         "host": cfg_row["host_country"],
         "model": model_label,
+        # The estimator that actually produced these numbers. promote.py's
+        # winner flips between libraries week to week, so it is read from
+        # the payload rather than assumed anywhere downstream.
+        "model_name": payload.get("name", ""),
         "trained_through": payload.get("trained_through"),
         "n_train_rows": payload.get("n_train_rows"),
         "sims": N_SIMS,
         "status": status,
-        "accuracy": {"hit": hits, "n": len(played)},
+        "accuracy": {"hit": hits, "n": len(judged)},
         "matches": matches,
+        # Column headings for each leaderboard entry's `adv` list.
+        "adv_rounds": adv_rounds,
         "leaderboard": leaderboard,
         "leaderboard_live": leaderboard_live,
     }
@@ -340,7 +381,7 @@ def latest_player_state(df: pd.DataFrame) -> dict:
     """
     Each player's most recent feature row, in the shape build_time_zero_state
     returns. Features are pre-match values, so this is a player's form going
-    into their latest appearance — the global analogue of Day-1 tournament state.
+    into their latest appearance - the global analogue of Day-1 tournament state.
 
     Scanning slot A alone suffices: the frame is mirrored, so every player
     appears in slot A of some row for every match they played.
@@ -479,7 +520,7 @@ def export_index(cfg, df, out_dir):
 
 # ----------------------------------------------------------------------
 def main():
-    ap = argparse.ArgumentParser(description="Export ShuttleCast as static JSON")
+    ap = argparse.ArgumentParser(description="Export Deuce as static JSON")
     ap.add_argument("--out", default=OUT_DIR)
     ap.add_argument("--force", action="store_true", help="ignore fingerprints")
     ap.add_argument("--only", help="single tournament start date (YYYY-MM-DD)")

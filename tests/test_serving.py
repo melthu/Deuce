@@ -56,7 +56,7 @@ def test_same_nationality_is_actually_reaching_the_model(fitted):
                              f["pre"]["tier_to_id"], f["pre"]["round_to_id"],
                              f["payload"], tier=f["tier"], nat_map=None)
                for a, b in pairs]
-    assert with_nat != without, "nat_map made no difference — same_nationality is not wired up"
+    assert with_nat != without, "nat_map made no difference - same_nationality is not wired up"
 
 
 @pytest.mark.parametrize("n_first_round, expected_rounds", [
@@ -88,7 +88,39 @@ def test_monte_carlo_is_a_distribution_over_the_draw(fitted):
 
     # The exact failure of the old seeding bug: `champions = current[:, 0]` left
     # an unresolved bracket reporting the first player as a 100% champion.
-    assert max(counts.values()) < SIMS, "one player won every simulation — bracket did not resolve"
+    assert max(counts.values()) < SIMS, "one player won every simulation - bracket did not resolve"
+
+
+def test_monte_carlo_round_counts_fill_every_slot(fitted):
+    """
+    `return_rounds` reports who reached each round. A round has a fixed number
+    of slots and every one of them is occupied in every simulation, so the
+    counts for a round must total exactly slots x sims - the check that
+    separates "entrants of this round" from "winners of this round", which is
+    an off-by-one that would otherwise look plausible.
+    """
+    f = fitted
+    titles, reached = run_monte_carlo(
+        SIMS, f["r1"], f["stats"], f["h2h_rate"], f["h2h_last"],
+        f["pre"]["scaler"], f["pre"]["player_to_id"], f["pre"]["tier_to_id"],
+        f["pre"]["round_to_id"], f["payload"], np.random.default_rng(42),
+        tier=f["tier"], nat_map=f["nat_map"], return_rounds=True,
+    )
+    assert sum(titles.values()) == SIMS
+
+    slots = 2 * len(f["r1"])
+    for rnd in ROUND_ORDER:
+        if rnd not in reached:
+            continue
+        assert sum(reached[rnd].values()) == slots * SIMS, (
+            f"{rnd}: counted {sum(reached[rnd].values())} appearances, "
+            f"expected {slots * SIMS} ({slots} slots x {SIMS} sims)")
+        slots //= 2
+
+    # Reaching the final is implied by winning it.
+    final = reached.get("final", {})
+    for player, n in titles.items():
+        assert final.get(player, 0) >= n, f"{player} won more finals than they reached"
 
 
 def test_monte_carlo_is_deterministic_under_a_fixed_seed(fitted):
@@ -107,7 +139,7 @@ def test_monte_carlo_is_deterministic_under_a_fixed_seed(fitted):
 def test_fixed_results_override_the_model(fitted):
     """
     Conditioning a finished tournament on its own results must return the real
-    champion at 100% — that is what makes a live draw's odds trustworthy.
+    champion at 100% - that is what makes a live draw's odds trustworthy.
     """
     f = fitted
     fixed = build_fixed_results(f["day"])

@@ -46,7 +46,7 @@ def round_sequence(n_first_round_matches: int) -> list[str]:
 
     Rounds up: a draw missing a match (a walkover the scraper never recorded,
     say) leaves e.g. 15 openers, and truncating there returns one round too
-    few — the bracket then never resolves to a single winner.
+    few - the bracket then never resolves to a single winner.
     """
     n_rounds = max(1, int(np.ceil(np.log2(max(1, n_first_round_matches)))) + 1)
     if n_rounds <= 3:
@@ -66,7 +66,7 @@ def load_model(model_path: str = MODEL_PATH):
 
 def get_n_features(payload):
     """Return the primary model's expected feature count, or None if unknown.
-    CatBoost fitted on a plain numpy array leaves n_features_in_ at 0 —
+    CatBoost fitted on a plain numpy array leaves n_features_in_ at 0,
     fall back to feature_names_ in that case."""
     m = (payload["model"] if payload["type"] == "single"
          else next(iter(payload["models"].values())))
@@ -163,7 +163,7 @@ def build_h2h_lookups(df, tour_date):
     if "is_pending" in hist.columns:
         hist = hist[hist["is_pending"] == 0]
     # Walkovers are kept in the frame for bracket topology but were never
-    # counted as history during feature engineering — match that here.
+    # counted as history during feature engineering - match that here.
     if "is_walkover" in hist.columns:
         hist = hist[hist["is_walkover"] == 0]
     hist = hist.sort_values("start_date")
@@ -287,6 +287,7 @@ def run_monte_carlo(
     scaler, player_to_id, tier_to_id, round_to_id,
     model_payload, rng, tier=None,
     nat_map=None, fixed_results=None, progress_cb=None,
+    return_rounds=False,
 ):
     """
     Vectorised Monte Carlo over n_sims brackets.
@@ -296,13 +297,18 @@ def run_monte_carlo(
     averaging). In-bracket Elo/EMA updates are applied per simulation via
     (n_sims, n_players) arrays so form carries into later rounds.
 
-    fixed_results: {(round_name, frozenset({a, b})): winner} — real outcomes
+    fixed_results: {(round_name, frozenset({a, b})): winner} - real outcomes
     of already-played matches; these override the model and are applied
     deterministically in every simulation.
 
     progress_cb(round_name, round_idx, n_rounds): optional UI hook.
 
-    Returns: {player_name: n_titles_won} over all simulations.
+    return_rounds: also return how often each player *reached* each round.
+    The simulation already knows this - the slot array at the top of a round
+    is exactly its entrants - but the title count alone throws it away.
+
+    Returns: {player_name: n_titles_won}, or that plus
+    {round_name: {player_name: n_sims_reached}} when return_rounds is set.
     """
     t = DEFAULT_TIER if tier is None else tier
     K = K_BY_TIER.get(t, 24)
@@ -330,12 +336,20 @@ def run_monte_carlo(
 
     # None until a round actually reduces the bracket to one slot. Seeding this
     # with current[:, 0] would report the first player of the first match as a
-    # 100%-certain champion whenever the bracket fails to resolve — a confident
+    # 100%-certain champion whenever the bracket fails to resolve - a confident
     # wrong answer instead of a visible failure.
     champions = None
+    reached = {}
     for round_i, round_name in enumerate(rounds):
+        # Entrants of this round, counted before any carry trim. A player holds
+        # at most one slot per simulation - winners of distinct matches are
+        # distinct people - so a plain bincount over the slot array is the
+        # number of simulations in which they got this far.
+        if return_rounds:
+            reached[round_name] = np.bincount(current.ravel(), minlength=P)
+
         # Defensive: an odd slot count means the bracket is malformed
-        # (a dropped slot somewhere) — give the trailing player a bye
+        # (a dropped slot somewhere) - give the trailing player a bye
         # rather than crashing on mismatched pairing arrays.
         carry = None
         if current.shape[1] % 2 == 1:
@@ -422,7 +436,13 @@ def run_monte_carlo(
         )
 
     idx, counts = np.unique(champions, return_counts=True)
-    return {players[i]: int(c) for i, c in zip(idx, counts)}
+    titles = {players[i]: int(c) for i, c in zip(idx, counts)}
+    if not return_rounds:
+        return titles
+    return titles, {
+        rnd: {players[i]: int(c) for i, c in enumerate(vec) if c}
+        for rnd, vec in reached.items()
+    }
 
 
 def run(tour_date: str, tier: int, n_sims: int,
@@ -451,7 +471,7 @@ def run(tour_date: str, tier: int, n_sims: int,
         print(f"Conditioning on {len(fixed)} real results already on record.")
 
     print(f"\n{'='*62}")
-    print(f"  {tour_date} — First Round Bracket ({len(r1_matchups)} matchups)")
+    print(f"  {tour_date} - First Round Bracket ({len(r1_matchups)} matchups)")
     print(f"{'='*62}")
     for _, row in r1_matchups.iterrows():
         p = predict_match(
