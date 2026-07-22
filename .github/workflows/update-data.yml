@@ -3,11 +3,20 @@ name: Refresh data & publish site
 # Most BWF tournaments end on Sunday and Wikipedia editors fill in results
 # within a day, so Monday catches a finished event plus the next draw. The
 # other days matter because a live tournament's predictions should move as
-# its rounds complete — the incremental scrape and export both no-op cheaply
+# its rounds complete - the incremental scrape and export both no-op cheaply
 # when nothing has changed, so a daily run costs little.
 on:
   schedule:
+    # Full run: scrape, re-engineer features, re-select and retrain the
+    # promoted model.
     - cron: "0 6 * * *"
+    # Light runs, every three hours otherwise. A live tournament's results
+    # reach the site within a few hours of Wikipedia carrying them; these skip
+    # the retrain, which cannot affect a live draw anyway (its point-in-time
+    # model is fit strictly before the tournament started, and its features are
+    # frozen at day one). What they do refresh is which matches have been
+    # played, and therefore the results-conditioned championship odds.
+    - cron: "0 0,3,9,12,15,18,21 * * *"
   workflow_dispatch: {}
   # Anything the exported payload depends on republishes without waiting for
   # the schedule: the frontend, the code that builds it, the data it is built
@@ -29,7 +38,7 @@ permissions:
 # Never let two runs deploy Pages at once; let an in-flight run finish so a
 # push mid-refresh doesn't abandon a half-committed dataset.
 concurrency:
-  group: shuttlecast-publish
+  group: deuce-publish
   cancel-in-progress: false
 
 jobs:
@@ -39,6 +48,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      # A retrain is worth it once a day; the 3-hourly runs exist only to pick
+      # up results. Manual dispatches are treated as full runs.
+      - name: Decide run depth
+        id: depth
+        run: |
+          if [ "${{ github.event.schedule }}" = "0 0,3,9,12,15,18,21 * * *" ]; then
+            echo "full=false" >> "$GITHUB_OUTPUT"
+            echo "Light run: scrape and republish, no retrain."
+          else
+            echo "full=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/setup-python@v6
         with:
@@ -58,7 +79,7 @@ jobs:
       - name: Sanity-check scraped data
         run: python src/pipeline/data_checks.py
 
-      # Only the tests that read the raw scrape — the dataset the rest of the
+      # Only the tests that read the raw scrape - the dataset the rest of the
       # suite needs has not been rebuilt yet at this point. The full suite runs
       # in `publish`, against the payload that is actually about to ship.
       - name: Test scraped names
@@ -69,19 +90,19 @@ jobs:
         run: |
           if git diff --quiet -- data/; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "No data changes — skipping feature engineering and retrain."
+            echo "No data changes - skipping feature engineering and retrain."
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Re-engineer features + mirror dataset
-        if: steps.diff.outputs.changed == 'true'
+        if: steps.diff.outputs.changed == 'true' && steps.depth.outputs.full == 'true'
         run: |
           python src/pipeline/feature_engineering.py
           python src/pipeline/data_loader.py
 
       - name: Select & retrain production model (best of xgb/lgbm/catboost)
-        if: steps.diff.outputs.changed == 'true'
+        if: steps.diff.outputs.changed == 'true' && steps.depth.outputs.full == 'true'
         run: python src/modeling/promote.py
 
       - name: Commit & push
