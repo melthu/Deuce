@@ -93,10 +93,19 @@ site/data/player/<slug>        current-form card
 site/data/matchup/<slug>       that player against every other active player
 ```
 
-Each shard carries a fingerprint of the inputs behind it, so a rebuild only touches what
-actually moved: a full export is ~20 minutes, an unchanged rerun is seconds. That is also
-what keeps a live tournament current - its own rows change as results land, so the
-fingerprint misses and the file re-exports on the next run, no special-casing needed.
+Each tournament shard carries a fingerprint of the inputs behind it, so a rebuild only
+touches what actually moved: a full export is ~20 minutes, a rerun where every draw is
+unchanged is ~30 s locally and ~70 s on the runner. That is also what keeps a live
+tournament current - its own rows change as results land, so the fingerprint misses and
+the file re-exports on the next run, no special-casing needed.
+
+The player cards and the matchup grid have no fingerprint and rebuild every run, which
+is essentially all of that remaining time: 230 players is ~26k unordered pairs. It used
+to be four minutes, almost none of it spent on the model. `build_h2h_lookups` scanned
+the whole history frame per call and cached on the *ordered* pair, so asking both
+directions of a matchup - which order-invariant prediction always does - missed the
+cache every single time. Indexing that history by unordered pair made each lookup a
+dict read and the export eight times faster, with a byte-identical payload.
 
 `src/serving/check_export.py` gates publication on shard counts, payload size, empty
 brackets and the share of draws with no simulation.
@@ -270,7 +279,9 @@ python3 src/serving/simulate.py --date 2026-02-24 --tier 300 --sims 10000
 
 Daily rather than weekly because a live tournament's predictions should move as its rounds
 complete. Both the scrape and the export no-op cheaply when nothing has changed, so the
-extra runs cost little. A push touching `site/**` or `src/serving/**` runs **publish** only.
+extra runs cost little: a publish where no draw moved is about five minutes end to end,
+and a third of that is the Pages deploy itself. A push touching `site/**` or
+`src/serving/**` runs **publish** only.
 
 ---
 
