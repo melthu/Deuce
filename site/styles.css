@@ -880,7 +880,7 @@ input[type="search"]:focus {
 .lb { max-width: 900px; }
 .lb-row {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) 210px 48px;
+  grid-template-columns: var(--lb-cols, 22px minmax(0, 1fr) 210px 48px);
   gap: 10px;
   align-items: center;
   padding: 5px 0;
@@ -906,6 +906,8 @@ input[type="search"]:focus {
 .lb-row.champ .lbar div { background: var(--claret); }
 .lb-row .nat { color: var(--faint); font-size: 11px; }
 
+.lb-row .advs { display: contents; }
+.lb-row .adv::before { display: none; }
 .lb-row .adv {
   text-align: right;
   font-size: 12px;
@@ -1297,4 +1299,39 @@ input[type="search"]:focus {
   .mu-swap { justify-self: center; }
   .tabs button { padding: 8px 13px; }
   .thead h2 { font-size: 22px; }
+
+  /* The leaderboard's one-line row is about 440px of fixed columns before the
+     name gets any width at all: on a phone the name was squeezed to a couple of
+     characters and the title percent - the column the page is named after - sat
+     off the right edge. Give each player three lines instead of one column set:
+     rank, name and title price on top, the bar under them, then the round-by-
+     round advancement as a labelled strip. Nothing is dropped, and every cell
+     stays in the same reading order. */
+  .lb-row {
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    gap: 3px 8px;
+    padding: 8px 0;
+  }
+  .lb-cols { display: none; }              /* the labels are inline below */
+  .lb-row .nm   { grid-area: 1 / 2; }
+  .lb-row .rank { grid-area: 1 / 1; }
+  .lb-row .lpct { grid-area: 1 / 3; }
+  .lb-row .lbar { grid-area: 2 / 2 / auto / -1; }
+  .lb-row .advs {
+    grid-area: 3 / 2 / auto / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+  }
+  .lb-row .adv::before {
+    display: inline;
+    content: attr(data-r);
+    margin-right: 4px;
+    font-family: var(--condensed);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;            /* ROUND_SHORT's "Final" vs "QF" */
+    color: var(--faint);
+  }
 }

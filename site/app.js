@@ -548,11 +548,14 @@ function renderMonte(doc) {
   // knew this - it plays every round - and the columns make a favourite with a
   // brutal quarter visibly different from one with an easy path to the semis.
   const advRounds = doc.adv_rounds || [];
+  // Handed to CSS as a custom property rather than set as `grid-template-columns`
+  // directly: an inline declaration beats a stylesheet rule, so the phone layout
+  // could not take the columns back. As a variable the media query wins.
   const cols = `26px minmax(0, 1fr) 92px ${'50px '.repeat(advRounds.length)}56px`;
 
   if (advRounds.length) {
     const head = el('div', 'lb-row lb-cols');
-    head.style.gridTemplateColumns = cols;
+    head.style.setProperty('--lb-cols', cols);
     head.append(el('span'), el('span'), el('span'));
     for (const r of advRounds) head.append(el('span', 'c', ROUND_SHORT[r] || r));
     head.append(el('span', 'c', 'Title'));
@@ -561,9 +564,9 @@ function renderMonte(doc) {
 
   board.slice(0, 24).forEach((r, i) => {
     const row = el('div', 'lb-row' + (r.name === champ ? ' champ' : ''));
-    row.style.gridTemplateColumns = cols;
+    row.style.setProperty('--lb-cols', cols);
     row.append(el('span', 'rank num', String(i + 1)));
-    const nm = el('span');
+    const nm = el('span', 'nm');
     const f = flag(r.nat);
     if (f) nm.append(el('span', 'flag', f + ' '));
     nm.append(document.createTextNode(r.name));
@@ -576,7 +579,17 @@ function renderMonte(doc) {
     row.append(bar);
     // Advancement is a marginal, not a share of anything, so it is shown as
     // plain rounded percent - no `fine`, which exists for the title tail.
-    for (const a of (r.adv || [])) row.append(el('span', 'adv num', pct(a)));
+    // The wrapper is `display: contents` on a wide screen, so these stay real
+    // grid cells under the header; narrow, it becomes the flex strip that
+    // carries them onto their own line, each labelled by its `data-r`.
+    const advs = el('div', 'advs');
+    (r.adv || []).forEach((a, j) => {
+      const s = el('span', 'adv num', pct(a));
+      const rd = advRounds[j];
+      s.dataset.r = ROUND_SHORT[rd] || rd || '';
+      advs.append(s);
+    });
+    row.append(advs);
     row.append(el('span', 'lpct num', pct(r.p, true)));
     lb.append(row);
   });
