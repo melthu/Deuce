@@ -136,6 +136,25 @@ const state = {
   mu: { a: null, b: null },
 };
 
+// The one breakpoint the script has to know about: below it the explanation is
+// a modal sheet rather than a rail, which changes where focus belongs. Keep it
+// in step with the 820px query in styles.css.
+const SHEET = matchMedia('(max-width: 820px)');
+
+/**
+ * Stacked, the sidebar sits above the content rather than beside it, so
+ * picking a tournament or a player changes only what is off the bottom of the
+ * screen - the list you tapped looks unchanged. Bring the answer into view.
+ * On a wide screen both are already visible and this does nothing.
+ */
+function revealMain() {
+  if (!SHEET.matches) return;
+  $('#main').scrollIntoView({
+    behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    block: 'start',
+  });
+}
+
 // ---------------------------------------------------------------- sidebar
 
 function seasons() {
@@ -178,7 +197,7 @@ function renderSidebar() {
     meta.append(el('span', 'num', fmtDate(t.date)));
     if (t.status !== 'complete') meta.append(el('span', `pill ${t.status}`, t.status));
     b.append(meta);
-    b.onclick = () => { location.hash = `#/t/${t.slug}`; };
+    b.onclick = () => { location.hash = `#/t/${t.slug}`; revealMain(); };
     list.append(b);
   }
 }
@@ -221,6 +240,7 @@ function pickPlayer(p) {
   if (prev && prev.slug === p.slug) return;      // already the newest pick
   state.mu = prev ? { a: prev, b: p } : { a: p, b: null };
   goMatchup();
+  revealMain();
 }
 
 // ---------------------------------------------------------------- bracket
@@ -244,6 +264,7 @@ function matchCard(m) {
   const node = el('button', 'match'
     + (m.pending ? ' pending' : m.wo ? '' : called ? ' hit' : ' miss'));
   node.type = 'button';
+  node.dataset.mi = m.i;                 // so closing can hand focus back
   node.setAttribute('aria-pressed', String(state.selected === m.i));
   const unknown = isPlaceholder(m.a) || isPlaceholder(m.b);
 
@@ -306,8 +327,17 @@ function matchCard(m) {
 }
 
 function selectMatch(i) {
+  const closed = i == null ? state.selected : null;
   state.selected = i;
-  renderMain();
+  const done = renderMain();
+  // Closing leaves focus on a button that the re-render has just destroyed,
+  // which drops the caret back to the top of the document. Put it on the match
+  // the explanation was about - where the reader already was.
+  if (closed != null) {
+    Promise.resolve(done).then(() => {
+      document.querySelector(`.match[data-mi="${closed}"]`)?.focus();
+    });
+  }
 }
 
 function applyNav() {
@@ -373,15 +403,24 @@ function renderBracket(doc) {
   grid.append(left);
   const rail = el('aside', 'rail');
   rail.append(renderExplain(doc.matches[state.selected]));
+  // Narrow, the rail is a modal bottom sheet and this element is its scrim
+  // (see styles.css), so a click that lands on the aside rather than on the
+  // sheet inside it is a click on the backdrop. Wide, nothing can hit the
+  // aside itself, and the handler never fires.
+  rail.onclick = e => { if (e.target === rail) selectMatch(null); };
   grid.append(rail);
   wrap.append(grid);
 
-  // Opening the rail narrows the draw, which can leave the match you just
-  // clicked scrolled off to the right - worst for a final, the rightmost
-  // column. Bring it back after layout settles.
   requestAnimationFrame(() => {
+    // Opening the rail narrows the draw, which can leave the match you just
+    // clicked scrolled off to the right - worst for a final, the rightmost
+    // column. Bring it back after layout settles.
     const sel = document.querySelector('.match[aria-pressed="true"]');
     if (sel) sel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    // As a sheet it is a new surface laid over the page, so focus belongs
+    // inside it. As a rail it sits beside the draw, and pulling focus out of
+    // the bracket you are reading would be wrong.
+    if (SHEET.matches) document.querySelector('.explain-close')?.focus();
   });
   return wrap;
 }
@@ -1053,6 +1092,15 @@ async function boot() {
     state.navCollapsed = false;
     applyNav();
   };
+  // Escape closes the explanation. It is the only surface on the site that
+  // covers content, and on a phone the backdrop is the only other way out.
+  // The season menu handles its own Escape and does not stop the event, so
+  // skip while it is open or one key press would close both.
+  addEventListener('keydown', e => {
+    if (e.key === 'Escape' && state.selected != null && $('#seasonMenu').hidden)
+      selectMatch(null);
+  });
+
   for (const b of document.querySelectorAll('.nav button')) {
     b.onclick = () => {
       if (b.dataset.view === 'matchup') goMatchup();

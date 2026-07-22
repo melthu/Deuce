@@ -141,16 +141,22 @@ button { font: inherit; color: inherit; }
 .navtoggle:focus-visible { outline: 2px solid var(--court); outline-offset: 2px; }
 
 /* Collapsed: the sidebar keeps just enough width for its toggle, so the
-   control that reopens it is always where it was. */
-.app.nav-collapsed { grid-template-columns: 45px minmax(0, 1fr); }
-.app.nav-collapsed .brand { padding: 12px 6px; border-bottom: 0; }
-.app.nav-collapsed .sidebar { cursor: pointer; }
-.app.nav-collapsed .sidebar:hover { background: var(--sunken); }
-.app.nav-collapsed .sidebar:hover .navtoggle { color: var(--text); border-color: var(--court); }
-.app.nav-collapsed .brand-txt,
-.app.nav-collapsed .nav,
-.app.nav-collapsed #browse,
-.app.nav-collapsed #ratings { display: none; }
+   control that reopens it is always where it was.
+
+   Desktop only. Stacked, the sidebar sits above the draw rather than beside
+   it, so collapsing buys the bracket no width at all - and the toggle would
+   land underneath the theme button, which is fixed to the same corner. */
+@media (min-width: 821px) {
+  .app.nav-collapsed { grid-template-columns: 45px minmax(0, 1fr); }
+  .app.nav-collapsed .brand { padding: 12px 6px; border-bottom: 0; }
+  .app.nav-collapsed .sidebar { cursor: pointer; }
+  .app.nav-collapsed .sidebar:hover { background: var(--sunken); }
+  .app.nav-collapsed .sidebar:hover .navtoggle { color: var(--text); border-color: var(--court); }
+  .app.nav-collapsed .brand-txt,
+  .app.nav-collapsed .nav,
+  .app.nav-collapsed #browse,
+  .app.nav-collapsed #ratings { display: none; }
+}
 .brand h1 {
   margin: 0;
   font-family: var(--condensed);
@@ -1214,4 +1220,75 @@ input[type="search"]:focus {
   .sidebar { position: static; height: auto; max-height: none; }
   .tlist { max-height: 260px; }
   .main { padding: 16px 14px 50px; height: auto; overflow: visible; }
+
+  .navtoggle { display: none; }
+
+  /* The hint is a sentence, not a right-aligned tag, once it no longer fits
+     on the header's line. */
+  .card-head { flex-wrap: wrap; }
+  .card-head .hint { flex-basis: 100%; margin-left: 0; text-align: left; }
+
+  /* The explanation becomes a bottom sheet instead of a block appended under
+     the draw. Stacked it opened below a bracket that is itself taller than the
+     screen: you tapped a match, nothing visibly happened, and the answer was
+     an unprompted scroll away.
+
+     `.rail` is the scrim and `.explain` inside it is the sheet, so a tap on
+     the backdrop is a tap on `.rail` itself and the markup needs no extra
+     element - the same DOM serves both layouts. */
+  .rail {
+    position: fixed;
+    inset: 0;
+    z-index: 80;                        /* over .themebtn, which is 60 */
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    background: rgba(8, 10, 12, .5);
+    animation: scrim-in .18s ease-out;
+  }
+  .rail > .explain {
+    display: flex;
+    flex-direction: column;
+    max-height: 85vh;
+    max-height: 85dvh;                  /* the bars-visible height, on phones */
+    border-width: 1px 0 0;
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -10px 34px rgba(0, 0, 0, .3);
+    animation: sheet-up .22s cubic-bezier(.2, .75, .3, 1);
+  }
+  /* A grabber, so it reads as something that came up and can go back down. */
+  .rail > .explain::before {
+    content: '';
+    flex: none;
+    width: 34px;
+    height: 4px;
+    margin: 8px auto 0;
+    border-radius: 2px;
+    background: var(--border);
+  }
+  .rail-body {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    min-height: 0;                      /* or the flex floor blocks scrolling */
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  .explain-close { font-size: 15px; padding: 7px 10px; }   /* thumb-sized */
+
+  /* The page behind a modal sheet must not scroll with it. */
+  body:has(.rail) { overflow: hidden; }
+}
+
+@keyframes scrim-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes sheet-up { from { transform: translateY(14%) } to { transform: none } }
+@media (prefers-reduced-motion: reduce) {
+  .rail, .rail > .explain { animation: none; }
+}
+
+@media (max-width: 620px) {
+  /* One field above the other, with the swap between them: side by side, two
+     search boxes and a button leave each name about ten characters. */
+  .mu-picks { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .mu-swap { justify-self: center; }
+  .tabs button { padding: 8px 13px; }
+  .thead h2 { font-size: 22px; }
 }
