@@ -118,6 +118,7 @@ def tune_catboost(n_trials: int, X_train, y_train, X_val, y_val) -> tuple[dict, 
             "eval_metric":  "AUC",
             "verbose":      0,
             "early_stopping_rounds": 50,
+            "allow_writing_files": False,   # no catboost_info/ in the repo root
         }
         model = CatBoostClassifier(**params)
         model.fit(X_train, y_train, eval_set=(X_val, y_val))
@@ -140,7 +141,8 @@ def retrain_best(model_type: str, best_params: dict, X_train, y_train):
     elif model_type == "catboost":
         from catboost import CatBoostClassifier
         model = CatBoostClassifier(**best_params, random_seed=42,
-                                   eval_metric="AUC", verbose=0)
+                                   eval_metric="AUC", verbose=0,
+                                   allow_writing_files=False)
         model.fit(X_train, y_train)
         path = "models/best_catboost.pkl"
     else:

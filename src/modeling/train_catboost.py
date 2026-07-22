@@ -51,7 +51,10 @@ def train():
     if not tuned:
         params["early_stopping_rounds"] = 100
 
-    model = CatBoostClassifier(**params, eval_metric="AUC", random_seed=42, verbose=0)
+    # allow_writing_files: keeps CatBoost from writing catboost_info/ into the
+    # repo root; nothing reads that training log.
+    model = CatBoostClassifier(**params, eval_metric="AUC", random_seed=42,
+                               verbose=0, allow_writing_files=False)
     model.fit(X_train, y_train, eval_set=(X_val, y_val) if not tuned else None)
 
     val_probs = model.predict_proba(X_val)[:, 1]

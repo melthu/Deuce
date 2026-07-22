@@ -3,9 +3,12 @@ __pycache__/
 *.py[cod]
 .venv/
 *.egg-info/
+.pytest_cache/
 
 # --- Local noise ---
 .DS_Store
+# CatBoost's training log. The trainers pass allow_writing_files=False so this
+# should no longer appear; kept ignored for older checkouts.
 catboost_info/
 # Scratch notes for the in-flight static-site migration; delete when it lands
 HANDOFF.md

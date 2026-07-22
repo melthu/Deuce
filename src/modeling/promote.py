@@ -50,8 +50,10 @@ def build_model(name: str, params: dict):
         return lgb.LGBMClassifier(**params, random_state=42, verbose=-1)
     if name == "catboost":
         from catboost import CatBoostClassifier
-        return CatBoostClassifier(**params, random_seed=42,
-                                  eval_metric="AUC", verbose=0)
+        # allow_writing_files: CatBoost otherwise drops a catboost_info/
+        # training-log directory into the repo root on every fit.
+        return CatBoostClassifier(**params, random_seed=42, eval_metric="AUC",
+                                  verbose=0, allow_writing_files=False)
     raise ValueError(f"unknown model type: {name}")
 
 
