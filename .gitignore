@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+*.egg-info/
 
 # --- Local noise ---
 .DS_Store
@@ -10,8 +11,10 @@ catboost_info/
 HANDOFF.md
 
 # --- Build output (regenerable; do not commit) ---
-# `make features` rebuilds these from data/raw
+# `make features` rebuilds these from data/raw in ~26s. data/raw is the only
+# scraped input worth tracking; everything downstream of it is derived.
 data/interim/
+data/processed/
 # `make export` rebuilds this from data/processed; ~9 MB across ~690 files.
 # The workflow builds it fresh and uploads it as a Pages artifact.
 site/data/

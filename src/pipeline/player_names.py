@@ -20,7 +20,6 @@ Deliberately NOT merged, despite looking alike:
 * "Huang Yu" / "Huang Yu-kai" — they played each other in the third round of
   Kaohsiung Masters 2023. Different people.
 * "Munawar Mohammed" (India, 2018) / "Mohammed Munawar" (UAE, 2025).
-* "Ravi" / "Ravi Ravi" — a single-token name is too ambiguous to merge on.
 
 The Mauritian "Georges Paul" / "Julien Paul" / "Georges Julien Paul" trio read
 the same way and were held back until confirmed; they are one player and are
@@ -107,6 +106,10 @@ ALIASES = {
     "Ryan Ng Zin Rei": "Ryan Ng",
     "K. Ajay Kumar": "Ajay Kumar K.",
     "Hsieh Yu-Hsin": "Hsieh Yu-hsin",
+    # Both India, overlapping span (2022-24), never met, and "Ravi Ravi" appears
+    # only within one draw. A doubled single-token name is how Wikipedia renders
+    # a mononym in a table that wants two fields, so this is one player.
+    "Ravi Ravi": "Ravi",
     # Confirmed one player. Unlike the other merges this one keeps the *fullest*
     # spelling rather than the most frequent: the counts are 5/4/1, so there is
     # no dominant rendering to defer to, and picking between two truncations on
@@ -144,7 +147,6 @@ ALIASES = {
 REVIEWED_DISTINCT = {
     frozenset(("Huang Yu", "Huang Yu-kai")),
     frozenset(("Munawar Mohammed", "Mohammed Munawar")),
-    frozenset(("Ravi", "Ravi Ravi")),
 }
 
 

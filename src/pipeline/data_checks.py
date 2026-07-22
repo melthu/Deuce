@@ -6,11 +6,11 @@ looks corrupted, so a bad scrape never reaches the deployed app.
 
     python3 src/pipeline/data_checks.py
 """
-import collections
 import itertools
 import os
 import re
 import sys
+from datetime import date
 
 import pandas as pd
 
@@ -19,7 +19,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(
 
 from src.pipeline.player_names import ALIASES, REVIEWED_DISTINCT, fold_ascii
 
-RAW_PATH = "data/raw/raw_matches.csv"
+RAW_PATH    = "data/raw/raw_matches.csv"
+CONFIG_PATH = "data/config/tournaments_config.csv"
+
+# Thinnest real season on record is 2021 (16) in the World Tour era and 13 in
+# the Super Series era; a year that comes back under this lost tournaments.
+MIN_PER_YEAR = 10
+FIRST_YEAR   = 2010
 
 REQUIRED_COLS = [
     "tournament", "tier", "round", "start_date", "host_country",
@@ -71,9 +77,52 @@ def find_name_collisions(df: pd.DataFrame) -> list:
     return out
 
 
+def check_config() -> list:
+    """
+    The calendar must cover every season, not just some of them.
+
+    `build_config.py` refuses to overwrite a config that shrank by more than 5%,
+    but that only catches a scrape that collapses in one go. A year whose
+    Wikipedia page changed shape returns zero rows quietly while the other
+    sixteen years carry the total, so the calendar stays large enough to pass
+    and the season simply goes missing. Check each year, not the total.
+
+    The lookahead year (`date.today().year + 1`) is not required: its page
+    genuinely does not exist for most of the season.
+    """
+    if not os.path.exists(CONFIG_PATH):
+        return [f"{CONFIG_PATH} is missing — run build_config.py"]
+
+    cfg = pd.read_csv(CONFIG_PATH)
+    errors = []
+
+    years = pd.to_datetime(cfg["start_date"], errors="coerce").dt.year
+    if years.isna().any():
+        errors.append(f"{int(years.isna().sum())} unparseable start_date values in the config")
+
+    counts = years.dropna().astype(int).value_counts()
+    this_year = date.today().year
+    for year in range(FIRST_YEAR, this_year + 1):
+        n = int(counts.get(year, 0))
+        if n == 0:
+            errors.append(f"config has no tournaments for {year} — that season's page failed to scrape")
+        elif n < MIN_PER_YEAR:
+            errors.append(f"config has only {n} tournaments for {year} (expected >= {MIN_PER_YEAR})")
+
+    stray = sorted(y for y in counts.index if y < FIRST_YEAR or y > this_year + 1)
+    if stray:
+        errors.append(f"config has tournaments dated outside {FIRST_YEAR}-{this_year + 1}: {stray}")
+
+    dup = cfg["url"].duplicated().sum()
+    if dup:
+        errors.append(f"{dup} duplicate draw URLs in the config")
+
+    return errors
+
+
 def main() -> int:
     df = pd.read_csv(RAW_PATH)
-    errors = []
+    errors = check_config()
 
     missing = [c for c in REQUIRED_COLS if c not in df.columns]
     if missing:

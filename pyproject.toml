@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shuttlecast"
+version = "1.0.0"
+description = "BWF men's singles match prediction — data pipeline, models, and a precomputed static site"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+
+# The default install is what the scheduled refresh needs: scrape, engineer
+# features, train the gradient-boosted candidates, and precompute the static
+# payload. Deliberately no torch — `dataset.py` imports it lazily and only
+# TabNet needs it, so CI installs in a fraction of the time.
+dependencies = [
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "xgboost",
+    "lightgbm",
+    "catboost",
+    "requests",
+    "beautifulsoup4",
+    "shap",            # TreeSHAP attributions, precomputed into site/data
+]
+
+[project.optional-dependencies]
+# Neural candidate. Heavy, and never on the scheduled path.
+deep = ["torch", "pytorch-tabnet"]
+# Optuna search + the plots used when reading results locally.
+research = ["optuna", "matplotlib", "plotly"]
+
+[project.urls]
+Site = "https://melthu.github.io/ShuttleCast/"
+
+# The repo is a set of scripts run from its root, not an importable library:
+# every module bootstraps `sys.path` to the repo root and imports `src.*` from
+# there. Installing the project therefore installs its dependencies and
+# nothing else.
+[tool.setuptools]
+packages = []

@@ -1,4 +1,7 @@
-.PHONY: data update features train train_tabnet dashboard export site all simulate cv tune help
+.PHONY: install data update features train train_tabnet export site all simulate cv tune help
+
+install:     ## Install dependencies (add [deep] for TabNet, [research] for Optuna)
+	python3 -m pip install .
 
 data:        ## Scrape Wikipedia + rebuild raw CSV (full rescrape)
 	python3 run_pipeline.py --scrape
@@ -14,9 +17,6 @@ train:       ## Train all models, save best to models/best_model.pkl
 
 train_tabnet: ## Train TabNet and re-run ensemble selection
 	python3 src/modeling/train_tabnet.py && python3 src/modeling/train_ensemble.py
-
-dashboard:   ## Launch Streamlit app
-	streamlit run app.py
 
 export:      ## Precompute the static site payload (incremental; --force to rebuild)
 	python3 src/serving/export_static.py $(ARGS)

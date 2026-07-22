@@ -44,10 +44,10 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: requirements-ci.txt
+          cache-dependency-path: pyproject.toml
 
       - name: Install dependencies
-        run: pip install -r requirements-ci.txt
+        run: pip install .
 
       - name: Rebuild tournament calendar
         run: python src/pipeline/build_config.py
@@ -83,7 +83,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/config data/raw data/processed models/best_model.pkl
+          git add data/config data/raw models/best_model.pkl
           git commit -m "Auto-refresh: new tournament data + retrained model ($(date -u +%F))"
           git push
 
@@ -108,10 +108,18 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: requirements-ci.txt
+          cache-dependency-path: pyproject.toml
 
       - name: Install dependencies
-        run: pip install -r requirements-ci.txt
+        run: pip install .
+
+      # The engineered and mirrored datasets are derived from data/raw, so they
+      # are not tracked. Rebuilding them here (~30s) also guarantees the site is
+      # exported from the same raw data the repo actually holds.
+      - name: Rebuild derived dataset
+        run: |
+          python src/pipeline/feature_engineering.py
+          python src/pipeline/data_loader.py
 
       # Restoring the previous payload is what makes this cheap: the exporter
       # fingerprints each tournament's inputs and rewrites only what moved.

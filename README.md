@@ -37,28 +37,29 @@ The production model for upcoming tournaments is chosen by `src/modeling/promote
 git clone https://github.com/melthu/ShuttleCast.git
 cd ShuttleCast
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install .            # add ".[deep]" for TabNet, ".[research]" for Optuna
 ```
 
-On Linux (e.g. Streamlit Cloud), `packages.txt` installs `libgomp1` for LightGBM automatically.
+The default install is deliberately torch-free: `dataset.py` imports torch lazily and only
+TabNet needs it, so the scheduled refresh installs in a fraction of the time.
 
-The repo already includes the scraped data (`data/raw/raw_matches.csv`), the processed training set, and trained model pickles — `make dashboard` works immediately.
+The repo tracks the scraped data (`data/raw/raw_matches.csv`), the tournament calendar and
+the promoted model. Everything downstream is derived — `make features` rebuilds the
+training set from raw in ~25 s.
 
 ## Quick Start
 
 ```bash
-make dashboard   # launch Streamlit at http://localhost:8501
+make features    # rebuild the training set from data/raw (do this first)
+make export      # precompute the static payload
+make site        # browse it at http://localhost:8000
 
 make update      # incremental scrape: new/pending/recent tournaments only
 make data        # full rescrape of every tournament (~15 min)
-make features    # re-engineer features from raw CSV (~1 min)
 make train       # retrain LightGBM + CatBoost + XGBoost + ensemble selection
 make tune        # Optuna hyperparameter search — 50 trials
 make cv          # rolling 3-fold temporal cross-validation
 make simulate ARGS="--date 2026-02-24 --tier 300 --sims 10000"
-
-make export      # precompute the static site payload (incremental; ARGS="--force" to rebuild)
-make site        # serve the built static site on http://localhost:8000
 ```
 
 Or run the full pipeline end-to-end: `python3 run_pipeline.py --all`
@@ -93,15 +94,25 @@ brackets and the share of draws with no simulation.
 make export && make site    # build, then browse at http://localhost:8000
 ```
 
-## Streamlit dashboard
+### What it shows
 
-`app.py` is kept as the correctness oracle for the static export. It has a calendar sidebar (click any tournament block to select it) and three tabs:
+**Draw** — the full bracket, round by round. Completed matches show the real winner;
+unplayed ones show each player's win probability. Selecting a match breaks the prediction
+down into nine drivers, grouped from the 34 raw features (SHAP is additive, so the grouped
+sums are exact).
 
-**📋 Draw & Predictions** — the full bracket, round by round. Completed matches show the real winner; unplayed matches show the model's win probability for each player. A match selector renders a SHAP waterfall explaining exactly which features drive any prediction.
+**Championship odds** — the bracket simulated 10,000 times. Every match in a round, across
+every simulation and in both player orders, is batched into one `predict_proba` call, so a
+full run takes about three seconds. Where the tournament has finished, the actual winner is
+marked whether or not the model called it. A live draw is conditioned on the results so far,
+with the pre-tournament odds one click away.
 
-**🎲 Monte Carlo** — simulate the bracket 100–10,000 times (vectorised: every match in a round across all simulations is one `predict_proba` call, so 10k sims take seconds). Outputs a championship-probability leaderboard, the most-likely bracket path, and a 🥇 reality-check marker when the actual winner is on record. Live tournaments are conditioned on results already played.
+**Matchup analyzer** — any two active players head to head: win probability, a side-by-side
+stat comparison, and recent form.
 
-**⚡ Matchup Analyzer** — pick any two players in the draw: win probability, stat comparison table, radar chart, SHAP waterfall, and last-5-matches form charts with point-in-time win-probability estimates.
+Retrospective predictions use a **point-in-time** model — vocabulary, scaler and estimator
+all fit strictly on matches that finished before that tournament started, so a past call
+never saw its own result or anything after it.
 
 ---
 
@@ -114,7 +125,10 @@ make export && make site    # build, then browse at http://localhost:8000
 | 3 | `src/pipeline/feature_engineering.py` | `data/interim/engineered_matches.csv` — 30 temporal features; walkovers and pending matches get features but never update history |
 | 4 | `src/pipeline/data_loader.py` | `data/processed/final_training_data.csv` — every match mirrored A↔B for positional symmetry |
 
-`src/pipeline/data_checks.py` is the sanity gate the weekly workflow runs before committing scraped data (row counts, nulls, duplicate keys, walkover/pending fractions).
+`src/pipeline/data_checks.py` is the sanity gate the weekly workflow runs before committing scraped data (row counts, nulls, duplicate keys, walkover/pending fractions). It also checks the
+calendar **per season**: `build_config.py` refuses a config that shrank by more than 5%,
+but one lost year out of seventeen is under that threshold, so a season could vanish while
+the total still looked healthy.
 
 ### Player identity
 
@@ -122,7 +136,7 @@ Wikipedia spells the same player several ways — word order (`Kidambi Srikanth`
 `Srikanth Kidambi`), optional name parts (`Anthony Ginting` / `Anthony Sinisuka Ginting`),
 case, hyphenation and diacritics. Every spelling was otherwise a separate player with its
 own Elo, form and head-to-head: Parupalli Kashyap's career was split 121/65 and Prannoy's
-four ways. `src/pipeline/player_names.py` folds 78 alternate spellings into 68 canonical
+four ways. `src/pipeline/player_names.py` folds 79 alternate spellings into 69 canonical
 identities at the point the raw CSV is written.
 
 The map is explicit rather than a normalisation rule, because normalising is not safe in
@@ -175,7 +189,7 @@ Hyperparameters for all three tree models are tuned with Optuna (`src/modeling/t
 
 ## Monte Carlo Simulation
 
-`src/serving/simulate.py` (imported by the app, also a CLI):
+`src/serving/simulate.py` (used by the exporter, also a CLI):
 
 1. Builds point-in-time player stats (Elo, EMA, streak, …) from data strictly before the tournament start.
 2. Simulates all N brackets round-by-round. Each round batches every match across all simulations into a single `predict_proba` call, with both slot orders averaged — `P(A beats B) ≡ 1 − P(B beats A)` — to eliminate positional bias.
@@ -199,11 +213,11 @@ python3 src/serving/simulate.py --date 2026-02-24 --tier 300 --sims 10000
 3. `data_checks.py` — abort on anything suspicious before it can reach the deployed app
 4. Re-engineer features + mirror the dataset
 5. Re-select and retrain the production model (`promote.py` — best of tuned XGBoost/LightGBM/CatBoost on the latest season, retrained on all completed matches)
-6. Commit & push → Streamlit Cloud redeploys
+6. Commit & push
 
 **publish** — export and deploy:
 
-7. Restore the previous `site/data` from cache, then export incrementally
+7. Rebuild the derived dataset from `data/raw`, restore the previous `site/data` from cache, then export incrementally
 8. `check_export.py` — refuse to deploy a payload that looks collapsed
 9. `upload-pages-artifact` → `deploy-pages`
 
@@ -218,12 +232,9 @@ extra runs cost little. A push touching `site/**` or `src/serving/**` runs **pub
 ```
 ShuttleCast/
 ├── run_pipeline.py              # Master CLI: --scrape --features --train --tune --all
-├── app.py                       # Streamlit dashboard
 ├── Makefile
-├── requirements.txt             # full app/training deps
-├── requirements-ci.txt          # minimal deps for the weekly refresh (no torch)
-├── packages.txt                 # apt deps for Streamlit Cloud (libgomp1)
-├── .github/workflows/update-data.yml   # weekly scrape + retrain + commit
+├── pyproject.toml               # deps; extras: [deep] torch/TabNet, [research] Optuna
+├── .github/workflows/update-data.yml   # daily scrape + retrain + export + deploy
 ├── src/
 │   ├── pipeline/                # data acquisition → training table
 │   │   ├── build_config.py          # tournament calendar scraper (dynamic year range)
@@ -234,7 +245,7 @@ ShuttleCast/
 │   │   └── data_loader.py           # A↔B mirroring
 │   ├── modeling/                # preprocessing, trainers, model selection
 │   │   ├── dataset.py               # shared preprocessing: vocab/scaler fitting, encoding
-│   │   ├── pit_model.py             # point-in-time trainer (app + exporter share it)
+│   │   ├── pit_model.py             # point-in-time trainer (used by the exporter)
 │   │   ├── promote.py               # weekly production model selection
 │   │   ├── train_xgb.py / train_lgbm.py / train_catboost.py / train_tabnet.py / train.py
 │   │   ├── train_ensemble.py        # AUC-weighted ensemble selection
@@ -251,7 +262,7 @@ ShuttleCast/
 │   ├── config/tournaments_config.csv   # tracked
 │   ├── raw/raw_matches.csv             # tracked
 │   ├── interim/                        # git-ignored (regenerated by `make features`)
-│   └── processed/final_training_data.csv  # tracked (needed by the app)
+│   └── processed/                      # git-ignored (regenerated by `make features`)
 └── models/                      # only best_model.pkl + best_params.json are tracked
 ```
 

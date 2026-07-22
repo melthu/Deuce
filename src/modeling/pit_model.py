@@ -1,13 +1,13 @@
 """
-Point-in-time model training, shared by the dashboard and the static exporter.
+Point-in-time model training, used by the static exporter.
 
 A point-in-time model is fit only on matches that finished strictly before a
 given tournament's date — vocabulary, scaler and estimator alike — so its
 predictions for that tournament have never seen the tournament's own future,
 nor anything that happened after it.
 
-Lives here rather than in app.py so `export_static.py` can produce exactly the
-predictions the dashboard would have shown.
+This is the single definition of a point-in-time fit, so a retrospective
+prediction on the site is reproducible from the same code that made it.
 """
 import pandas as pd
 
