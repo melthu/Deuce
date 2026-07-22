@@ -1,4 +1,4 @@
-/* ShuttleCast — static dashboard
+/* Deuce - static dashboard
    Palette: court green (player A / accent), shuttlecock cork (player B),
    claret (model missed). Neutrals are green-biased so the accent sits in
    the same family rather than on top of it. */
@@ -9,39 +9,46 @@
   --cork:   #B06E33;
   --cork-soft:  #B06E331f;
   --claret: #A8324B;
+  --claret-soft: #A8324B14;
 
-  --bg:      #F5F8F6;
+  --bg:      #F1F5F2;
   --surface: #FFFFFF;
-  --sunken:  #EDF2EF;
-  --border:  #DBE4DF;
-  --text:    #14201B;
-  --muted:   #5E7169;
-  --faint:   #8A9A93;
+  --sunken:  #E7EDE8;
+  --border:  #CBD8CF;
+  --hair:    #DDE6DF;
+  --text:    #14201A;
+  --muted:   #5C6E64;
+  --faint:   #8A9A90;
 
   --condensed: "Arial Narrow", "Roboto Condensed", "Helvetica Neue", sans-serif;
   --body: system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --radius: 7px;
-  --shadow: 0 1px 2px #14201b0d, 0 4px 12px #14201b08;
+  /* Surfaces are separated by hairlines and 1px grid gaps, not by elevation:
+     the design language has no shadows, and a 3px radius keeps the bracket's
+     many small cards from reading as pills. */
+  --radius: 3px;
+  --shadow: none;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --court:  #3FA37B;
-    --court-soft: #3FA37B24;
-    --cork:   #D28E4E;
-    --cork-soft:  #D28E4E24;
-    --claret: #E0627C;
+    --court:  #239C74;
+    --court-soft: #239C7426;
+    --cork:   #D2914A;
+    --cork-soft:  #D2914A26;
+    --claret: #D9647E;
+    --claret-soft: #D9647E1a;
 
-    --bg:      #0D1512;
-    --surface: #151F1B;
-    --sunken:  #1B2622;
-    --border:  #26332D;
-    --text:    #E4EDE8;
-    --muted:   #93A69D;
-    --faint:   #6B7E75;
-    --shadow: 0 1px 2px #0006, 0 4px 12px #0000004d;
+    --bg:      #08110E;
+    --surface: #0F1B16;
+    --sunken:  #16241E;
+    --border:  #2A3B33;
+    --hair:    #1E2E27;
+    --text:    #E8F0EA;
+    --muted:   #93A79B;
+    --faint:   #6B7F74;
+    --shadow: none;
   }
 }
 
@@ -49,18 +56,20 @@
 :root[data-theme="light"] {
   --court: #0E6B4F; --court-soft: #0E6B4F1f;
   --cork: #B06E33;  --cork-soft: #B06E331f;
-  --claret: #A8324B;
-  --bg: #F5F8F6; --surface: #FFFFFF; --sunken: #EDF2EF;
-  --border: #DBE4DF; --text: #14201B; --muted: #5E7169; --faint: #8A9A93;
-  --shadow: 0 1px 2px #14201b0d, 0 4px 12px #14201b08;
+  --claret: #A8324B; --claret-soft: #A8324B14;
+  --bg: #F1F5F2; --surface: #FFFFFF; --sunken: #E7EDE8;
+  --border: #CBD8CF; --hair: #DDE6DF;
+  --text: #14201A; --muted: #5C6E64; --faint: #8A9A90;
+  --shadow: none;
 }
 :root[data-theme="dark"] {
-  --court: #3FA37B; --court-soft: #3FA37B24;
-  --cork: #D28E4E;  --cork-soft: #D28E4E24;
-  --claret: #E0627C;
-  --bg: #0D1512; --surface: #151F1B; --sunken: #1B2622;
-  --border: #26332D; --text: #E4EDE8; --muted: #93A69D; --faint: #6B7E75;
-  --shadow: 0 1px 2px #0006, 0 4px 12px #0000004d;
+  --court: #239C74; --court-soft: #239C7426;
+  --cork: #D2914A;  --cork-soft: #D2914A26;
+  --claret: #D9647E; --claret-soft: #D9647E1a;
+  --bg: #08110E; --surface: #0F1B16; --sunken: #16241E;
+  --border: #2A3B33; --hair: #1E2E27;
+  --text: #E8F0EA; --muted: #93A79B; --faint: #6B7F74;
+  --shadow: none;
 }
 
 * { box-sizing: border-box; }
@@ -93,15 +102,55 @@ button { font: inherit; color: inherit; }
   background: var(--surface);
   display: flex;
   flex-direction: column;
-  max-height: 100vh;
+  /* align-self: start is what makes `sticky` do anything here. A grid item
+     stretches by default, so the sidebar was as tall as the page and had
+     nothing to stick against; the tournament list could not scroll on its own
+     because its flex parent had no bounded height. */
+  align-self: start;
   position: sticky;
   top: 0;
+  height: 100vh;
 }
 
 .brand {
   padding: 16px 16px 12px;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
 }
+.brand-txt { flex: 1; min-width: 0; }
+
+.navtoggle {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+}
+.navtoggle:hover { color: var(--text); border-color: var(--court); }
+.app.nav-collapsed .navtoggle { width: 34px; height: 34px; font-size: 18px; }
+.navtoggle:focus-visible { outline: 2px solid var(--court); outline-offset: 2px; }
+
+/* Collapsed: the sidebar keeps just enough width for its toggle, so the
+   control that reopens it is always where it was. */
+.app.nav-collapsed { grid-template-columns: 45px minmax(0, 1fr); }
+.app.nav-collapsed .brand { padding: 12px 6px; border-bottom: 0; }
+.app.nav-collapsed .sidebar { cursor: pointer; }
+.app.nav-collapsed .sidebar:hover { background: var(--sunken); }
+.app.nav-collapsed .sidebar:hover .navtoggle { color: var(--text); border-color: var(--court); }
+.app.nav-collapsed .brand-txt,
+.app.nav-collapsed .nav,
+.app.nav-collapsed #browse,
+.app.nav-collapsed #ratings { display: none; }
 .brand h1 {
   margin: 0;
   font-family: var(--condensed);
@@ -110,7 +159,18 @@ button { font: inherit; color: inherit; }
   text-transform: uppercase;
   font-weight: 700;
 }
-.brand h1 span { color: var(--court); }
+/* Inline, not a flex item: flexing the h1 made the dot and the word separate
+   items and the gap opened a space in the middle of the wordmark. */
+.brand .shuttle {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 9px 3px 2px;
+  border-radius: 50%;
+  background: var(--court);
+  box-shadow: 0 0 0 3px var(--court-soft);
+  vertical-align: middle;
+}
 .brand p {
   margin: 2px 0 0;
   font-size: 11.5px;
@@ -142,7 +202,7 @@ button { font: inherit; color: inherit; }
 
 .filters { padding: 10px 12px; display: flex; gap: 6px; }
 
-input[type="search"], select {
+input[type="search"] {
   width: 100%;
   padding: 6px 9px;
   border: 1px solid var(--border);
@@ -152,12 +212,86 @@ input[type="search"], select {
   font: inherit;
   font-size: 13px;
 }
-input[type="search"]:focus, select:focus {
+
+/* ---------- season picker ---------- */
+/* Replaces a native <select>, which renders as the platform widget and cannot
+   be themed - in dark mode it arrived as a light grey Aqua menu. */
+
+.dd { position: relative; width: 100%; }
+.dd-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.dd-btn:hover { border-color: var(--court); }
+.dd-btn span:first-child { flex: 1; }
+.dd-caret { color: var(--faint); font-size: 10px; }
+.dd-btn[aria-expanded="true"] { border-color: var(--court); }
+
+.dd-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 3px;
+}
+.dd-opt {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.dd-opt:hover, .dd-opt:focus { background: var(--sunken); outline: none; }
+.dd-opt[aria-selected="true"] { color: var(--court); font-weight: 650; }
+input[type="search"]:focus {
   outline: 2px solid var(--court);
   outline-offset: -1px;
 }
 
-.tlist { overflow-y: auto; flex: 1; padding: 0 8px 16px; }
+/* `.tlist` is a grandchild of the sidebar, so it inherits none of its flex
+   context: #browse is a plain block that sizes to its content, and a list
+   inside it can never be shorter than its rows. Both levels have to take the
+   leftover height, and both need min-height:0 - a flex item's floor is its
+   content, which is exactly what stops `overflow-y` from ever engaging. */
+#browse, #ratings {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+/* `display` set by class beats the `hidden` attribute's UA rule, and these two
+   panes are toggled with `hidden`. Put it back explicitly. */
+#browse[hidden], #ratings[hidden] { display: none; }
+
+.tlist {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  flex: 1;
+  min-height: 0;
+  padding: 0 8px 16px;
+}
 
 .titem {
   display: block;
@@ -191,13 +325,12 @@ input[type="search"]:focus, select:focus {
   align-items: center;
 }
 
-.tier-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--faint);
-  flex: none;
-}
-.tier-1000, .tier-1500 { background: var(--court); }
-.tier-750 { background: var(--cork); }
+/* Tier colour, on the chip in both the sidebar list and the page header.
+   Scoped to the component: a bare `.tier-750` was a class name loose in the
+   global namespace, and it only lost to the chip by an accident of order.
+     claret  Super 1000, Finals & Majors
+     court   Super 750, Super 500
+     cork    Super 300, Super 100                                            */
 
 .pill {
   font-family: var(--condensed);
@@ -215,7 +348,17 @@ input[type="search"]:focus, select:focus {
 
 /* ---------- main ---------- */
 
-.main { padding: 20px 24px 60px; min-width: 0; }
+/* One scroller per column: the sidebar owns its list, the main column owns
+   everything else. The document itself never scrolls, so the wheel always acts
+   on whatever the cursor is over instead of on a page that is 84px taller than
+   the viewport for no visible reason. */
+.main {
+  padding: 20px 24px 60px;
+  min-width: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 
 .thead { margin-bottom: 18px; }
 .thead h2 {
@@ -235,86 +378,234 @@ input[type="search"]:focus, select:focus {
   margin-top: 3px;
 }
 
+/* One bordered block subdivided by 1px gaps that let the background show
+   through as hairlines - not four cards with space between them. */
+/* Solid chip, as in the design mockup - the tier is the one piece of metadata
+   worth a colour, and "Super 750" as running text disappeared into the date. */
+.tier-chip {
+  font-family: var(--condensed);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 2px;
+  background: var(--court);
+  color: #fff;
+  cursor: help;
+}
+/* List-row size: the header chip is set for a page title, not a 272px row. */
+.tier-chip.sm {
+  font-size: 9.5px;
+  letter-spacing: .08em;
+  padding: 2px 5px;
+}
+.tier-chip.tier-1000, .tier-chip.tier-1500 { background: var(--claret); }
+.tier-chip.tier-750,  .tier-chip.tier-500  { background: var(--court); }
+.tier-chip.tier-300,  .tier-chip.tier-100  { background: var(--cork); }
+.sub .dot { color: var(--faint); }
+
 .statrow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 14px 0 4px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin: 18px 0 6px;
 }
 .stat {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 8px 13px;
-  min-width: 104px;
+  padding: 15px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
 }
 .stat .k {
   font-family: var(--condensed);
-  font-size: 10.5px;
-  letter-spacing: .09em;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .13em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--faint);
 }
 .stat .v {
   font-family: var(--condensed);
-  font-size: 21px;
+  font-size: 30px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  line-height: 1.15;
+  line-height: 1;
+  letter-spacing: -.005em;
 }
-.stat .v small { font-size: 12px; color: var(--muted); font-weight: 400; }
+.stat.accent .v { color: var(--court); }
+.stat .v small { font-size: 15px; color: var(--muted); font-weight: 400; }
+.stat .v .unit { font-size: 16px; color: var(--muted); margin-left: 2px; }
+.stat .s {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: -1px;
+  /* Wraps rather than ellipsises: these lines end in a date or a nationality,
+     and "trained on matches up to Jul 1..." is worse than two lines. */
+  overflow-wrap: anywhere;
+}
+.stat.flag .v { color: var(--claret); }
 
+/* A person's name, not a measurement: smaller than the numeric tiles, and
+   allowed the full width of the tile before it ellipsises. */
+.stat.name .v {
+  font-size: 21px;
+  letter-spacing: 0;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stat.name .s { max-width: none; }
+
+/* Segmented control: the selected tab is a raised surface inside a sunken
+   track, rather than an underline on a rule. */
 .tabs {
   display: flex;
-  gap: 3px;
-  border-bottom: 1px solid var(--border);
-  margin: 18px 0 16px;
+  gap: 2px;
+  background: var(--sunken);
+  border-radius: var(--radius);
+  padding: 3px;
+  width: fit-content;
+  margin: 20px 0 18px;
 }
 .tabs button {
-  padding: 8px 15px;
+  padding: 8px 18px;
   border: none;
-  background: none;
+  background: transparent;
   cursor: pointer;
   color: var(--muted);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  font-size: 13.5px;
+  border-radius: 2px;
+  font-family: var(--condensed);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: .11em;
+  text-transform: uppercase;
 }
 .tabs button:hover { color: var(--text); }
 .tabs button[aria-selected="true"] {
-  color: var(--court);
-  border-bottom-color: var(--court);
-  font-weight: 600;
+  background: var(--surface);
+  color: var(--text);
 }
 
 /* ---------- bracket ---------- */
 
-.bracket-wrap { overflow-x: auto; padding-bottom: 10px; }
+/* The draw sits in a panel, as in the design mockup: bordered surface, a
+   header rule, and the scroller inset from the edges. */
+.card-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hair);
+}
+.card-head .hint {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--faint);
+  text-align: right;
+}
+
+.bracket-wrap {
+  /* Horizontal only. A wide draw scrolls sideways inside its panel; vertically
+     it grows and the main column scrolls, which avoids pinning the panel to a
+     hand-measured height that stops being right the moment the tiles wrap. */
+  overflow-x: auto;
+  padding: 16px 16px 14px;
+}
 .bracket { display: flex; gap: 26px; min-width: min-content; padding-right: 8px; }
 
-.round { display: flex; flex-direction: column; min-width: 218px; }
+.round { display: flex; flex-direction: column; min-width: 236px; }
+/* Rounds stretch to the tallest column (the first), which is what lets the
+   pairs below distribute their slack and line the connectors up. */
 .round-name {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
   font-family: var(--condensed);
   font-size: 11px;
-  letter-spacing: .1em;
+  font-weight: 700;
+  letter-spacing: .13em;
   text-transform: uppercase;
-  color: var(--muted);
-  padding-bottom: 7px;
-  border-bottom: 1px solid var(--border);
+  color: var(--faint);
   margin-bottom: 10px;
+}
+.round-name .n {
+  /* Same label type, tinted to the rule colour: present but well behind the
+     round code, as in the design mockup. */
+  color: var(--border);
+  font-variant-numeric: tabular-nums;
 }
 .round-body {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: space-around;
+  gap: 14px;
+}
+
+/* Two matches whose winners meet in the next round. Wrapping them is what
+   makes the bracket read as a tree: the vertical join spans exactly the two
+   feeders, and each feeder's horizontal tick meets it. Pairing is [0,1],
+   [2,3], … - the same adjacency run_monte_carlo relies on, so a wrong-looking
+   bracket here would mean a wrong simulation too. */
+.pair {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
   gap: 8px;
+  position: relative;
+}
+/* vertical join between the two feeders */
+.pair::after {
+  content: "";
+  position: absolute;
+  right: -13px;
+  top: 25%;
+  bottom: 25%;
+  border-right: 1px solid var(--border);
+}
+.round:last-child .pair::after { display: none; }
+
+/* The match card keeps `overflow: hidden` so the probability fill stays inside
+   its rounded corners, which would also clip any connector drawn on it - hence
+   this wrapper, whose only job is to carry the two ticks. */
+.slot { position: relative; }
+.slot::after {
+  content: "";
+  position: absolute;
+  right: -13px;
+  top: 50%;
+  width: 13px;
+  border-top: 1px solid var(--border);
+}
+.round:last-child .slot::after { display: none; }
+.round:not(:first-child) .slot::before {
+  content: "";
+  position: absolute;
+  left: -13px;
+  top: 50%;
+  width: 13px;
+  border-top: 1px solid var(--border);
 }
 
 .match {
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--surface);
+  /* --bg, not --surface: the card now sits on a --surface panel and the two
+     would read as one flat sheet. */
+  background: var(--bg);
   cursor: pointer;
   overflow: hidden;
   box-shadow: var(--shadow);
@@ -331,16 +622,34 @@ input[type="search"]:focus, select:focus {
 }
 .match.pending { border-style: dashed; }
 
+/* Whether the model called this one, readable by scanning down the draw
+   rather than by reading 31 footers. */
+.match.hit  { border-left: 3px solid var(--court); }
+.match.miss { border-left: 3px solid var(--claret); }
+
 .side {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) 40px;
+  grid-template-columns: 16px minmax(0, 1fr) 10px 38px;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   padding: 6px 9px;
   position: relative;
   z-index: 1;
 }
 .side + .side { border-top: 1px solid var(--border); }
+
+/* Who actually advanced. Three signals at once, because at this size any one
+   of them alone is easy to miss: the winner keeps full-strength ink and a
+   check, and the loser's whole row recedes. */
+.winmark {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 700;
+  text-align: center;
+}
+.side.a .winmark { color: var(--court); }
+.side.b .winmark { color: var(--cork); }
+.side.lost { opacity: .48; }
 
 .seed {
   font-family: var(--condensed);
@@ -357,7 +666,6 @@ input[type="search"]:focus, select:focus {
 }
 .pname .flag { margin-right: 4px; }
 .side.won .pname { font-weight: 700; }
-.side.lost .pname { color: var(--muted); }
 .prob {
   font-family: var(--condensed);
   font-size: 13px;
@@ -391,80 +699,142 @@ input[type="search"]:focus, select:focus {
   color: var(--muted);
 }
 .match-foot .score { font-family: var(--mono); font-size: 10px; }
-.match-foot .missed {
-  color: var(--claret);
+.match-foot .wo {
+  color: var(--cork);
   font-family: var(--condensed);
   letter-spacing: .07em;
   text-transform: uppercase;
   font-weight: 700;
+  cursor: help;
 }
+
 
 /* ---------- explanation panel ---------- */
 
+/* Selected: the draw and the reasoning sit side by side. The rail follows the
+   page as you scroll a tall bracket. */
+.draw-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 18px;
+  align-items: start;
+}
+.draw-main { min-width: 0; }
+.rail { position: sticky; top: 14px; }
+
 .explain {
-  position: sticky;
-  bottom: 0;
-  margin-top: 18px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
-  padding: 14px 16px;
-  box-shadow: var(--shadow);
 }
-.explain h3 {
-  margin: 0 0 2px;
-  font-family: var(--condensed);
-  font-size: 17px;
-  letter-spacing: .02em;
-  text-transform: uppercase;
-}
-.explain .lede { color: var(--muted); font-size: 12.5px; margin-bottom: 12px; }
 
-.drivers { display: flex; flex-direction: column; gap: 3px; max-width: 620px; }
-.driver {
-  display: grid;
-  grid-template-columns: 118px 1fr 54px;
+/* Eyebrow header on a hairline, matching every other card in the design. */
+.rail-head {
+  display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--hair);
 }
-.driver .dname { color: var(--muted); text-align: right; }
-.driver .track {
+.lbl {
+  font-family: var(--condensed);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--faint);
+  flex: 1;
+}
+.explain-close {
+  flex: none;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--faint);
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 3px 5px;
+}
+.explain-close:hover { color: var(--text); border-color: var(--border); }
+
+.rail-body { padding: 14px 14px 16px; }
+
+/* The two players, carrying the colour their bars use below. */
+.rail-vs { display: flex; flex-direction: column; gap: 8px; }
+.rail-side { display: flex; align-items: center; gap: 9px; }
+.swatch { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.swatch.a { background: var(--court); }
+.swatch.b { background: var(--cork); }
+.rs-name { font-weight: 600; font-size: 13.5px; flex: 1; min-width: 0; }
+.rs-p {
+  font-family: var(--condensed);
+  font-size: 23px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.rail-side.dim .rs-name, .rail-side.dim .rs-p { color: var(--faint); }
+
+.rail-verdict {
+  margin: 14px 0 4px;
+  padding: 9px 11px;
+  border-radius: 2px;
+  font-size: 12.5px;
+  /* Stacked, not a row: at rail width a nowrap score on the same line
+     squeezed the sentence into a five-word-tall column. */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  line-height: 1.45;
+  border-left: 2px solid var(--border);
+  background: var(--sunken);
+}
+.rail-verdict.hit  { background: var(--court-soft); border-left-color: var(--court); }
+.rail-verdict.miss { background: var(--claret-soft); border-left-color: var(--claret); }
+.rail-verdict.wo   { background: var(--cork-soft); border-left-color: var(--cork); }
+.rail-verdict b { font-weight: 650; }
+.rail-verdict .sc {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.shap { margin-top: 16px; display: flex; flex-direction: column; gap: 6px; }
+.shap-row { display: grid; grid-template-columns: 96px 1fr; gap: 9px; align-items: center; }
+.shap-f { font-size: 11.5px; color: var(--muted); text-align: right; }
+.shap-track {
   position: relative;
   height: 15px;
   background: var(--sunken);
-  border-radius: 3px;
+  border-radius: 1px;
 }
-.driver .track::after {
+.shap-track::before {
   content: "";
   position: absolute;
   left: 50%;
-  top: -2px; bottom: -2px;
-  width: 1px;
-  background: var(--border);
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--border);
 }
-.driver .bar {
-  position: absolute;
-  top: 2px; bottom: 2px;
-  border-radius: 2px;
-}
-.driver .dval {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--faint);
-  font-variant-numeric: tabular-nums;
-}
-.driver-key {
+.shap-bar { position: absolute; top: 3px; bottom: 3px; border-radius: 1px; }
+.shap-bar.pos { background: var(--court); left: 50%; }
+.shap-bar.neg { background: var(--cork); right: 50%; }
+
+.shap-key {
   display: flex;
   justify-content: space-between;
-  max-width: 620px;
-  margin: 8px 0 0 128px;
+  gap: 10px;
+  margin: 10px 0 0;
+  padding-left: 105px;
   font-family: var(--condensed);
   font-size: 10.5px;
   letter-spacing: .07em;
   text-transform: uppercase;
-  color: var(--muted);
 }
+.shap-key b { font-weight: 700; color: var(--faint); }
 
 /* ---------- leaderboard ---------- */
 
@@ -495,15 +865,15 @@ input[type="search"]:focus, select:focus {
   font-weight: 600;
 }
 
-.lb { max-width: 640px; }
+.lb { max-width: 900px; }
 .lb-row {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) 210px 48px;
   gap: 10px;
   align-items: center;
-  padding: 4px 0;
+  padding: 5px 0;
   font-size: 13px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--hair);
 }
 .lb-row .rank {
   font-family: var(--condensed);
@@ -519,16 +889,107 @@ input[type="search"]:focus, select:focus {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
-.lb-row.champ .lbar div { background: var(--cork); }
+/* Claret, matching the "actual champion" tile - cork is player B's colour in
+   the bracket and reusing it here read as a third, unrelated meaning. */
+.lb-row.champ .lbar div { background: var(--claret); }
 .lb-row .nat { color: var(--faint); font-size: 11px; }
+
+.lb-row .adv {
+  text-align: right;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.lb-cols {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+}
+.lb-cols:hover { background: none; }
+.lb-cols .c {
+  text-align: right;
+  font-family: var(--condensed);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* ---------- biggest misses ---------- */
+
+.upsets {
+  margin-top: 22px;
+  max-width: 900px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.upsets h3 {
+  margin: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--condensed);
+  font-size: 11.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+}
+.upset { padding: 9px 14px; }
+.upset + .upset { border-top: 1px solid var(--border); }
+.upset-top { display: flex; align-items: baseline; gap: 8px; }
+.upset-top .w { font-weight: 650; font-size: 13px; }
+.upset-top .p {
+  margin-left: auto;
+  color: var(--claret);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.upset-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
 
 /* ---------- matchup ---------- */
 
-.mu-grid {
+/* One column for the whole view. Everything in it is full width, so the picker
+   strip, the prediction bar and the cards share both edges - they used to be
+   900px, full width and 900px again, stepping in and out down the page. */
+.mu {
+  max-width: 1000px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Two search boxes and a swap, not two titled cards: the placeholder already
+   says which side is which, so the headings were labelling a text field with
+   the word "player". */
+.mu-picks {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 16px;
-  max-width: 900px;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+}
+.mu-swap {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: var(--radius);
+  cursor: pointer;
+  line-height: 1;
+}
+.mu-swap:hover { color: var(--court); border-color: var(--court); }
+.mu-swap:focus-visible { outline: 2px solid var(--court); outline-offset: 2px; }
+
+/* Tops aligned, heights independent: a five-match strip and a one-match strip
+   should not both be as tall as the taller one. */
+.mu-forms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: start;
+  gap: 14px;
 }
 .card {
   border: 1px solid var(--border);
@@ -546,40 +1007,63 @@ input[type="search"]:focus, select:focus {
   color: var(--muted);
 }
 
-.verdict {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 14px;
-  max-width: 900px;
-  margin-bottom: 16px;
+/* Matchup analyzer head - one bar split at the model's probability. */
+.mu-head {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 14px 18px 16px;
 }
-.verdict .who { text-align: center; }
-.verdict .who .n {
+.mu-ctx {
   font-family: var(--condensed);
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: .07em;
   text-transform: uppercase;
-  letter-spacing: .02em;
-}
-.verdict .who .p {
-  font-family: var(--condensed);
-  font-size: 40px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-.verdict .who.a .p { color: var(--court); }
-.verdict .who.b .p { color: var(--cork); }
-.verdict .vs {
-  font-family: var(--condensed);
   color: var(--faint);
-  letter-spacing: .1em;
+  margin-bottom: 10px;
 }
+.mu-names {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 14px;
+}
+.mu-names .n { font-size: 15px; font-weight: 650; }
+.mu-names .n small {
+  display: block;
+  font-weight: 400;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+.mu-names .n.r { text-align: right; }
+.mu-bar {
+  display: flex;
+  height: 30px;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+.mu-bar i {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  font-style: normal;
+  min-width: 0;
+  overflow: hidden;
+}
+.mu-bar .a { background: var(--court); justify-content: flex-start; padding-left: 10px; }
+.mu-bar .b { background: var(--cork); justify-content: flex-end; padding-right: 10px; }
 
 /* Two-sided comparison: the player's own name heads each column, so no
    row ever has to say "A" or "B". */
-.cmp { display: flex; flex-direction: column; gap: 7px; }
+/* Capped and centred: the rows are two values either side of a label, and at
+   the card's full 1000px the pair drifted so far apart they stopped reading as
+   a comparison. */
+.cmp { display: flex; flex-direction: column; gap: 7px; max-width: 660px; margin: 0 auto; }
 .cmp-head {
   display: grid;
   grid-template-columns: 1fr 132px 1fr;
@@ -617,7 +1101,7 @@ input[type="search"]:focus, select:focus {
   gap: 6px;
 }
 .cmp-row .sv.l { justify-content: flex-end; }
-.cmp-row .meter { height: 7px; border-radius: 2px; background: var(--sunken); flex: 1; max-width: 90px; }
+.cmp-row .meter { height: 7px; border-radius: 2px; background: var(--sunken); flex: 1; max-width: 130px; }
 .cmp-row .meter i { display: block; height: 100%; border-radius: 2px; }
 .cmp-row .sv.l .meter i { background: var(--court); margin-left: auto; }
 .cmp-row .sv.r .meter i { background: var(--cork); }
@@ -694,20 +1178,40 @@ input[type="search"]:focus, select:focus {
   max-width: 780px;
 }
 
-.iconbtn {
+/* Fixed to the viewport's top-right rather than living in the sidebar nav,
+   where it sat among the view buttons and was overwritten by their handler. */
+.themebtn {
+  position: fixed;
+  top: 14px;
+  right: 18px;
+  z-index: 60;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--border);
   background: var(--surface);
+  color: var(--muted);
   border-radius: var(--radius);
-  padding: 4px 9px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1;
 }
-.iconbtn:hover { border-color: var(--court); }
+.themebtn:hover { color: var(--text); border-color: var(--court); }
+.themebtn:focus-visible { outline: 2px solid var(--court); outline-offset: 2px; }
+
+/* Below this the rail and the bracket cannot both have usable width, so the
+   explanation goes back under the draw rather than squeezing it. */
+@media (max-width: 1180px) {
+  .draw-grid { grid-template-columns: minmax(0, 1fr); }
+  .rail { position: static; }
+}
 
 @media (max-width: 820px) {
+  /* Stacked, so the two columns share the document's scroll again. */
   .app { grid-template-columns: 1fr; }
-  .sidebar { position: static; max-height: none; }
+  .sidebar { position: static; height: auto; max-height: none; }
   .tlist { max-height: 260px; }
-  .main { padding: 16px 14px 50px; }
-  .verdict { grid-template-columns: 1fr; }
+  .main { padding: 16px 14px 50px; height: auto; overflow: visible; }
 }

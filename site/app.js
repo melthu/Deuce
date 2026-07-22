@@ -1,4 +1,4 @@
-/* ShuttleCast — static dashboard.
+/* Deuce - static dashboard.
  *
  * Everything here is a renderer. No model runs in the browser: the exporter
  * (src/serving/export_static.py) precomputes every probability, simulation and
@@ -12,6 +12,22 @@ const ROUND_ORDER = ['first round', 'second round', 'third round',
 const ROUND_LABEL = {
   'first round': 'Round 1', 'second round': 'Round 2', 'third round': 'Round 3',
   'quarter-finals': 'Quarter-finals', 'semi-finals': 'Semi-finals', 'final': 'Final',
+};
+
+// Bracket column heading: the named rounds by name, everything earlier by the
+// size of the field it starts with. Derived from the match count rather than
+// hardcoded, so a 64-draw reads R64 and an irregular draw stays honest.
+function roundCode(round, nMatches) {
+  if (round === 'final') return 'F';
+  if (round === 'semi-finals') return 'SF';
+  if (round === 'quarter-finals') return 'QF';
+  return 'R' + (nMatches * 2);
+}
+
+// Column headings for the advancement table, where width is scarce.
+const ROUND_SHORT = {
+  'first round': 'R1', 'second round': 'R2', 'third round': 'R3',
+  'quarter-finals': 'QF', 'semi-finals': 'SF', 'final': 'Final',
 };
 
 // Nation -> ISO-3166 alpha-2, for the regional-indicator flag. Covers every
@@ -37,9 +53,26 @@ const ISO = {
   'Wales': 'GB',
 };
 
+// promote.py's winner flips between libraries, so the payload carries the
+// name and this only prettifies it. A point-in-time payload labels itself
+// "xgb (point-in-time)"; the qualifier is shown separately, on its own line.
+const MODEL_LABEL = {
+  xgb: 'XGBoost', lgbm: 'LightGBM', catboost: 'CatBoost', tabnet: 'TabNet',
+};
+const modelName = raw => {
+  const key = String(raw || '').split(' ')[0].toLowerCase();
+  return MODEL_LABEL[key] || (raw ? String(raw) : 'Gradient boosting');
+};
+
 const TIER_LABEL = {
   100: 'Super 100', 300: 'Super 300', 500: 'Super 500',
   750: 'Super 750', 1000: 'Super 1000', 1500: 'Finals / Majors',
+};
+
+// Short form for the chip, where the full "Super 750" does not earn its width.
+const TIER_CHIP = {
+  100: 'S100', 300: 'S300', 500: 'S500',
+  750: 'S750', 1000: 'S1000', 1500: 'Finals',
 };
 
 // ---------------------------------------------------------------- utilities
@@ -58,10 +91,16 @@ function flag(nat) {
   return String.fromCodePoint(...[...code].map(c => 0x1f1a5 + c.charCodeAt(0)));
 }
 
-const pct = p => (p * 100).toFixed(p >= 0.995 || p < 0.005 ? 1 : 0) + '%';
+// Whole percent is the right resolution for a single match, where the second
+// digit is well inside the model's error. It is the wrong resolution for a
+// ranked list: the championship tail bunches under 10%, and rounding turned
+// eleven distinct players into an undifferentiated wall of "1%". Callers
+// showing a ranking pass fine=true to keep one decimal through the tail.
+const pct = (p, fine) =>
+  (p * 100).toFixed(p >= 0.995 || p < 0.005 || (fine && p < 0.095) ? 1 : 0) + '%';
 
 // A published draw can name a slot before the qualifier is known. The model
-// still scores it — against an unknown player it has no history for, so the
+// still scores it - against an unknown player it has no history for, so the
 // number is an artifact of the defaults rather than a prediction. Show the
 // slot, withhold the probability.
 const isPlaceholder = name => /\bTBD\b|qualifier/i.test(name || '');
@@ -90,9 +129,10 @@ const state = {
   tab: 'bracket',        // 'bracket' | 'monte'
   doc: null,
   selected: null,        // index into doc.matches
-  lbMode: 'live',        // 'live' | 'pre' — only meaningful while a draw is live
+  lbMode: 'live',        // 'live' | 'pre' - only meaningful while a draw is live
   season: 'all',
   query: '',
+  navCollapsed: false,   // the tournament list; collapsed only on request
   mu: { a: null, b: null },
 };
 
@@ -110,14 +150,7 @@ function visibleTournaments() {
 }
 
 function renderSidebar() {
-  const sel = $('#season');
-  if (!sel.dataset.filled) {
-    sel.append(new Option('All seasons', 'all'));
-    for (const y of seasons()) sel.append(new Option(y, y));
-    sel.dataset.filled = '1';
-  }
-  sel.value = state.season;
-
+  syncSeasonPicker();
   for (const b of document.querySelectorAll('.nav button'))
     b.setAttribute('aria-selected', String(b.dataset.view === state.view));
   $('#browse').hidden = state.view !== 'tournaments';
@@ -137,7 +170,11 @@ function renderSidebar() {
     b.setAttribute('aria-current', String(t.slug === state.slug));
     b.append(el('span', 't-name', t.name));
     const meta = el('div', 't-meta');
-    meta.append(el('span', `tier-dot tier-${t.tier}`));
+    // The chip rather than a coloured dot: same information, but it says which
+    // tier instead of requiring the colour to be decoded.
+    const chip = el('span', `tier-chip sm tier-${t.tier}`, TIER_CHIP[t.tier] || t.tier);
+    chip.title = TIER_LABEL[t.tier] || '';
+    meta.append(chip);
     meta.append(el('span', 'num', fmtDate(t.date)));
     if (t.status !== 'complete') meta.append(el('span', `pill ${t.status}`, t.status));
     b.append(meta);
@@ -148,33 +185,49 @@ function renderSidebar() {
 
 function renderRatings() {
   const list = $('#rlist');
-  if (list.dataset.filled) return;
-  list.dataset.filled = '1';
-  state.players.slice(0, 40).forEach((p, i) => {
-    const b = el('button', 'titem');
-    b.type = 'button';
-    const line = el('span', 't-name');
-    line.append(el('span', 'seed num', String(i + 1) + ' '));
-    line.append(document.createTextNode(`${flag(p.nat)} ${p.name}`.trim()));
-    b.append(line);
-    const meta = el('div', 't-meta');
-    meta.append(el('span', 'num', `${Math.round(p.elo)} rating`));
-    b.append(meta);
-    // First click fills the empty slot; later clicks replace player two.
-    b.onclick = () => {
-      if (!state.mu.a) state.mu.a = p;
-      else if (state.mu.a.slug !== p.slug) state.mu.b = p;
-      goMatchup();
-    };
-    list.append(b);
-  });
+  if (!list.dataset.filled) {
+    list.dataset.filled = '1';
+    state.players.slice(0, 40).forEach((p, i) => {
+      const b = el('button', 'titem');
+      b.type = 'button';
+      b.dataset.slug = p.slug;
+      const line = el('span', 't-name');
+      line.append(el('span', 'seed num', String(i + 1) + ' '));
+      line.append(document.createTextNode(`${flag(p.nat)} ${p.name}`.trim()));
+      b.append(line);
+      const meta = el('div', 't-meta');
+      meta.append(el('span', 'num', `${Math.round(p.elo)} rating`));
+      b.append(meta);
+      b.onclick = () => pickPlayer(p);
+      list.append(b);
+    });
+  }
+  // Which two are in the comparison, marked on every render rather than at
+  // build time - the rows are built once and reused.
+  const picked = new Set([state.mu.a?.slug, state.mu.b?.slug].filter(Boolean));
+  for (const b of list.children)
+    b.setAttribute('aria-current', String(picked.has(b.dataset.slug)));
+}
+
+/**
+ * The comparison is always between the last two players clicked. Slot B used
+ * to be the only one a click could overwrite, which pinned the first pick
+ * forever: clicking A, B, C gave A vs C, and there was no way to reach B vs C
+ * without clearing the box by hand. Keeping the newest pick in B and pushing
+ * the previous one into A means a run of clicks walks the comparison forward.
+ */
+function pickPlayer(p) {
+  const prev = state.mu.b || state.mu.a;
+  if (prev && prev.slug === p.slug) return;      // already the newest pick
+  state.mu = prev ? { a: prev, b: p } : { a: p, b: null };
+  goMatchup();
 }
 
 // ---------------------------------------------------------------- bracket
 
 function groupRounds(matches) {
   // Export order is the scraper's order, which is true bracket order within a
-  // round — round-N winners feed round N+1 in pairs. Preserve it exactly.
+  // round - round-N winners feed round N+1 in pairs. Preserve it exactly.
   const by = new Map();
   matches.forEach((m, i) => {
     if (!by.has(m.round)) by.set(m.round, []);
@@ -184,7 +237,12 @@ function groupRounds(matches) {
 }
 
 function matchCard(m) {
-  const node = el('button', 'match' + (m.pending ? ' pending' : ''));
+  const called = m.pending ? null : (m.p > 0.5) === !!m.a_won;
+  // No called/missed edge on a retirement: the match was decided by injury,
+  // not by the two players' relative strength, so scoring the model on it
+  // either way would be reading meaning into a coin the model never tossed.
+  const node = el('button', 'match'
+    + (m.pending ? ' pending' : m.wo ? '' : called ? ' hit' : ' miss'));
   node.type = 'button';
   node.setAttribute('aria-pressed', String(state.selected === m.i));
   const unknown = isPlaceholder(m.a) || isPlaceholder(m.b);
@@ -198,7 +256,10 @@ function matchCard(m) {
     if (f) { const fl = el('span', 'flag', f); fl.title = nat; n.append(fl); }
     n.append(document.createTextNode(name));
     s.append(n);
-    const p = el('span', 'prob num', unknown ? '—' : pct(prob));
+    // Its own grid cell rather than part of the name, so a long name
+    // ellipsises without ever truncating the one mark that says who advanced.
+    s.append(el('span', 'winmark', won === true ? '✓' : ''));
+    const p = el('span', 'prob num', unknown ? '\u2013' : pct(prob));
     if (unknown) p.title = 'Opponent not yet determined';
     s.append(p);
     return s;
@@ -215,13 +276,48 @@ function matchCard(m) {
     foot.append(el('span', null, 'Not yet played'));
   } else {
     foot.append(el('span', 'score', m.score || ''));
-    const called = (m.p > 0.5) === m.a_won;
-    foot.append(el('span', called ? '' : 'missed', called ? '' : 'model missed'));
+    if (m.wo) {
+      // A partial score with no explanation reads as a data error. Which of
+      // the two it was is decided by the score: a retirement leaves one, a
+      // true walkover leaves nothing behind.
+      const tag = el('span', 'wo', m.score ? 'retired' : 'walkover');
+      tag.title = m.score
+        ? 'One player retired. This result did not update either player’s rating or form.'
+        : 'Walkover. This result did not update either player’s rating or form.';
+      foot.append(tag);
+    }
+    // The coloured left edge carries called-vs-missed now, so the label is
+    // gone from the footer - but colour alone is not readable for everyone,
+    // and green/claret is the worst pair for it. Keep the fact in the
+    // accessible name, where it costs nothing visually.
+    if (!m.wo) {
+      node.title = called
+        ? 'The model called this one.'
+        : 'The model missed this one.';
+    }
   }
   node.append(foot);
 
-  node.onclick = () => { state.selected = state.selected === m.i ? null : m.i; renderMain(); };
-  return node;
+  node.onclick = () => { selectMatch(state.selected === m.i ? null : m.i); };
+
+  const slot = el('div', 'slot');
+  slot.append(node);
+  return slot;
+}
+
+function selectMatch(i) {
+  state.selected = i;
+  renderMain();
+}
+
+function applyNav() {
+  document.querySelector('.app').classList.toggle('nav-collapsed', state.navCollapsed);
+  const b = $('#navtoggle');
+  b.textContent = state.navCollapsed ? '\u203A' : '\u2039';
+  const label = state.navCollapsed ? 'Show tournament list' : 'Collapse tournament list';
+  b.title = label;
+  b.setAttribute('aria-label', label);
+  b.setAttribute('aria-expanded', String(!state.navCollapsed));
 }
 
 function renderBracket(doc) {
@@ -231,21 +327,62 @@ function renderBracket(doc) {
 
   for (const [round, ms] of groupRounds(doc.matches)) {
     const col = el('div', 'round');
-    col.append(el('div', 'round-name', `${ROUND_LABEL[round] || round} · ${ms.length}`));
+    const hd = el('div', 'round-name');
+    const code = el('span', null, roundCode(round, ms.length));
+    code.title = ROUND_LABEL[round] || round;
+    hd.append(code);
+    hd.append(el('span', 'n', String(ms.length)));
+    col.append(hd);
     const body = el('div', 'round-body');
-    for (const m of ms) body.append(matchCard(m));
+    // Wrap adjacent matches in pairs so the connectors can join the two
+    // feeders of each next-round match. An odd tail (a bye, or a half-scraped
+    // draw) gets a pair of one rather than being dropped.
+    for (let i = 0; i < ms.length; i += 2) {
+      const pair = el('div', 'pair');
+      for (const m of ms.slice(i, i + 2)) pair.append(matchCard(m));
+      body.append(pair);
+    }
     col.append(body);
     bracket.append(col);
   }
   scroller.append(bracket);
-  wrap.append(scroller);
 
-  if (state.selected != null && doc.matches[state.selected]) {
-    wrap.append(renderExplain(doc.matches[state.selected]));
-  } else {
-    wrap.append(el('p', 'note',
-      'Select any match to see which factors drove the prediction. Shaded fill behind each name is that player’s win probability.'));
+  // The draw is a panel with its own header, and the header carries the hint,
+  // so the layout does not change shape when a match is selected.
+  const card = el('div', 'card-box');
+  const chead = el('div', 'card-head');
+  chead.append(el('span', 'lbl', 'Men’s singles bracket'));
+  chead.append(el('span', 'hint',
+    'Left edge marks whether the model called it · ✓ marks who '
+    + 'advanced · click any match'));
+  card.append(chead);
+  card.append(scroller);
+
+  const open = state.selected != null && doc.matches[state.selected];
+  if (!open) {
+    wrap.append(card);
+    return wrap;
   }
+
+  // Selected: the explanation becomes a rail beside the draw, so the match and
+  // the reasoning about it are on screen together. The left sidebar collapses
+  // to pay for the width.
+  const grid = el('div', 'draw-grid');
+  const left = el('div', 'draw-main');
+  left.append(card);
+  grid.append(left);
+  const rail = el('aside', 'rail');
+  rail.append(renderExplain(doc.matches[state.selected]));
+  grid.append(rail);
+  wrap.append(grid);
+
+  // Opening the rail narrows the draw, which can leave the match you just
+  // clicked scrolled off to the right - worst for a final, the rightmost
+  // column. Bring it back after layout settles.
+  requestAnimationFrame(() => {
+    const sel = document.querySelector('.match[aria-pressed="true"]');
+    if (sel) sel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  });
   return wrap;
 }
 
@@ -253,51 +390,81 @@ function renderBracket(doc) {
 
 function renderExplain(m) {
   const box = el('div', 'explain');
-  box.append(el('h3', null, `${m.a} vs ${m.b}`));
+
+  const head = el('div', 'rail-head');
+  head.append(el('span', 'lbl', 'Why this prediction'));
+  const close = el('button', 'explain-close', '\u2715');
+  close.type = 'button';
+  close.title = 'Close';
+  close.setAttribute('aria-label', 'Close explanation');
+  close.onclick = () => { selectMatch(null); };
+  head.append(close);
+  box.append(head);
+
+  const body = el('div', 'rail-body');
+  box.append(body);
 
   if (isPlaceholder(m.a) || isPlaceholder(m.b)) {
-    box.append(el('p', 'lede',
+    body.append(el('p', 'note',
       'One slot in this match is still open. The model can only score a named '
       + 'player it has history for, so there is no meaningful prediction to '
       + 'explain until the qualifier is decided.'));
     return box;
   }
 
-  const fav = m.p >= 0.5 ? m.a : m.b;
-  const favP = m.p >= 0.5 ? m.p : 1 - m.p;
-  let lede = `${ROUND_LABEL[m.round] || m.round} · model favours ${fav} at ${pct(favP)}.`;
-  if (!m.pending) {
-    const winner = m.a_won ? m.a : m.b;
-    lede += ` ${winner} won${m.score ? ` ${m.score}` : ''}.`;
-    if ((m.p > 0.5) !== m.a_won) lede += ' The model called this one wrong.';
-  }
-  box.append(el('p', 'lede', lede));
+  // The two players, each with the colour its bars use below, so the direction
+  // of a bar needs no legend to decode.
+  const won = m.pending ? null : m.a_won;
+  const vs = el('div', 'rail-vs');
+  const sideRow = (who, name, prob, lost) => {
+    const r = el('div', 'rail-side' + (lost ? ' dim' : ''));
+    r.append(el('i', `swatch ${who}`));
+    r.append(el('span', 'rs-name', name));
+    r.append(el('span', 'rs-p num', pct(prob)));
+    return r;
+  };
+  vs.append(sideRow('a', m.a, m.p, won === false));
+  vs.append(sideRow('b', m.b, 1 - m.p, won === true));
+  body.append(vs);
 
+  // What actually happened, and whether the model got there.
+  const called = m.pending ? null : (m.p > 0.5) === !!m.a_won;
+  const verdict = el('div', 'rail-verdict ' + (m.pending ? 'pend' : m.wo ? 'wo' : called ? 'hit' : 'miss'));
+  if (m.pending) {
+    verdict.append(el('span', null, `${ROUND_LABEL[m.round] || m.round} \u00b7 not yet played`));
+  } else {
+    const winner = m.a_won ? m.a : m.b;
+    const line = el('span');
+    line.append(el('b', null, winner));
+    line.append(document.createTextNode(
+      m.wo ? (m.score ? ' won, opponent retired' : ' won by walkover')
+           : called ? ' won, as the model expected' : ' won, and the model called it wrong'));
+    verdict.append(line);
+    if (m.score) verdict.append(el('span', 'sc', m.score));
+  }
+  body.append(verdict);
+
+  // Bars only: the log-odds figure meant nothing to anyone reading it, and the
+  // length already carries the magnitude.
   const max = Math.max(...m.shap.map(d => Math.abs(d.s)), 1e-6);
-  const rows = el('div', 'drivers');
+  const rows = el('div', 'shap');
   for (const d of m.shap) {
-    const row = el('div', 'driver');
-    row.append(el('span', 'dname', d.f));
-    const track = el('div', 'track');
-    const bar = el('i', 'bar');
-    const w = (Math.abs(d.s) / max) * 50;
-    if (d.s >= 0) { bar.style.left = '50%'; bar.style.background = 'var(--court)'; }
-    else { bar.style.right = '50%'; bar.style.background = 'var(--cork)'; }
-    bar.style.width = w.toFixed(2) + '%';
+    const row = el('div', 'shap-row');
+    row.append(el('span', 'shap-f', d.f));
+    const track = el('div', 'shap-track');
+    const bar = el('i', 'shap-bar ' + (d.s >= 0 ? 'pos' : 'neg'));
+    bar.style.width = ((Math.abs(d.s) / max) * 50).toFixed(2) + '%';
+    bar.title = `${d.f}: ${(d.s >= 0 ? '+' : '') + d.s.toFixed(3)} log-odds`;
     track.append(bar);
     row.append(track);
-    row.append(el('span', 'dval', (d.s >= 0 ? '+' : '') + d.s.toFixed(2)));
     rows.append(row);
   }
-  box.append(rows);
+  body.append(rows);
 
-  const key = el('div', 'driver-key');
-  key.append(el('span', null, `← favours ${m.b}`));
-  key.append(el('span', null, `favours ${m.a} →`));
-  box.append(key);
-
-  box.append(el('p', 'note',
-    'Contributions are TreeSHAP values in log-odds, grouped from the model’s 34 raw features into nine drivers. SHAP is additive, so the grouped figures sum exactly to the model’s output.'));
+  const key = el('p', 'shap-key');
+  key.append(el('b', null, '\u2190 ' + m.b));
+  key.append(el('b', null, m.a + ' \u2192'));
+  body.append(key);
   return box;
 }
 
@@ -331,36 +498,86 @@ function renderMonte(doc) {
 
   if (!board || !board.length) {
     wrap.append(el('div', 'empty',
-      'No simulation for this draw — the bracket on Wikipedia is incomplete, so a forecast would be guesswork. The matches above are still real.'));
+      'No simulation for this draw: the bracket on Wikipedia is incomplete, so a forecast would be guesswork. The matches above are still real.'));
     return wrap;
   }
 
   const champ = championOf(doc);
   const top = board[0].p || 1;
   const lb = el('div', 'lb');
+
+  // How far each player gets, not just whether they win. The simulation always
+  // knew this - it plays every round - and the columns make a favourite with a
+  // brutal quarter visibly different from one with an easy path to the semis.
+  const advRounds = doc.adv_rounds || [];
+  const cols = `26px minmax(0, 1fr) 92px ${'50px '.repeat(advRounds.length)}56px`;
+
+  if (advRounds.length) {
+    const head = el('div', 'lb-row lb-cols');
+    head.style.gridTemplateColumns = cols;
+    head.append(el('span'), el('span'), el('span'));
+    for (const r of advRounds) head.append(el('span', 'c', ROUND_SHORT[r] || r));
+    head.append(el('span', 'c', 'Title'));
+    lb.append(head);
+  }
+
   board.slice(0, 24).forEach((r, i) => {
     const row = el('div', 'lb-row' + (r.name === champ ? ' champ' : ''));
+    row.style.gridTemplateColumns = cols;
     row.append(el('span', 'rank num', String(i + 1)));
     const nm = el('span');
     const f = flag(r.nat);
     if (f) nm.append(el('span', 'flag', f + ' '));
     nm.append(document.createTextNode(r.name));
-    if (r.name === champ) nm.append(el('span', 'nat', ' — actual winner'));
+    if (r.name === champ) nm.append(el('span', 'nat', ' (actual winner)'));
     row.append(nm);
     const bar = el('div', 'lbar');
     const fill = el('div');
     fill.style.width = ((r.p / top) * 100).toFixed(2) + '%';
     bar.append(fill);
     row.append(bar);
-    row.append(el('span', 'lpct num', pct(r.p)));
+    // Advancement is a marginal, not a share of anything, so it is shown as
+    // plain rounded percent - no `fine`, which exists for the title tail.
+    for (const a of (r.adv || [])) row.append(el('span', 'adv num', pct(a)));
+    row.append(el('span', 'lpct num', pct(r.p, true)));
     lb.append(row);
   });
   wrap.append(lb);
 
-  let note = 'Each simulation plays the bracket out round by round, sampling every match from the model’s probability and updating both players’ ratings inside the bracket before the next round.';
-  if (mode === 'live') note += ' Matches already played are pinned to their real result in every simulation.';
-  if (champ) note += ' The actual winner is highlighted — including when the model rated them a long shot.';
-  wrap.append(el('p', 'note', note));
+  // Biggest misses: completed matches the winner was priced to lose. Derived
+  // here rather than exported - everything it needs is already in `matches`,
+  // so it costs no payload and no version bump.
+  const upsets = doc.matches
+    .filter(m => !m.pending && !isPlaceholder(m.a) && !isPlaceholder(m.b))
+    .map(m => ({
+      winner: m.a_won ? m.a : m.b,
+      loser: m.a_won ? m.b : m.a,
+      wp: m.a_won ? m.p : 1 - m.p,
+      round: m.round,
+      score: m.score,
+    }))
+    .filter(u => u.wp < 0.5)
+    .sort((x, y) => x.wp - y.wp)
+    .slice(0, 5);
+
+  if (upsets.length) {
+    const box = el('div', 'upsets');
+    box.append(el('h3', null, 'Biggest misses'));
+    for (const u of upsets) {
+      const row = el('div', 'upset');
+      const top = el('div', 'upset-top');
+      top.append(el('span', 'w', u.winner));
+      // Always one decimal: this list is ordered by exactly this number, and
+      // at whole percent the top three all read "25%" while being ranked.
+      top.append(el('span', 'p num', (u.wp * 100).toFixed(1) + '%'));
+      row.append(top);
+      row.append(el('div', 'upset-sub',
+        `beat ${u.loser} · ${ROUND_LABEL[u.round] || u.round}${u.score ? ' · ' + u.score : ''}`));
+      box.append(row);
+    }
+    wrap.append(box);
+  }
+
   return wrap;
 }
 
@@ -378,36 +595,72 @@ async function renderTournament() {
 
   if (!doc) {
     main.append(el('div', 'empty',
-      'No exported draw for this tournament — the source page had no usable bracket.'));
+      'No exported draw for this tournament: the source page had no usable bracket.'));
     return;
   }
 
   const sub = el('div', 'sub');
+  const chip = el('span', `tier-chip tier-${doc.tier}`, TIER_CHIP[doc.tier] || doc.tier);
+  chip.title = TIER_LABEL[doc.tier] || '';
+  sub.append(chip);
   sub.append(el('span', null, fmtDate(doc.date)));
-  sub.append(el('span', null, '·'));
-  sub.append(el('span', null, `${TIER_LABEL[doc.tier] || doc.tier} · ${doc.host}`));
+  sub.append(el('span', 'dot', '·'));
+  sub.append(el('span', null, doc.host));
   if (doc.status !== 'complete') sub.append(el('span', `pill ${doc.status}`, doc.status));
   head.append(sub);
 
   const stats = el('div', 'statrow');
-  const stat = (k, v, small) => {
-    const s = el('div', 'stat');
+  const stat = (k, v, small, sub, cls) => {
+    const s = el('div', 'stat' + (cls ? ' ' + cls : ''));
     s.append(el('div', 'k', k));
-    const val = el('div', 'v num', v);
+    // "41%" reads better as 41 with a small muted %, which is what the
+    // artifact does with every figure it sets large.
+    const val = el('div', 'v num');
+    const mUnit = /^(.*?)(%|\/\d+)$/.exec(String(v));
+    if (mUnit && !String(cls || '').includes('name')) {
+      val.append(document.createTextNode(mUnit[1]));
+      val.append(el('span', 'unit', mUnit[2]));
+    } else {
+      val.textContent = v;
+    }
     if (small) val.append(el('small', null, ' ' + small));
     s.append(val);
+    if (sub) s.append(el('div', 's', sub));
     return s;
   };
+
+  // The people are the story, so they are the value and the number is the
+  // caption - the other way round buried Kunlavut Vitidsarn under "41%".
+  // Pre-tournament odds, not the results-conditioned board: the point of this
+  // row is what the model thought before any of it happened.
+  const pre = doc.leaderboard;
+  const champ = championOf(doc);
+  if (pre && pre.length) {
+    stats.append(stat('Pre-tournament favourite', pct(pre[0].p, true), null,
+      pre[0].name + (pre[0].nat ? ` \u00b7 ${pre[0].nat}` : '')));
+  }
+
+  // The champion's own pre-tournament price, next to the favourite's. It is
+  // often a long shot, and saying so is the honest framing - a UI that only
+  // showed the favourite would look better than the model deserves.
+  if (champ) {
+    const row = (pre || []).find(r => r.name === champ);
+    stats.append(stat('Actual champion', row ? pct(row.p, true) : '\u2013', null,
+      champ + (row && row.nat ? ` \u00b7 ${row.nat}` : ''), 'flag'));
+  }
+
   const acc = doc.accuracy;
   if (acc.n) {
-    stats.append(stat('Model called', `${acc.hit}/${acc.n}`,
-      `(${Math.round(100 * acc.hit / acc.n)}%)`));
+    stats.append(stat('Matches called', `${acc.hit}/${acc.n}`,
+      `(${Math.round(100 * acc.hit / acc.n)}%)`,
+      `of ${doc.matches.length} in the draw`, 'accent'));
   }
-  stats.append(stat('Matches', String(doc.matches.length)));
-  const board = doc.leaderboard_live || doc.leaderboard;
-  if (board && board.length) stats.append(stat('Favourite', board[0].name, pct(board[0].p)));
-  stats.append(stat('Model', doc.model === 'point-in-time' ? 'Point-in-time' : 'Preloaded',
-    doc.trained_through ? `to ${doc.trained_through}` : ''));
+  const pit = doc.model === 'point-in-time';
+  stats.append(stat('Model', modelName(doc.model_name), null,
+    doc.trained_through
+      ? `${pit ? 'trained on matches up to' : 'preloaded · trained to'} ${fmtDate(doc.trained_through)}`
+      : (pit ? 'point-in-time' : 'preloaded'),
+    'name'));
   head.append(stats);
 
   const tabs = el('div', 'tabs');
@@ -422,11 +675,6 @@ async function renderTournament() {
 
   main.append(state.tab === 'bracket' ? renderBracket(doc) : renderMonte(doc));
 
-  const foot = el('div', 'foot');
-  foot.textContent = doc.model === 'point-in-time'
-    ? `Predictions come from a model trained only on matches before ${doc.date} (${(doc.n_train_rows || 0).toLocaleString()} rows, through ${doc.trained_through}). It has never seen this tournament or anything after it, so these are genuine out-of-sample calls.`
-    : 'Too little history preceded this tournament to fit a point-in-time model, so the current promoted model was used. Treat its calls on this draw as in-sample.';
-  main.append(foot);
 }
 
 // ---------------------------------------------------------------- matchup
@@ -519,7 +767,7 @@ function compareCard(A, B) {
 
 function formCard(p) {
   const card = el('div', 'card');
-  card.append(el('h3', null, `${p.name} — last ${p.form.length}`));
+  card.append(el('h3', null, `${p.name}, last ${p.form.length}`));
   const strip = el('div', 'form-strip');
   for (const f of [...p.form].reverse()) {
     const c = el('div', 'form-chip ' + (f.won ? 'w' : 'l'));
@@ -551,35 +799,43 @@ async function renderMatchup() {
 
   const head = el('div', 'thead');
   head.append(el('h2', null, 'Matchup analyzer'));
-  head.append(el('div', 'sub', 'Any two active players, at a neutral Super 750 quarter-final.'));
   main.append(head);
 
-  const pickers = el('div', 'mu-grid');
-  const mk = (which, label) => {
-    const card = el('div', 'card');
-    card.append(el('h3', null, label));
+  // Everything below shares one column width, so the picker strip, the
+  // prediction bar and the cards line up down both edges.
+  const wrap = el('div', 'mu');
+  main.append(wrap);
+
+  const picks = el('div', 'mu-picks');
+  const mk = which => {
     const ac = el('div', 'ac');
     const input = document.createElement('input');
     input.type = 'search';
-    input.placeholder = 'Search players…';
+    input.placeholder = which === 'a' ? 'First player…' : 'Second player…';
     input.value = state.mu[which]?.name || '';
     const list = el('div', 'ac-list');
     list.hidden = true;
     ac.append(input, list);
     autocomplete(input, list, p => { state.mu[which] = p; goMatchup(); });
-    card.append(ac);
-    return card;
+    return ac;
   };
-  pickers.append(mk('a', 'Player one'), mk('b', 'Player two'));
-  main.append(pickers);
+  const swap = el('button', 'mu-swap', '⇄');
+  swap.type = 'button';
+  swap.title = 'Swap sides';
+  swap.setAttribute('aria-label', 'Swap sides');
+  swap.onclick = () => { state.mu = { a: state.mu.b, b: state.mu.a }; goMatchup(); };
+  picks.append(mk('a'), swap, mk('b'));
+  wrap.append(picks);
 
   const { a, b } = state.mu;
   if (!a || !b) {
-    main.append(el('p', 'note', 'Pick two players to see the model’s call.'));
+    wrap.append(el('div', 'empty', a
+      ? 'Pick a second player, or click one in the rating leaders.'
+      : 'Pick two players, or click them in the rating leaders.'));
     return;
   }
   if (a.slug === b.slug) {
-    main.append(el('div', 'empty', 'Pick two different players.'));
+    wrap.append(el('div', 'empty', 'Pick two different players.'));
     return;
   }
 
@@ -590,41 +846,47 @@ async function renderMatchup() {
   ]);
   if (state.mu.a?.slug !== a.slug || state.mu.b?.slug !== b.slug) return;  // stale
 
-  if (!mu || !A || !B) {
-    main.append(el('div', 'empty', 'No exported matchup for this pair.'));
+  if (!mu || !A || !B || !mu.vs.find(v => v.slug === b.slug)) {
+    wrap.append(el('div', 'empty', 'No exported matchup for this pair.'));
     return;
   }
   const hit = mu.vs.find(v => v.slug === b.slug);
-  if (!hit) {
-    main.append(el('div', 'empty', 'No exported matchup for this pair.'));
-    return;
-  }
 
-  const verdict = el('div', 'verdict');
-  const who = (cls, name, p) => {
-    const d = el('div', `who ${cls}`);
-    d.append(el('div', 'p num', pct(p)));
-    d.append(el('div', 'n', name));
+  // One bar split at the model's probability, as in the design mockup: the
+  // share of the width *is* the number, so the two are never read separately.
+  const card = el('div', 'mu-head');
+  card.append(el('div', 'mu-ctx', 'Neutral Super 750 quarter-final'));
+  const names = el('div', 'mu-names');
+  const nm = (cls, player) => {
+    const d = el('div', 'n' + cls);
+    d.append(document.createTextNode(player.name));
+    d.append(el('small', null, player.nat || ''));
     return d;
   };
-  verdict.append(who('a', A.name, hit.p));
-  verdict.append(el('div', 'vs', 'VS'));
-  verdict.append(who('b', B.name, 1 - hit.p));
-  main.append(verdict);
+  names.append(nm('', A), nm(' r', B));
+  card.append(names);
 
-  const grid = el('div', 'mu-grid');
-  grid.append(compareCard(A, B));
-  grid.append(formCard(A));
-  grid.append(formCard(B));
-  main.append(grid);
+  const bar = el('div', 'mu-bar');
+  const segA = el('i', 'a', pct(hit.p));
+  segA.style.width = (hit.p * 100).toFixed(2) + '%';
+  const segB = el('i', 'b', pct(1 - hit.p));
+  segB.style.width = ((1 - hit.p) * 100).toFixed(2) + '%';
+  bar.append(segA, segB);
+  card.append(bar);
+  wrap.append(card);
 
-  main.append(el('p', 'foot',
-    'Both players are evaluated at their current form, from the promoted model. Probabilities are order-invariant — the model is asked both ways round and the answers averaged, so swapping the two names gives exactly the complementary number.'));
+  wrap.append(compareCard(A, B));
+  const forms = el('div', 'mu-forms');
+  forms.append(formCard(A), formCard(B));
+  wrap.append(forms);
 }
 
 // ---------------------------------------------------------------- routing
 
 async function renderMain() {
+  // Derived from state on every render rather than only in the click handler,
+  // so the DOM cannot disagree with `navCollapsed` about whether it is open.
+  applyNav();
   renderSidebar();
   if (state.view === 'matchup') return renderMatchup();
   if (!state.slug) {
@@ -672,23 +934,121 @@ function goMatchup() {
 
 // ---------------------------------------------------------------- boot
 
+const isDark = () => (document.documentElement.dataset.theme
+  || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark';
+
 function initTheme() {
   const saved = localStorage.getItem('sc-theme');
   if (saved) document.documentElement.dataset.theme = saved;
+
+  // The glyph shows what a click will switch *to*, which is the convention
+  // people already read: a moon means "go dark".
+  const paint = () => { $('#theme').textContent = isDark() ? '☀' : '☾'; };
+  paint();
+
   $('#theme').onclick = () => {
-    const cur = document.documentElement.dataset.theme
-      || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    const next = cur === 'dark' ? 'light' : 'dark';
+    const next = isDark() ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
     localStorage.setItem('sc-theme', next);
+    paint();
   };
+  // Follow the system until the user has expressed a preference.
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!localStorage.getItem('sc-theme')) paint();
+  });
+}
+
+// Set by initSeasonPicker once the index has loaded; a no-op before then so
+// renderSidebar can call it unconditionally.
+let syncSeasonPicker = () => {};
+
+// A native <select> renders as the platform widget, which cannot be themed and
+// looks like it belongs to a different application. This is the same control
+// built from a button and a listbox so it inherits the palette.
+function initSeasonPicker() {
+  const btn = $('#seasonBtn'), menu = $('#seasonMenu'), label = $('#seasonLabel');
+  const opts = [['all', 'All seasons'], ...seasons().map(y => [y, y])];
+
+  const close = () => {
+    menu.hidden = true;
+    btn.setAttribute('aria-expanded', 'false');
+  };
+  const open = () => {
+    menu.hidden = false;
+    btn.setAttribute('aria-expanded', 'true');
+    const on = menu.querySelector('[aria-selected="true"]');
+    (on || menu.firstElementChild)?.focus();
+  };
+
+  // Opening a tournament sets the season to its year (see route), so the
+  // control has to be able to follow state rather than only drive it.
+  syncSeasonPicker = () => {
+    const opt = opts.find(o => o[0] === state.season);
+    label.textContent = opt ? opt[1] : state.season;
+    for (const item of menu.children)
+      item.setAttribute('aria-selected', String(item.dataset.value === state.season));
+  };
+
+  const pick = value => {
+    state.season = value;
+    syncSeasonPicker();
+    close();
+    btn.focus();
+    renderSidebar();
+  };
+
+  for (const [value, text] of opts) {
+    const item = el('button', 'dd-opt', text);
+    item.type = 'button';
+    item.dataset.value = value;
+    item.setAttribute('role', 'option');
+    item.setAttribute('aria-selected', String(value === state.season));
+    item.onclick = () => pick(value);
+    menu.append(item);
+  }
+
+  btn.onclick = () => (menu.hidden ? open() : close());
+
+  // Arrow keys move between options, Escape closes, Enter picks. Without this
+  // the control would be a mouse-only regression on the <select> it replaces.
+  menu.onkeydown = e => {
+    const items = [...menu.children];
+    const i = items.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const next = e.key === 'ArrowDown' ? i + 1 : i - 1;
+      items[(next + items.length) % items.length].focus();
+    } else if (e.key === 'Escape') {
+      close(); btn.focus();
+    } else if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      (e.key === 'Home' ? items[0] : items[items.length - 1]).focus();
+    }
+  };
+  btn.onkeydown = e => {
+    if (e.key === 'ArrowDown' && menu.hidden) { e.preventDefault(); open(); }
+  };
+  document.addEventListener('click', e => {
+    if (!menu.hidden && !$('#seasonDd').contains(e.target)) close();
+  });
 }
 
 async function boot() {
   initTheme();
 
-  $('#season').onchange = e => { state.season = e.target.value; renderSidebar(); };
   $('#tsearch').oninput = e => { state.query = e.target.value; renderSidebar(); };
+  $('#navtoggle').onclick = () => {
+    state.navCollapsed = !state.navCollapsed;
+    applyNav();
+  };
+  // Collapsed, the whole strip is the target. It is 45px of dead space
+  // otherwise, and hitting a 32px button to get the list back is fussy.
+  // Fires after the toggle's own handler, which has already reopened it.
+  document.querySelector('.sidebar').onclick = () => {
+    if (!state.navCollapsed) return;
+    state.navCollapsed = false;
+    applyNav();
+  };
   for (const b of document.querySelectorAll('.nav button')) {
     b.onclick = () => {
       if (b.dataset.view === 'matchup') goMatchup();
@@ -702,11 +1062,12 @@ async function boot() {
   ]);
   if (!index) {
     $('#main').append(el('div', 'empty',
-      'Could not load data/tournaments.json. Run `make export` first, then serve the site with `make site` — opening index.html from the filesystem will not work.'));
+      'Could not load data/tournaments.json. Run `make export` first, then serve the site with `make site`. Opening index.html from the filesystem will not work.'));
     return;
   }
   state.index = index;
   state.players = (players || []).sort((a, b) => b.elo - a.elo);
+  initSeasonPicker();   // needs the index: its options are the seasons in it
 
   addEventListener('hashchange', route);
   if (!location.hash) {
