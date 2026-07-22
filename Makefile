@@ -1,6 +1,6 @@
-.PHONY: install data update features train train_tabnet export site all simulate cv tune help
+.PHONY: install test data update features train train_tabnet export site all simulate cv tune help
 
-install:     ## Install dependencies (add [deep] for TabNet, [research] for Optuna)
+install:     ## Install deps (extras: [deep] TabNet, [research] Optuna, [dev] pytest)
 	python3 -m pip install .
 
 data:        ## Scrape Wikipedia + rebuild raw CSV (full rescrape)
@@ -26,6 +26,9 @@ site:        ## Serve the built static site locally on :8000
 
 all:         ## Full pipeline end-to-end
 	python3 run_pipeline.py --all
+
+test:        ## Run the invariant test suite
+	python3 -m pytest -q
 
 simulate:    ## Monte Carlo simulation CLI (override: make simulate ARGS="--date 2026-02-24 --tier 300")
 	python3 src/serving/simulate.py $(ARGS)

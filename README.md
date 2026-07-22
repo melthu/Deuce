@@ -116,6 +116,42 @@ never saw its own result or anything after it.
 
 ---
 
+## Tests
+
+```bash
+pip install ".[dev]" && pytest -q
+```
+
+The suite asserts the invariants that hold the serving path together, rather than pinning
+outputs that legitimately move as the corpus grows:
+
+| Invariant | Why it matters |
+|---|---|
+| `P(A beats B) == 1 - P(B beats A)` exactly | the model is not symmetric; only the two-slot averaging makes a prediction independent of how the scraper stored the pair |
+| per-player columns swap without a sign change | a stray negation left slot A wrong-signed on every mirrored row |
+| a point-in-time model's vocabulary and `trained_through` are strictly pre-cutoff | the whole claim behind a retrospective prediction |
+| Monte Carlo sums to `n_sims`, is seed-deterministic, and a finished draw conditioned on its own results returns the real champion | a seeding bug once reported the first player as a 100% champion |
+| every one of the 34 features maps to a SHAP driver, and grouping is exact | a new feature without a driver raises mid-export |
+| fingerprints change with `EXPORT_VERSION` and when a result lands | forget the bump and reruns ship stale files |
+| leaderboards are distributions over real entrants | see below |
+
+Tests run against the **real scraped corpus**, not fixtures — every bug they pin down was
+invisible on tidy synthetic input. The payload tests skip when `site/data` has not been
+built. CI runs the name tests after the scrape and the full suite after the export, before
+the publish gate.
+
+Writing them immediately paid for itself, catching two live bugs:
+
+- **Unfilled draw slots were being modelled as players.** `TBD (Q1)` reaches the model with
+  a default rating like anyone else, and Odisha Open 2022 shipped it with a 0.6% chance of
+  winning the title. Placeholders stay in the bracket — the pairing needs the slot — but are
+  excluded from leaderboards.
+- **Six finished tournaments were labelled "live".** Each was missing exactly one result on
+  Wikipedia, and `status` was derived from the pending count alone, so events from 2021–2025
+  were showing a live badge and a partially-conditioned forecast.
+
+---
+
 ## Pipeline
 
 | Step | Script | Output |
@@ -233,7 +269,8 @@ extra runs cost little. A push touching `site/**` or `src/serving/**` runs **pub
 ShuttleCast/
 ├── run_pipeline.py              # Master CLI: --scrape --features --train --tune --all
 ├── Makefile
-├── pyproject.toml               # deps; extras: [deep] torch/TabNet, [research] Optuna
+├── pyproject.toml               # deps; extras: [deep] torch/TabNet, [research] Optuna, [dev] pytest
+├── tests/                       # invariant suite: order-invariance, mirroring, leakage, payload
 ├── .github/workflows/update-data.yml   # daily scrape + retrain + export + deploy
 ├── src/
 │   ├── pipeline/                # data acquisition → training table

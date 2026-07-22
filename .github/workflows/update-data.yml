@@ -47,7 +47,7 @@ jobs:
           cache-dependency-path: pyproject.toml
 
       - name: Install dependencies
-        run: pip install .
+        run: pip install ".[dev]"
 
       - name: Rebuild tournament calendar
         run: python src/pipeline/build_config.py
@@ -57,6 +57,12 @@ jobs:
 
       - name: Sanity-check scraped data
         run: python src/pipeline/data_checks.py
+
+      # Only the tests that read the raw scrape — the dataset the rest of the
+      # suite needs has not been rebuilt yet at this point. The full suite runs
+      # in `publish`, against the payload that is actually about to ship.
+      - name: Test scraped names
+        run: pytest -q tests/test_names.py
 
       - name: Detect data changes
         id: diff
@@ -111,7 +117,7 @@ jobs:
           cache-dependency-path: pyproject.toml
 
       - name: Install dependencies
-        run: pip install .
+        run: pip install ".[dev]"
 
       # The engineered and mirrored datasets are derived from data/raw, so they
       # are not tracked. Rebuilding them here (~30s) also guarantees the site is
@@ -133,6 +139,11 @@ jobs:
 
       - name: Export static payload
         run: python src/serving/export_static.py
+
+      # After the export so the payload tests see the files about to ship, and
+      # before the gate so a failure stops the deploy.
+      - name: Tests
+        run: pytest -q
 
       - name: Publish gate
         run: python src/serving/check_export.py site/data

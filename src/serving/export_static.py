@@ -54,9 +54,15 @@ FIRST_YEAR   = 2018      # World Tour era; browsable scope, not training scope
 N_SIMS       = 10_000
 ACTIVE_SINCE = "2025-01-01"
 
+# A draw with an unplayed match this long after it opened is an incomplete
+# Wikipedia page, not a tournament in progress. Six events from 2021-2025 were
+# each missing exactly one result and had been sitting on the site labelled
+# "live", with a leaderboard conditioned on partial results.
+STALE_AFTER_DAYS = 21
+
 # Bump when the payload shape or any exported computation changes, so a
 # rerun regenerates files that would otherwise look up to date.
-EXPORT_VERSION = 3
+EXPORT_VERSION = 4
 
 FEATURE_NAMES = ["tier", "round", "player_a", "player_b"] + CONT_COLS
 
@@ -86,6 +92,19 @@ DRIVER_OF = {f: d for d, fs in _DRIVERS.items() for f in fs}
 # ----------------------------------------------------------------------
 # helpers
 # ----------------------------------------------------------------------
+def is_placeholder(name: str) -> bool:
+    """
+    An unfilled draw slot ("TBD (Q1)", "Qualifier 3"), not a person.
+
+    These reach the model with default Elo and everything else, so nothing
+    downstream refuses them — they simply get predicted like anyone else. Kept
+    in the bracket, because the pairing depends on the slot existing; excluded
+    anywhere a name is presented as a player. The frontend applies the same
+    rule when it renders a match.
+    """
+    return bool(re.search(r"\bTBD\b|qualifier", str(name), re.IGNORECASE))
+
+
 def slugify(name: str) -> str:
     s = fold_ascii(name)
     return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", s.lower())).strip("-")
@@ -234,7 +253,16 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
     played = [m for m in matches if not m["pending"]]
     hits = sum(1 for m in played if (m["p"] > .5) == m["a_won"])
     n_pending = len(matches) - len(played)
-    status = "upcoming" if not played else ("live" if n_pending else "complete")
+    # "live" has to mean the event is actually running, because the frontend
+    # defaults a live draw to the results-conditioned leaderboard. A draw whose
+    # last unplayed match is years old is just an incomplete page.
+    stale = (pd.Timestamp.today().normalize() - tour_date).days > STALE_AFTER_DAYS
+    if not played:
+        status = "upcoming"
+    elif n_pending and not stale:
+        status = "live"
+    else:
+        status = "complete"
 
     def simulate(fixed):
         # A handful of draws are genuinely incomplete on Wikipedia. Ship the
@@ -247,8 +275,15 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
         except ValueError as e:
             print(f"    no simulation for {date_key}: {e}")
             return None
-        return [{"name": k, "nat": nat_map.get(k, ""), "p": round(v / N_SIMS, 4)}
-                for k, v in sorted(counts.items(), key=lambda t: -t[1]) if v > 0]
+        # An unfilled slot can win a simulation, and did: Odisha Open 2022
+        # shipped "TBD (Q1)" with a 0.6% title chance. Drop the placeholders and
+        # renormalise, so the leaderboard reads as "given a real player wins".
+        real  = {k: v for k, v in counts.items() if not is_placeholder(k)}
+        total = sum(real.values())
+        if not total:
+            return None
+        return [{"name": k, "nat": nat_map.get(k, ""), "p": round(v / total, 4)}
+                for k, v in sorted(real.items(), key=lambda t: -t[1]) if v > 0]
 
     # Always ship the pre-tournament forecast: conditioning a finished event on
     # its own results just returns the champion at 100%.

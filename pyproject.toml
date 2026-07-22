@@ -31,6 +31,11 @@ dependencies = [
 deep = ["torch", "pytorch-tabnet"]
 # Optuna search + the plots used when reading results locally.
 research = ["optuna", "matplotlib", "plotly"]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
 
 [project.urls]
 Site = "https://melthu.github.io/ShuttleCast/"
