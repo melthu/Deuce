@@ -108,19 +108,35 @@ finishing round earns at that tournament's tier, on BWF's own table, and the
 best 10 events inside a rolling 52 weeks are summed — BWF's own accounting
 rule. From that, a live ordinal rank.
 
-`validate_rank_proxy.py` checks the proxy against the 58 real weekly snapshots
-that *are* fetchable:
+`validate_rank_proxy.py` checks it against every scrap of real ranking data
+that *is* reachable, in two different eras:
 
-| | |
-|---|---|
-| Spearman ρ vs published BWF ranking | **0.854** (min 0.812, max 0.897) |
-| real top 10 also in proxy top 10 | 6.9 / 10 |
-| median absolute rank error | 6.6 places |
+| | 58 weekly snapshots, 2015–16 | Wikipedia top 20, 2026-07-21 |
+|---|---|---|
+| Spearman ρ vs published ranking | **0.854** (0.812–0.897) | **0.806** |
+| real top 10 also in proxy top 10 | 6.9 / 10 | 7 / 10 |
+| median absolute rank error | 6.6 places | **2.0 places** |
+| players compared | ~61 per week | 20 / 20 |
 
-So it is the same quantity, imperfectly measured. Good enough to use as a
-feature; not good enough to display to a user as "world ranking".
+The two disagree about error size because they measure different things: the
+2015–16 figure runs ~60 deep, where the proxy's tail is noisy, while the
+Wikipedia snapshot is the top 20 only — and there the proxy is within a couple
+of places. The head of the list is what a match model actually cares about.
 
-**To use the real thing instead**, download the year-by-year XLS from
+So it is the same quantity, imperfectly measured, and most accurate exactly
+where it matters. Good enough to use as a feature; not good enough to display
+to a user as "world ranking".
+
+### What Wikipedia can and cannot give
+
+[BWF World Ranking](https://en.wikipedia.org/wiki/BWF_World_Ranking) carries a
+**single current snapshot** — top 20 per discipline, with points and career
+peak — plus year-end number ones and a number-one timeline. There is no weekly
+or per-player historical series, so it cannot supply a ranking column for
+10,196 matches spanning 2010–2026. It is used here as a validation point, not
+as a feature source.
+
+**To use real rankings as a feature**, download the year-by-year XLS from
 [BWF Corporate → Historical Rankings](https://corporate.bwfbadminton.com/players/historical-rankings/)
 (the page needs a browser; the download is one file per year) and drop them in
 `data/raw/rankings/`. Only the loader in `candidate_features.py` would change.

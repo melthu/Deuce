@@ -18,8 +18,9 @@ BWF list writes "Jan O JORGENSEN" and the corpus writes "Jan Ø Jørgensen".
 
     python3 experiments/validate_rank_proxy.py
 """
-import io
+import json
 import os
+import re
 import sys
 import urllib.request
 
@@ -64,7 +65,9 @@ def name_key(name: str) -> frozenset:
     """Order- and case-insensitive token set, so word order cannot split a player."""
     # fold_ascii strips diacritics but preserves case, and the BWF list
     # upper-cases surnames ("CHEN Long") where the corpus does not.
-    toks = fold_ascii(str(name)).lower().replace("-", " ").split()
+    # Wikipedia link targets carry disambiguators - "Lin Chun-yi (badminton)".
+    name = re.sub(r"\([^)]*\)", " ", str(name))
+    toks = fold_ascii(name).lower().replace("-", " ").split()
     return frozenset(t for t in toks if len(t) > 1)
 
 
@@ -96,6 +99,89 @@ def proxy_rank_at(events, when: pd.Timestamp) -> dict:
     standings = sorted(((_rolling_points(ev, when), p) for p, ev in by_player.items()),
                        reverse=True)
     return {p: i + 1 for i, (v, p) in enumerate(standings) if v > 0}
+
+
+WIKI_API = ("https://en.wikipedia.org/w/api.php?action=parse&page=BWF_World_Ranking"
+            "&prop=wikitext&format=json&section=9")
+WIKI_CACHE = "data/interim/bwf_wiki_current_ms.json"
+
+
+def fetch_wikipedia_top20() -> tuple[pd.Timestamp, pd.DataFrame] | None:
+    """The current men's-singles top 20 from the BWF World Ranking article.
+
+    The article carries only a single current snapshot - no weekly series - so
+    this cannot feed a feature. It is worth having anyway: the raywan mirror
+    validates the proxy in 2015-16, and this validates it in the era the site
+    actually serves.
+    """
+    os.makedirs(os.path.dirname(WIKI_CACHE), exist_ok=True)
+    if os.path.exists(WIKI_CACHE):
+        with open(WIKI_CACHE) as f:
+            wikitext = json.load(f)["wikitext"]
+    else:
+        # Wikipedia rejects urllib's default User-Agent outright.
+        req = urllib.request.Request(
+            WIKI_API, headers={"User-Agent": "Deuce/1.0 (BWF match model; research)"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                wikitext = json.loads(r.read())["parse"]["wikitext"]["*"]
+        except Exception as exc:
+            print(f"  (fetch failed: {exc})")
+            return None
+        with open(WIKI_CACHE, "w") as f:
+            json.dump({"wikitext": wikitext}, f)
+
+    m = re.search(r"\{\{as of\|(\d{4})\|(\d{2})\|(\d{2})", wikitext)
+    as_of = pd.Timestamp(int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else None
+
+    rows = []
+    # Each entry is "! <rank>" followed by a [[Player]] link and a points cell.
+    for block in re.split(r"\n\|-\n", wikitext):
+        rank = re.search(r"^!\s*(\d+)\s*$", block, re.M)
+        names = re.findall(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]", block)
+        pts = re.search(r"align=\"right\"\s*\|\s*([\d,]+)\s*$", block, re.M)
+        if not (rank and names and pts):
+            continue
+        # the first link is the country, the last is the player
+        player = names[-1] if len(names) > 1 else names[0]
+        rows.append({"RANK": int(rank.group(1)), "PLAYER": player,
+                     "POINTS": int(pts.group(1).replace(",", ""))})
+    if not rows:
+        return None
+    return as_of, pd.DataFrame(rows).drop_duplicates("RANK").sort_values("RANK")
+
+
+def validate_current(events):
+    got = fetch_wikipedia_top20()
+    if got is None:
+        print("\ncould not fetch the Wikipedia current-ranking snapshot - skipping")
+        return
+    as_of, real = got
+    proxy = proxy_rank_at(events, as_of)
+    proxy_by_key = {}
+    for p, r in proxy.items():
+        proxy_by_key.setdefault(name_key(p), r)
+
+    print(f"\n=== proxy vs Wikipedia's current top 20, as of {as_of.date()} ===")
+    rows, pairs = [], []
+    for _, r in real.iterrows():
+        pr = proxy_by_key.get(name_key(r["PLAYER"]))
+        rows.append({"real": int(r["RANK"]), "player": r["PLAYER"],
+                     "proxy": pr if pr else "-",
+                     "delta": (pr - int(r["RANK"])) if pr else None})
+        if pr:
+            pairs.append((int(r["RANK"]), pr))
+    print(pd.DataFrame(rows).to_string(index=False))
+    if len(pairs) >= 8:
+        a = np.array([x for x, _ in pairs])
+        b = np.array([y for _, y in pairs])
+        top10 = {name_key(r["PLAYER"]) for _, r in real[real["RANK"] <= 10].iterrows()}
+        prox10 = {k for k, v in proxy_by_key.items() if v <= 10}
+        print(f"\n  matched {len(pairs)}/20 | Spearman {spearmanr(a, b).statistic:.3f} | "
+              f"top-10 overlap {len(top10 & prox10)}/10 | "
+              f"median abs err {np.median(np.abs(a - b)):.1f} places")
+    else:
+        print(f"\n  only {len(pairs)}/20 names matched - too few to correlate")
 
 
 def main():
@@ -147,6 +233,8 @@ def main():
           f"(min {out['spearman'].min():.3f}, max {out['spearman'].max():.3f})")
     print(f"  real top-10 also in proxy top-10 : {out['top10_overlap'].mean():.1f} / 10")
     print(f"  median absolute rank error       : {out['median_abs_err'].mean():.1f} places")
+
+    validate_current(events)
 
 
 if __name__ == "__main__":
