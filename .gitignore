@@ -12,6 +12,8 @@ __pycache__/
 catboost_info/
 # Scratch notes for the in-flight static-site migration; delete when it lands
 HANDOFF.md
+# Agent-facing architecture reference; kept locally, not part of the published repo
+CLAUDE.md
 
 # --- Build output (regenerable; do not commit) ---
 # `make features` rebuilds these from data/raw in ~26s. data/raw is the only

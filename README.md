@@ -316,9 +316,3 @@ ShuttleCast/
 
 Every module bootstraps `sys.path` to the repo root, so scripts run the same whether
 invoked as `python3 src/serving/simulate.py` or imported as `src.serving.simulate`.
-
----
-
-## License
-
-MIT
