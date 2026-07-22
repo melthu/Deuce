@@ -12,22 +12,32 @@ A scheduled GitHub Actions workflow keeps it fresh: daily it scrapes newly finis
 
 | Tournament | Model used |
 |------------|-----------|
-| **Upcoming** (starts after today) | The promoted model (`models/best_model.pkl`) — re-selected and retrained weekly on all completed matches. Currently LightGBM; the payload's `name` field says which |
+| **Upcoming** (starts after today) | The promoted model (`models/best_model.pkl`) — re-selected and retrained daily on all completed matches. **Read the payload's `name` field**; the winner genuinely changes between runs |
 | **Past or live** | Point-in-time XGBoost trained on every match strictly before the tournament's start date — vocab, scaler, and model all fit on that slice only (no leakage), cached per tournament |
 
-Live tournaments get special treatment: matches already played are taken as fixed results, and the Monte Carlo simulation is conditioned on them — championship odds update as the real bracket unfolds with each weekly data refresh.
+Live tournaments get special treatment: matches already played are taken as fixed results, and the Monte Carlo simulation is conditioned on them — so championship odds move as the real bracket unfolds, with each daily refresh.
 
 ### Benchmark results
 
-Train ≤ 2025, validation = all 2026 matches to date (leak-free temporal holdout; July 2026 data snapshot):
+Train < 2026 (18,754 mirrored rows), validation = 2026 to date (1,032 rows) — a leak-free
+temporal holdout, measured 2026-07-21:
 
 | Model (Optuna-tuned) | Val AUC |
 |----------------------|---------|
-| CatBoost | 0.7134  |
-| XGBoost  | 0.7196  |
-| LightGBM | **0.7240** |
+| LightGBM | **0.7238** |
+| XGBoost  | 0.7223  |
+| CatBoost | 0.7179  |
 
-The production model for upcoming tournaments is chosen by `src/modeling/promote.py`: every week it benchmarks all tuned candidates on the latest season, retrains the **winner** on all completed matches, and promotes it to `models/best_model.pkl` — so the model type is re-decided automatically as the season's validation data grows. Both the ranking and the AUCs move week to week; don't hardcode an assumption about which model wins.
+`src/modeling/promote.py` runs exactly this benchmark daily, retrains the winner on all
+completed matches, and promotes it to `models/best_model.pkl`.
+
+**Take the ranking with a pinch of salt.** All three sit within 0.006 AUC of each other,
+and which one wins flips between runs as the validation season grows — this table replaced
+one where CatBoost led. Anything that hardcodes a model type will be wrong sooner or later.
+
+A note on what moves this number: several data-correctness fixes (walkover handling, a
+mirrored sign error, merging players split across spellings) all landed inside ±0.003. They
+were worth doing because the data was wrong, not because they made the model better.
 
 ---
 
@@ -59,6 +69,7 @@ make data        # full rescrape of every tournament (~15 min)
 make train       # retrain LightGBM + CatBoost + XGBoost + ensemble selection
 make tune        # Optuna hyperparameter search — 50 trials
 make cv          # rolling 3-fold temporal cross-validation
+make test        # invariant test suite
 make simulate ARGS="--date 2026-02-24 --tier 300 --sims 10000"
 ```
 
@@ -161,7 +172,7 @@ Writing them immediately paid for itself, catching two live bugs:
 | 3 | `src/pipeline/feature_engineering.py` | `data/interim/engineered_matches.csv` — 30 temporal features; walkovers and pending matches get features but never update history |
 | 4 | `src/pipeline/data_loader.py` | `data/processed/final_training_data.csv` — every match mirrored A↔B for positional symmetry |
 
-`src/pipeline/data_checks.py` is the sanity gate the weekly workflow runs before committing scraped data (row counts, nulls, duplicate keys, walkover/pending fractions). It also checks the
+`src/pipeline/data_checks.py` is the sanity gate the daily workflow runs before committing scraped data (row counts, nulls, duplicate keys, walkover/pending fractions). It also checks the
 calendar **per season**: `build_config.py` refuses a config that shrank by more than 5%,
 but one lost year out of seventeen is under that threshold, so a season could vanish while
 the total still looked healthy.
@@ -183,7 +194,7 @@ new collisions but never merges them.
 
 ### Pending matches and walkovers
 
-The scraper marks drawn-but-unplayed matches (`is_pending=1`, no bolded winner on Wikipedia). They flow through feature engineering — so the dashboard can predict upcoming draws — but are excluded from all history, Elo updates, and training.
+The scraper marks drawn-but-unplayed matches (`is_pending=1`, no bolded winner on Wikipedia). They flow through feature engineering — so the site can predict a published draw — but are excluded from all history, Elo updates, and training.
 
 Walkovers (`is_walkover=1`) are handled the same way, and for the same reason they used to be
 handled *differently*: dropping them left 76 of 222 post-2018 draws with a non-power-of-two
@@ -215,7 +226,7 @@ rows so the bracket resolves, but contribute nothing to Elo, EMA, head-to-head o
 ## Models
 
 - **XGBoost / LightGBM / CatBoost** (`src/modeling/train_xgb.py`, `src/modeling/train_lgbm.py`, `src/modeling/train_catboost.py`) — benchmark trainers; all read Optuna-tuned hyperparameters from `models/best_params.json`. Their per-candidate pickles are benchmark artifacts and stay untracked; only the promoted model is committed.
-- **promote.py** — production selection: benchmarks all three tuned candidates on the latest season, retrains the winner on every completed match, writes `models/best_model.pkl`. Run weekly by CI.
+- **promote.py** — production selection: benchmarks all three tuned candidates on the latest season, retrains the winner on every completed match, writes `models/best_model.pkl`. Run daily by CI.
 - **TabNet** (`src/modeling/train_tabnet.py`) and **DeepFM** (`src/modeling/model.py` + `src/modeling/train.py`) — neural baselines.
 - **Ensemble** (`src/modeling/train_ensemble.py`) — AUC-weighted average of all saved models, for benchmarking.
 
@@ -283,7 +294,7 @@ ShuttleCast/
 │   ├── modeling/                # preprocessing, trainers, model selection
 │   │   ├── dataset.py               # shared preprocessing: vocab/scaler fitting, encoding
 │   │   ├── pit_model.py             # point-in-time trainer (used by the exporter)
-│   │   ├── promote.py               # weekly production model selection
+│   │   ├── promote.py               # daily production model selection
 │   │   ├── train_xgb.py / train_lgbm.py / train_catboost.py / train_tabnet.py / train.py
 │   │   ├── train_ensemble.py        # AUC-weighted ensemble selection
 │   │   ├── temporal_cv.py           # rolling 3-fold temporal cross-validation
