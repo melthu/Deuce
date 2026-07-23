@@ -1,2 +1,0 @@
-baseline (fitted elo) n_feat=31  select=0.7430 report=0.7259 all=0.7362 (199s)
-+quality         n_feat=35  select=0.7421 report=0.7253 all=0.7354 (188s)
