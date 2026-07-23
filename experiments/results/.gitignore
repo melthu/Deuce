@@ -1,2 +1,2 @@
-# search logs are run output, not results worth tracking
-results/*.log
+# run logs are output, not results worth tracking
+*.log

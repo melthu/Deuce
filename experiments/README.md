@@ -62,6 +62,52 @@ Measured on the rolling harness, mean over 2022–2026:
 
 Elo alone gets most of the way. That is the reason for `run_elo.py`.
 
+## What shipped, and what did not
+
+One change made it into `src/`, and it was not a feature:
+
+| | all 5 years | logloss |
+|---|---|---|
+| shipped baseline, hand-set Elo | 0.7309 | 0.6074 |
+| **fitted Elo (now in `src/pipeline/elo.py`)** | **0.7362** | **0.6041** |
+
+Six candidate feature groups were built, screened, and rejected. The noise
+floor below is what makes that a judgement rather than an opinion.
+
+### The noise floor — read this before any table
+
+`run_noise.py` holds the feature set and the search budget fixed and varies
+only the seeds. Eight runs:
+
+| | mean | std | spread |
+|---|---|---|---|
+| all-5-year AUC | 0.7293 | 0.0011 | **0.0034** |
+| report-window AUC | 0.7191 | 0.0018 | 0.0057 |
+
+So a feature-set difference under ~0.003 AUC is not evidence of anything.
+Against that: the fitted Elo's +0.0053 is real; every candidate group's
+±0.002 is not.
+
+### The groups that did not survive
+
+Each got its own hyperparameter search on an identical budget:
+
+| set | select | report | all 5yr | verdict |
+|---|---|---|---|---|
+| baseline | 0.7367 | 0.7186 | 0.7295 | — |
+| +QUALITY | 0.7382 | 0.7204 | 0.7311 | +0.0016, inside noise |
+| +RANK | 0.7325 | 0.7247 | 0.7294 | signs disagree — noise |
+| +FATIGUE | 0.7362 | 0.7171 | 0.7285 | negative |
+| +CONTEXT | 0.7361 | 0.7169 | 0.7284 | negative |
+| +SCORING | 0.7344 | 0.7150 | 0.7266 | negative |
+| +ELO derivs | 0.7315 | 0.7154 | 0.7251 | negative |
+
+`+RANK` is the instructive one. Best report score of any set, second-worst
+select score — that inconsistency is the shape of noise, not of signal. And
+stacked on the fitted rating it actively hurts (0.7347 → 0.7301). A ranking is
+a summary of results; a rating that has actually been fit to those results
+already contains it.
+
 ## Findings
 
 ### Elo's own constants were never fit — tuning them is worth +0.027 AUC
