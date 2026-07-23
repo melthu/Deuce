@@ -88,6 +88,47 @@ So a feature-set difference under ~0.003 AUC is not evidence of anything.
 Against that: the fitted Elo's +0.0053 is real; every candidate group's
 ±0.002 is not.
 
+### Re-tuning the hyperparameters did not help either
+
+`best_params.json` was tuned by Optuna on the old 34-feature set, so an obvious
+worry was that it no longer fit the 35-feature one. A fresh 60-trial search per
+model, then compared on the rolling harness against the original params:
+
+| model | original AUC | re-tuned AUC |
+|---|---|---|
+| lgbm | **0.7376** | 0.7344 |
+| xgb | 0.7356 | 0.7347 |
+| catboost | 0.7231 | 0.7341 |
+
+The re-tune made the best model (lgbm) *worse* by 0.003 — outside the noise
+floor — and left xgb within it. A 60-trial search was simply unluckier than the
+original run; the fitted-Elo feature did not move the optimum enough to matter.
+The original params were kept.
+
+One thing this surfaced is worth flagging: on the rolling harness lgbm (0.7376)
+beats xgb (0.7356), but `promote.py` selects on the single latest season, where
+xgb's 0.7315 edges lgbm's 0.7289, so it ships xgb. That is the same thin-holdout
+weakness this directory exists to route around, now visible in the production
+selector itself. Changing how `promote.py` picks is a separate decision and was
+left alone here.
+
+### Model-level changes did not help
+
+Two changes that owe nothing to features, each given the same per-set search:
+
+| | all-5yr AUC | logloss |
+|---|---|---|
+| fitted-Elo LightGBM | 0.7362 | 0.6031 |
+| + soft-vote blend (lgb+xgb+cat) | 0.7354 | 0.6052 |
+| + isotonic calibration | 0.7355 | 0.6034 |
+
+The blend is slightly worse on both; calibration is flat. The calibration
+result is the interesting one, because the Monte Carlo consumes probabilities
+directly and a miscalibrated model would show up as a logloss the isotonic step
+could recover — and there was nothing to recover. The fitted rating carries
+`elo_expected`, a real probability, straight into the trees, so the model's
+output is already close to calibrated without a correction layer.
+
 ### The groups that did not survive
 
 Each got its own hyperparameter search on an identical budget:
