@@ -74,6 +74,8 @@ def load_and_mirror(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PATH
     mirrored_df["h2h_win_rate_a_vs_b"]       = 1.0 - mirrored_df["h2h_win_rate_a_vs_b"]
     mirrored_df["elo_diff"]                  = -mirrored_df["elo_diff"]
     mirrored_df["h2h_last_winner"]           = 1.0 - mirrored_df["h2h_last_winner"]
+    # elo_expected is P(A wins); swapping the slots makes it P(B wins).
+    mirrored_df["elo_expected"]              = 1.0 - mirrored_df["elo_expected"]
 
     _assert_mirror_symmetry(df, mirrored_df)
 
