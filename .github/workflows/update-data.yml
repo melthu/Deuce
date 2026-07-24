@@ -118,8 +118,12 @@ jobs:
     name: Export & deploy to Pages
     needs: [refresh]
     # Runs whether or not `refresh` ran: a push skips it entirely, and a
-    # scheduled run with no new data still needs the site to exist.
-    if: always() && needs.refresh.result != 'failure'
+    # scheduled run with no new data still needs the site to exist. Naming the
+    # two results that should publish, rather than excluding `failure`, is
+    # deliberate - a job GitHub never managed to hand a runner to ends up
+    # `cancelled`, which slipped through the old `!= 'failure'` test and
+    # redeployed an unchanged payload off the back of a scrape that never ran.
+    if: always() && (needs.refresh.result == 'success' || needs.refresh.result == 'skipped')
     runs-on: ubuntu-latest
     environment:
       name: github-pages
