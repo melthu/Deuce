@@ -2,6 +2,12 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
+# Round-name canonicalisation lives in the pipeline because feature engineering
+# needs it too, to put a tournament's rows in round order before its
+# chronological prepasses run. Re-exported below so every existing
+# `from src.modeling.dataset import ROUND_ALIASES` keeps working.
+from src.pipeline.feature_engineering import ROUND_ALIASES
+
 try:
     import torch
     from torch.utils.data import Dataset as _TorchDataset
@@ -50,18 +56,6 @@ CONT_COLS = [
 ]
 
 UNK_ID = 0  # reserved for players not seen during training
-
-# Wikipedia round-name variants → canonical names used everywhere downstream
-ROUND_ALIASES = {
-    "1st round":      "first round",
-    "2nd round":      "second round",
-    "3rd round":      "third round",
-    "first round[2]": "first round",
-    "quarterfinals":  "quarter-finals",
-    "semifinals":     "semi-finals",
-    "finals":         "final",
-}
-
 
 def extract_numpy(dataset):
     """

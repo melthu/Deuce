@@ -63,7 +63,7 @@ STALE_AFTER_DAYS = 21
 
 # Bump when the payload shape or any exported computation changes, so a
 # rerun regenerates files that would otherwise look up to date.
-EXPORT_VERSION = 7
+EXPORT_VERSION = 8
 
 FEATURE_NAMES = ["tier", "round", "player_a", "player_b"] + CONT_COLS
 
@@ -246,7 +246,11 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
     matches = []
     for _, row in day.iterrows():
         pa, pb, rnd = row["player_a"], row["player_b"], row["round"]
-        p = predict_match(pa, pb, rnd, stats, h2h_rate, h2h_last,
+        # From this row's own features, not the tournament's Day-1 state, so a
+        # later-round card reflects the rounds already played - see
+        # row_player_state. `stats` stays Day-1 for the Monte Carlo below.
+        rstats = row_player_state(row)
+        p = predict_match(pa, pb, rnd, rstats, h2h_rate, h2h_last,
                           scaler, p2i, t2i, r2i, payload, tier=tier, nat_map=nat_map)
 
         cat, cont, _ = encode_split(row.to_frame().T, pre)
@@ -260,8 +264,8 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
             "round": rnd, "a": pa, "b": pb,
             "a_nat": nat_map.get(pa, ""), "b_nat": nat_map.get(pb, ""),
             "a_seed": seeds.get(pa), "b_seed": seeds.get(pb),
-            "a_elo": round(float(stats[pa]["elo"]), 1) if pa in stats else None,
-            "b_elo": round(float(stats[pb]["elo"]), 1) if pb in stats else None,
+            "a_elo": round(float(rstats[pa]["elo"]), 1) if pa in rstats else None,
+            "b_elo": round(float(rstats[pb]["elo"]), 1) if pb in rstats else None,
             "p": round(float(p), 4),
             "pending": pending,
             "a_won": None if pending else bool(row["player_a_won"]),
@@ -375,6 +379,32 @@ _STAT_COLS = {
     "avg_games_per_match": "avg_games_pm", "rubber_game_rate": "rubber_game_rate",
     "avg_victory_margin": "avg_margin", "seed": "seed",
 }
+
+
+def row_player_state(row) -> dict:
+    """
+    Both players' pre-match state as carried by one engineered row, in the
+    shape build_time_zero_state returns.
+
+    Day-1 state is the right starting point for the Monte Carlo, which replays
+    a draw from the first round and applies its own in-bracket updates. It is
+    the wrong input for a single match card: by the semi-final a player's rating
+    has already moved three times, and the engineered row records exactly that.
+    Predicting a card from Day-1 state threw those rounds away - a live event's
+    pending semi-final, the one match the site exists to predict, was quoted off
+    ratings from before the tournament began. It also disagreed with the SHAP
+    attribution printed beside it, which was always built from this row.
+    """
+    out = {}
+    for side in ("a", "b"):
+        st = {}
+        for col, key in _STAT_COLS.items():
+            v = row.get(f"player_{side}_{col}")
+            st[key] = float(v) if pd.notna(v) else 0.0
+        for k in ("is_home", "matches_14d", "win_streak", "matches_7d"):
+            st[k] = int(st[k])
+        out[row[f"player_{side}"]] = st
+    return out
 
 
 def latest_player_state(df: pd.DataFrame) -> dict:

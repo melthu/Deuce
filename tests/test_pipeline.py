@@ -83,3 +83,57 @@ def test_config_check_catches_a_single_lost_season(cfg, tmp_path, monkeypatch):
 
     errors = data_checks.check_config()
     assert any("2021" in e for e in errors), errors
+
+
+def test_a_players_rounds_are_scanned_in_playing_order(raw):
+    """
+    A Wikipedia bracket page carries its Finals table (semi-finals + final)
+    ABOVE the section tables, so the scraper emits those rows first. Every row
+    of a tournament shares one start_date, so the stable chronological sort
+    could not separate them, and the Elo prepass - a single sequential scan -
+    reached a semi-final before the quarter-final that produced it: 217 of 310
+    tournaments had at least one player whose rows were scanned out of order.
+
+    Ordering is a property of the frame the prepasses consume, so this asserts
+    on the output of order_by_round rather than on the raw scrape.
+    """
+    from src.pipeline.feature_engineering import order_by_round, _round_rank
+
+    ordered = order_by_round(raw.assign(
+        start_date=pd.to_datetime(raw["start_date"])))
+
+    offenders = []
+    for (name, date), g in ordered.groupby(["tournament", "start_date"], sort=False):
+        ranks = [_round_rank(r) for r in g["round"]]
+        if any(r is None for r in ranks):
+            continue          # not a knockout ladder; deliberately left alone
+        seen = {}
+        for pos, (_, row) in enumerate(g.iterrows()):
+            rank = _round_rank(row["round"])
+            for side in ("a", "b"):
+                p = row[f"player_{side}"]
+                if p in seen and rank < seen[p]:
+                    offenders.append(f"{name} {date:%Y-%m-%d}: {p} "
+                                     f"{row['round']!r} scanned after a later round")
+                seen[p] = max(seen.get(p, rank), rank)
+    assert not offenders, offenders[:10]
+
+
+def test_order_by_round_preserves_first_round_bracket_order(raw):
+    """
+    run_monte_carlo derives the whole draw's topology from the order of the
+    first-round pairings, so the round sort must be stable within a round.
+    """
+    from src.pipeline.feature_engineering import order_by_round
+
+    src = raw.assign(start_date=pd.to_datetime(raw["start_date"]))
+    ordered = order_by_round(src)
+    for (name, date), g in src.groupby(["tournament", "start_date"], sort=False):
+        before = [(r.player_a, r.player_b) for r in
+                  g[g["round"].str.lower().str.startswith("first")].itertuples()]
+        after = [(r.player_a, r.player_b) for r in
+                 ordered[(ordered["tournament"] == name)
+                         & (ordered["start_date"] == date)
+                         & (ordered["round"].str.lower().str.startswith("first"))
+                         ].itertuples()]
+        assert before == after, f"{name} {date:%Y-%m-%d}: first-round order changed"

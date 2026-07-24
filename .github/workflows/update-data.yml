@@ -12,10 +12,12 @@ on:
     - cron: "0 6 * * *"
     # Light runs, every three hours otherwise. A live tournament's results
     # reach the site within a few hours of Wikipedia carrying them; these skip
-    # the retrain, which cannot affect a live draw anyway (its point-in-time
-    # model is fit strictly before the tournament started, and its features are
-    # frozen at day one). What they do refresh is which matches have been
-    # played, and therefore the results-conditioned championship odds.
+    # the retrain, which cannot affect a live draw anyway - its point-in-time
+    # model is fit strictly before the tournament started. What they do refresh
+    # is which matches have been
+    # played - and therefore both the results-conditioned championship odds and
+    # the later-round predictions, whose Elo and form now carry the tournament's
+    # own completed rounds (see order_by_round / row_player_state).
     - cron: "0 0,3,9,12,15,18,21 * * *"
   workflow_dispatch: {}
   # Anything the exported payload depends on republishes without waiting for

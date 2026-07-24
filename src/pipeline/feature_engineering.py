@@ -34,6 +34,67 @@ def count_wins(player_df: pd.DataFrame, player: str) -> int:
     ).sum())
 
 
+# Wikipedia round-name variants → canonical names used everywhere downstream.
+ROUND_ALIASES = {
+    "1st round":      "first round",
+    "2nd round":      "second round",
+    "3rd round":      "third round",
+    "first round[2]": "first round",
+    "quarterfinals":  "quarter-finals",
+    "semifinals":     "semi-finals",
+    "finals":         "final",
+}
+
+# The knockout ladder, in the order it is actually played.
+ROUND_RANK = {
+    "first round": 0, "second round": 1, "third round": 2,
+    "quarter-finals": 3, "semi-finals": 4, "final": 5,
+}
+
+
+def _round_rank(name) -> int | None:
+    """Canonical ladder position of a raw Wikipedia round name, or None if the
+    name is not a knockout round (group stages, unlabelled classic-era rows)."""
+    key = str(name).strip().lower()
+    return ROUND_RANK.get(ROUND_ALIASES.get(key, key))
+
+
+def order_by_round(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Put each tournament's rows in true round order before the chronological
+    prepasses scan them.
+
+    A Wikipedia bracket page carries its Finals table (semi-finals + final)
+    ABOVE the section tables, so the scraper emits those rows first. Every row
+    of a tournament shares one `start_date`, so the stable chronological sort
+    could not separate them, and `_elo_prepass` - a single sequential scan -
+    reached a semi-final before the quarter-final that produced it. Two things
+    went wrong: the semi-final and final rows were handed their players'
+    *pre-tournament* ratings, and the tournament's own Elo/EMA/streak updates
+    were applied out of order, so every rating downstream inherited the drift.
+    217 of 310 tournaments had at least one player whose rows were scanned out
+    of order. On a live event it meant the pending semi-final - the one match
+    the site exists to predict - ignored every result already played.
+
+    Order WITHIN a round is preserved (a stable sort on the rank alone): the
+    scraper emits first-round matches in true bracket order and
+    `run_monte_carlo` derives the whole draw's topology from that pairing.
+
+    A tournament whose round names are not all on the knockout ladder - a
+    round-robin group stage, the unlabelled rows on some classic-era pages -
+    keeps the order it arrived in, rather than being rearranged on a guess.
+    """
+    rank = df["round"].map(_round_rank)
+    # All-or-nothing per tournament: a constant key leaves the stable sort a
+    # no-op for events the ladder does not describe.
+    known = rank.notna().groupby([df["start_date"], df["tournament"]]).transform("all")
+    key = rank.where(known, 0).astype(int)
+    return (df.assign(_round_rank=key)
+              .sort_values(["start_date", "tournament", "_round_rank"], kind="stable")
+              .drop(columns="_round_rank")
+              .reset_index(drop=True))
+
+
 def _elo_prepass(df: pd.DataFrame):
     """
     Single O(n) chronological scan to compute pre-match Elo, its implied win
@@ -240,9 +301,11 @@ def engineer_features(input_path: str = INPUT_PATH, output_path: str = OUTPUT_PA
                   f"topology; excluded from stat updates and training.")
 
     # Golden Rule: sort chronologically so the row-wise history slice is always
-    # correct. MUST be a stable sort - rows within one tournament are in true
-    # bracket order, and the Monte Carlo engine depends on preserving it.
-    df = df.sort_values("start_date", kind="stable").reset_index(drop=True)
+    # correct. MUST be a stable sort - rows within one round are in true bracket
+    # order, and the Monte Carlo engine depends on preserving it. The secondary
+    # key puts each tournament's rounds in playing order, which the page's own
+    # layout does not - see order_by_round.
+    df = order_by_round(df)
 
     # ------------------------------------------------------------------
     # Pre-pass: compute Elo, EMA, streak in a single chronological scan
