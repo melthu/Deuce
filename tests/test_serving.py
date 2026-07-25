@@ -175,3 +175,81 @@ def test_grouped_shap_is_exact():
     grouped = group_shap(sv)
     assert sum(g["s"] for g in grouped) == pytest.approx(sv.sum(), abs=1e-3)
     assert [abs(g["s"]) for g in grouped] == sorted((abs(g["s"]) for g in grouped), reverse=True)
+
+
+def test_known_probs_are_what_the_board_quotes(fitted):
+    """
+    A scheduled-but-unplayed match must simulate at the probability its own
+    card carries, from either slot.
+
+    Down to a final the leaderboard's top entry and the final's card describe
+    one single match, and they disagreed in public - the header said 0.60 while
+    the card beside it said 0.64. The simulation replays from Day 1 and can only
+    update what a scoreless result supports, so at the final it was still
+    carrying pre-tournament scoring margins. Where the pipeline has engineered a
+    row for the pairing, that row wins.
+    """
+    f = fitted
+    fixed = build_fixed_results(f["day"])
+    final = f["day"][f["day"]["round"] == ROUND_ORDER[-1]].iloc[0]
+    pa, pb = final["player_a"], final["player_b"]
+    fixed.pop((ROUND_ORDER[-1], frozenset((pa, pb))), None)
+
+    def titles(known):
+        counts = run_monte_carlo(
+            SIMS, f["r1"], f["stats"], f["h2h_rate"], f["h2h_last"],
+            f["pre"]["scaler"], f["pre"]["player_to_id"], f["pre"]["tier_to_id"],
+            f["pre"]["round_to_id"], f["payload"], np.random.default_rng(42),
+            tier=f["tier"], nat_map=f["nat_map"], fixed_results=fixed,
+            known_probs=known,
+        )
+        return counts.get(pa, 0) / SIMS
+
+    quoted = 0.8
+    key = (ROUND_ORDER[-1], frozenset((pa, pb)))
+    got_a = titles({key: (pa, quoted)})
+    got_b = titles({key: (pb, 1.0 - quoted)})
+
+    # 200 draws of a coin: 3 binomial standard errors is ~0.085
+    assert abs(got_a - quoted) < 0.085, f"quoted {quoted}, simulated {got_a}"
+    assert got_a == got_b, (
+        f"the same quote from the other slot gave {got_b} instead of {got_a}"
+    )
+
+
+def test_in_bracket_win_streak_follows_the_pipeline_rule(fitted):
+    """
+    A simulation that has a player win four straight matches must not go on
+    telling the model they are on the losing run they arrived with. Streak is
+    the one stale stat the engine can fix exactly: it needs a winner, not a
+    scoreline. Checked through the champion's feature vector at the final.
+    """
+    from src.serving import simulate as sim
+
+    f = fitted
+    seen = []
+    orig = sim._cont_matrix
+
+    def spy(SA, SB, *rest):
+        seen.append((SA[:, sim.STREAK_I].copy(), SB[:, sim.STREAK_I].copy()))
+        return orig(SA, SB, *rest)
+
+    sim._cont_matrix = spy
+    try:
+        run_monte_carlo(
+            SIMS, f["r1"], f["stats"], f["h2h_rate"], f["h2h_last"],
+            f["pre"]["scaler"], f["pre"]["player_to_id"], f["pre"]["tier_to_id"],
+            f["pre"]["round_to_id"], f["payload"], np.random.default_rng(42),
+            tier=f["tier"], nat_map=f["nat_map"],
+            fixed_results=build_fixed_results(f["day"]),
+        )
+    finally:
+        sim._cont_matrix = orig
+
+    # Both finalists reached the final on four straight wins, whatever they
+    # walked into the draw on, so the streak the model sees there is >= 4.
+    fa, fb = seen[-2]          # last round, slot-a direction
+    assert fa.min() >= 4 and fb.min() >= 4, (
+        f"streaks at the final were {fa.min()} / {fb.min()}, not the four wins "
+        "it took to get there - the in-bracket update is not being applied"
+    )

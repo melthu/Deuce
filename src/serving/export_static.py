@@ -34,6 +34,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))))  # repo root
 
 from src.modeling.dataset import CONT_COLS, encode_split, load_training_frame
+from src.pipeline.feature_engineering import order_by_round
 from src.pipeline.player_names import fold_ascii
 from src.modeling.pit_model import train_point_in_time
 from src.serving.simulate import (
@@ -63,7 +64,7 @@ STALE_AFTER_DAYS = 21
 
 # Bump when the payload shape or any exported computation changes, so a
 # rerun regenerates files that would otherwise look up to date.
-EXPORT_VERSION = 8
+EXPORT_VERSION = 9
 
 FEATURE_NAMES = ["tier", "round", "player_a", "player_b"] + CONT_COLS
 
@@ -290,7 +291,7 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
     n_pending = len(matches) - len(played)
     status = derive_status(len(played), n_pending, tour_date)
 
-    def simulate(fixed):
+    def simulate(fixed, known=None):
         # A handful of draws are genuinely incomplete on Wikipedia. Ship the
         # bracket without a forecast rather than a fabricated one, and say so.
         try:
@@ -298,7 +299,8 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
                 N_SIMS, r1, stats, h2h_rate, h2h_last,
                 scaler, p2i, t2i, r2i, payload,
                 np.random.default_rng(42), tier=tier,
-                nat_map=nat_map, fixed_results=fixed, return_rounds=True)
+                nat_map=nat_map, fixed_results=fixed, return_rounds=True,
+                known_probs=known)
         except ValueError as e:
             print(f"    no simulation for {date_key}: {e}")
             return None
@@ -339,7 +341,20 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
     # A live event additionally gets a forecast conditioned on what has actually
     # been played, so once the quarter-finals are in the site shows the model's
     # updated view of the semi-finals.
-    live = simulate(build_fixed_results(day)) if status == "live" else None
+    #
+    # Its still-to-play matches are quoted off the same numbers as the cards
+    # above. Without this the two disagreed in public: down to a final, the
+    # header's "Favourite now" and the final's own card describe the same single
+    # match, and shipped 0.60 against 0.64. The simulation replays from Day 1 and
+    # can only update what a scoreless result supports, so at the final it was
+    # still carrying pre-tournament avg_point_diff and margins - see known_probs.
+    # NOT applied to the pre-tournament board: a card's row state includes the
+    # rounds already played, and `pre` is what the model thought before any of it.
+    known = {(m["round"], frozenset((m["a"], m["b"]))): (m["a"], m["p"])
+             for m in matches
+             if m["pending"] and not is_placeholder(m["a"])
+             and not is_placeholder(m["b"])}
+    live = simulate(build_fixed_results(day), known) if status == "live" else None
     leaderboard_live = live[1] if live else None
 
     doc = {
@@ -415,8 +430,19 @@ def latest_player_state(df: pd.DataFrame) -> dict:
 
     Scanning slot A alone suffices: the frame is mirrored, so every player
     appears in slot A of some row for every match they played.
+
+    Ordered by round, not by date alone. Every row of a tournament shares one
+    `start_date`, so a plain chronological sort cannot separate a first round
+    from a final and simply keeps the frame's own layout - which is
+    `[originals][mirrors]` (data_loader.py concatenates the mirrored block on
+    the end). "Last row seen" then landed on a player's latest appearance
+    *within the mirror block*, i.e. their latest match played from slot B,
+    which is a round or more behind their real latest match whenever the two
+    differ. 33 of the 228 shipped players were carrying stale form, by 51 Elo
+    points on average and up to 112 - and this state feeds both the player card
+    and every matchup probability that player appears in.
     """
-    ordered = df.sort_values("start_date")
+    ordered = order_by_round(df)
     out = {}
     for _, row in ordered.iterrows():
         name = row["player_a"]

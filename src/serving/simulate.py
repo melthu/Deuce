@@ -58,6 +58,7 @@ def round_sequence(n_first_round_matches: int) -> list[str]:
 STAT_KEYS = ["is_home", "matches_14d", "days_since", "recent_win_rate",
              "win_streak", "matches_7d", "avg_point_diff", "avg_games_pm",
              "rubber_game_rate", "avg_margin", "seed"]
+STREAK_I = STAT_KEYS.index("win_streak")
 
 
 def load_model(model_path: str = MODEL_PATH):
@@ -295,19 +296,28 @@ def run_monte_carlo(
     scaler, player_to_id, tier_to_id, round_to_id,
     model_payload, rng, tier=None,
     nat_map=None, fixed_results=None, progress_cb=None,
-    return_rounds=False,
+    return_rounds=False, known_probs=None,
 ):
     """
     Vectorised Monte Carlo over n_sims brackets.
 
     Per round, every match across all simulations is batched into one
     predict_proba call (both slot directions stacked, order-invariant
-    averaging). In-bracket Elo/EMA updates are applied per simulation via
-    (n_sims, n_players) arrays so form carries into later rounds.
+    averaging). In-bracket Elo/EMA/streak updates are applied per simulation
+    via (n_sims, n_players) arrays so form carries into later rounds.
 
     fixed_results: {(round_name, frozenset({a, b})): winner} - real outcomes
     of already-played matches; these override the model and are applied
     deterministically in every simulation.
+
+    known_probs: {(round_name, frozenset({a, b})): (player, p)} - the
+    probability a *scheduled but unplayed* match was already quoted at, with
+    `p` given from `player`'s side. This engine reconstructs a player's state
+    by replaying the bracket from Day 1, which is all it can do for a match
+    between two hypothetical winners; but once a pairing is real the pipeline
+    has engineered a row for it, and that row's state beats anything this
+    reconstruction can produce. Where such a row exists, use its number.
+    Overridden by fixed_results: a played match is certain.
 
     progress_cb(round_name, round_idx, n_rounds): optional UI hook.
 
@@ -323,6 +333,7 @@ def run_monte_carlo(
     # provisional-K branch never applies to an in-bracket update.
     K = elo_model.k_for(t, elo_model.PROVISIONAL_N)
     fixed_results = fixed_results or {}
+    known_probs   = known_probs or {}
 
     players = sorted(player_stats)
     P = len(players)
@@ -334,6 +345,13 @@ def run_monte_carlo(
 
     E = np.tile(np.array([player_stats[p]["elo"] for p in players]), (n_sims, 1))
     M = np.tile(np.array([player_stats[p]["ema_form"] for p in players]), (n_sims, 1))
+    # Win streak carries through the bracket for the same reason Elo and EMA do:
+    # a simulation that has a player winning four straight matches must not go
+    # on telling the model they are on the losing run they arrived with. Unlike
+    # the scoreline-derived stats below it needs no score to update, only a
+    # winner, so it is exactly the pipeline's rule rather than an approximation.
+    W = np.tile(np.array([player_stats[p]["win_streak"] for p in players],
+                         dtype=np.float64), (n_sims, 1))
 
     slots = []
     for _, row in r1_matchups.iterrows():
@@ -382,6 +400,7 @@ def run_monte_carlo(
         rate_ba = np.empty(n_u); last_ba = np.empty(n_u)
         same_u  = np.empty(n_u)
         fixed_u = np.full(n_u, -1.0)          # -1 = no real result on record
+        known_u = np.full(n_u, -1.0)          # -1 = no quoted card for this pair
         for k, kk in enumerate(uniq):
             a, b = divmod(int(kk), P)
             pa_n, pb_n = players[a], players[b]
@@ -393,8 +412,14 @@ def run_monte_carlo(
             winner = fixed_results.get((round_name, frozenset((pa_n, pb_n))))
             if winner is not None:
                 fixed_u[k] = 1.0 if winner == pa_n else 0.0
+            quote = known_probs.get((round_name, frozenset((pa_n, pb_n))))
+            if quote is not None:
+                ref, prob = quote
+                known_u[k] = prob if ref == pa_n else 1.0 - prob
 
-        SA, SB = static[A], static[B]
+        SA, SB = static[A].copy(), static[B].copy()
+        SA[:, STREAK_I] = W[sim_idx, A]
+        SB[:, STREAK_I] = W[sim_idx, B]
         eA, eB = E[sim_idx, A], E[sim_idx, B]
         mA, mB = M[sim_idx, A], M[sim_idx, B]
 
@@ -412,6 +437,12 @@ def run_monte_carlo(
         probs = model_predict_proba(model_payload, X)
         p = (probs[:R] + (1.0 - probs[R:])) / 2.0
 
+        # A scheduled-but-unplayed match already has an engineered row, and the
+        # probability quoted off it is strictly better informed than the one
+        # reconstructed here - see known_probs.
+        kn = known_u[inv]
+        p = np.where(kn >= 0.0, kn, p)
+
         # Real results (live/finished tournaments) override the model
         fx = fixed_u[inv]
         p = np.where(fx >= 0.0, fx, p)
@@ -420,8 +451,8 @@ def run_monte_carlo(
         winners = np.where(a_wins, A, B)
         losers  = np.where(a_wins, B, A)
 
-        # In-bracket Elo/EMA updates (each player plays once per round/sim,
-        # so the fancy-indexed assignments never collide)
+        # In-bracket Elo/EMA/streak updates (each player plays once per
+        # round/sim, so the fancy-indexed assignments never collide)
         # The margin-of-victory multiplier has no counterpart here: a simulated
         # match has a winner but no scoreline, so the update uses the plain K.
         elo_w, elo_l = E[sim_idx, winners], E[sim_idx, losers]
@@ -430,6 +461,11 @@ def run_monte_carlo(
         E[sim_idx, losers]  = elo_l - K * (1.0 - exp_w)
         M[sim_idx, winners] = EMA_ALPHA + (1 - EMA_ALPHA) * M[sim_idx, winners]
         M[sim_idx, losers]  = (1 - EMA_ALPHA) * M[sim_idx, losers]
+        # Same rule as _elo_prepass: a win extends a winning run or starts one,
+        # a loss extends a losing run or starts one.
+        str_w, str_l = W[sim_idx, winners], W[sim_idx, losers]
+        W[sim_idx, winners] = np.maximum(str_w, 0.0) + 1.0
+        W[sim_idx, losers]  = np.minimum(str_l, 0.0) - 1.0
 
         current = winners.reshape(n_sims, n_matches)
         if carry is not None:

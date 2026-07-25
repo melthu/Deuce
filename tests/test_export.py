@@ -271,3 +271,30 @@ def test_every_shard_is_reachable_from_the_index():
     on_disk = {os.path.basename(p)[:-5] for p in _shards("tournament")}
     orphans = on_disk - set(slugs)
     assert not orphans, f"shards not reachable from the index: {sorted(orphans)[:5]}"
+
+
+def test_latest_player_state_is_actually_the_latest_row(df):
+    """
+    Every row of a tournament shares one `start_date`, so ordering the frame by
+    date alone cannot separate a first round from a final - it just keeps the
+    frame's layout, which is [originals][mirrors]. "Last row seen" then landed
+    on a player's latest match played from slot B, a round or more behind their
+    real latest match. 102 of 705 players carried stale form that way, and it
+    feeds both the player card and every matchup probability they appear in.
+    """
+    from src.pipeline.feature_engineering import order_by_round
+    from src.serving.export_static import latest_player_state
+
+    got = latest_player_state(df)
+
+    ranked = order_by_round(df.copy())
+    truth = {}
+    for _, r in ranked.iterrows():
+        for side in ("a", "b"):
+            truth[r[f"player_{side}"]] = float(r[f"player_{side}_elo"])
+
+    stale = {p: (got[p]["elo"], truth[p]) for p in got
+             if p in truth and abs(got[p]["elo"] - truth[p]) > 0.05}
+    # One 2014 page lists a player in two different first-round matches, so
+    # neither row is "later" and no ordering rule can pick between them.
+    assert len(stale) <= 1, f"stale player state for {len(stale)} players: {stale}"
