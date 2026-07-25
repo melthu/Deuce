@@ -30,3 +30,5 @@ models/*
 !models/best_model.pkl
 !models/best_params.json
 experiments/results/
+notes.md
+explainer.html
