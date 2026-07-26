@@ -1,344 +1,204 @@
 # Deuce
 
-**Deuce** is a point-in-time prediction engine for BWF Men's Singles badminton tournaments. It scrapes match data from Wikipedia (300+ tournaments, 2010–present), engineers 30 leakage-free temporal features, trains gradient-boosted tree models, and publishes the results as a static site: pick any tournament, read the model's call on every match in the draw, simulate the bracket 10,000 times, and see which factors drove any individual prediction.
+We scrape seventeen seasons of BWF men's singles results from Wikipedia, construct a pre-match
+representation of each match, and evaluate whether that representation predicts the winner. Most
+of the predictive power comes from an Elo variant whose constants are fitted rather than assumed.
+Gradient-boosted trees are fit on top of it, and a Monte Carlo simulation propagates per-match
+probabilities into a distribution over tournament outcomes. A static site applies these models
+to live draws.
 
-The point of "point-in-time" is that a past tournament is predicted by a model trained **only on matches before it started** - vocabulary, scaler and estimator all fit on that slice. It has never seen the tournament it is predicting, so its record on those draws is a genuine out-of-sample one, and the site shows where it was wrong as readily as where it was right.
+The headline result is a modest one. On a held-out season of 543 matches the fitted rating alone
+reaches 0.7012 AUC and the best tuned model reaches 0.7085, an improvement of +0.0073 whose 95%
+bootstrap interval, [−0.0126, +0.0280], comfortably contains zero. We therefore report that the
+rating accounts for nearly all of the attainable performance, and that the remaining 34 features
+and the hyperparameter search contribute an increment we cannot separate from sampling noise.
 
-A scheduled GitHub Actions workflow keeps it fresh: daily it scrapes newly finished tournaments and newly published draws, re-engineers features, re-selects and retrains the production model, re-exports only what changed, and deploys to GitHub Pages.
+## Prediction target and data
 
----
+We predict one match at a time, estimating P(player A wins) conditional on the information
+available before the match begins. Singles matches cannot be drawn, so this single quantity
+specifies the outcome distribution completely.
 
-## How predictions work
+The corpus is 327 tournaments and 10,204 matches recorded since 2010, of which 9,920 are
+completed and usable. Unplayed draws, walkovers and retirements retain their bracket slot but
+never enter training, history or a rating update. We partition by date rather than at random:
+18,754 rows before 2026 for training, and 2026 to date for testing, comprising 1,086 rows over
+543 matches. A random partition would leak the label directly, because every row of a tournament
+shares one date and a semi-final could be assigned to training while its own quarter-final was
+assigned to test. Hyperparameters are tuned on the penultimate season so that the test season
+remains unused, and the vocabularies and the scaler are fit on the training partition alone.
 
-| Tournament | Model used |
-|------------|-----------|
-| **Upcoming** (starts after today) | The promoted model (`models/best_model.pkl`) - re-selected and retrained daily on all completed matches. **Read the payload's `name` field**; the winner genuinely changes between runs |
-| **Past or live** | Point-in-time XGBoost trained on every match strictly before the tournament's start date - vocab, scaler, and model all fit on that slice only (no leakage), cached per tournament |
-
-Live tournaments get special treatment: matches already played are taken as fixed results, and the Monte Carlo simulation is conditioned on them - so championship odds move as the real bracket unfolds, with each daily refresh.
-
-### Benchmark results
-
-Train < 2026 (18,754 mirrored rows), validation = 2026 to date (1,032 rows) - a leak-free
-temporal holdout, measured 2026-07-21:
-
-| Model (Optuna-tuned) | Val AUC |
-|----------------------|---------|
-| LightGBM | **0.7238** |
-| XGBoost  | 0.7223  |
-| CatBoost | 0.7179  |
-
-`src/modeling/promote.py` runs exactly this benchmark daily, retrains the winner on all
-completed matches, and promotes it to `models/best_model.pkl`.
-
-**Take the ranking with a pinch of salt.** All three sit within 0.006 AUC of each other,
-and which one wins flips between runs as the validation season grows - this table replaced
-one where CatBoost led. Anything that hardcodes a model type will be wrong sooner or later.
-
-A note on what moves this number: several data-correctness fixes (walkover handling, a
-mirrored sign error, merging players split across spellings) all landed inside ±0.003. They
-were worth doing because the data was wrong, not because they made the model better.
-
----
-
-## Setup
-
-```bash
-git clone https://github.com/melthu/Deuce.git
-cd Deuce
-python3 -m venv .venv && source .venv/bin/activate
-pip install .            # add ".[deep]" for TabNet, ".[research]" for Optuna
-```
-
-The default install is deliberately torch-free: `dataset.py` imports torch lazily and only
-TabNet needs it, so the scheduled refresh installs in a fraction of the time.
-
-The repo tracks the scraped data (`data/raw/raw_matches.csv`), the tournament calendar and
-the promoted model. Everything downstream is derived - `make features` rebuilds the
-training set from raw in ~25 s.
-
-## Quick Start
-
-```bash
-make features    # rebuild the training set from data/raw (do this first)
-make export      # precompute the static payload
-make site        # browse it at http://localhost:8000
-
-make update      # incremental scrape: new/pending/recent tournaments only
-make data        # full rescrape of every tournament (~15 min)
-make train       # retrain LightGBM + CatBoost + XGBoost + ensemble selection
-make tune        # Optuna hyperparameter search - 50 trials
-make cv          # rolling 3-fold temporal cross-validation
-make test        # invariant test suite
-make simulate ARGS="--date 2026-02-24 --tier 300 --sims 10000"
-```
-
-Or run the full pipeline end-to-end: `python3 run_pipeline.py --all`
-
----
-
-## The site
-
-The primary frontend is a static site on GitHub Pages - plain HTML/CSS/JS, no build step
-and no cold start. **No model runs in the browser.** Every model output is over a bounded
-set - a point-in-time model exists only to predict its own tournament's ~31 matches - so
-`src/serving/export_static.py` precomputes all of them into JSON and the page just draws
-the result. Shipping the models instead would be ~540 MB; shipping what they *said* is
-about 9 MB, sharded so nobody downloads more than the screen they're on.
+The assignment of players to slot A and slot B is an artifact of how a bracket is recorded and
+carries no information. We eliminate it in two ways. Each match appears **twice** in the training
+set, once as recorded and once with the players exchanged and the label inverted, which is what
+yields 19,840 rows from 9,920 matches. Each prediction is then evaluated in both orientations
+and averaged:
 
 ```
-site/data/tournaments.json     index; first paint
-site/data/tournament/<slug>    bracket, per-match predictions, grouped SHAP, leaderboards
-site/data/player/<slug>        current-form card
-site/data/matchup/<slug>       that player against every other active player
+P(A beats B) = [ P(A wins | A in slot A) + (1 − P(B wins | B in slot A)) ] / 2
 ```
 
-Each tournament shard carries a fingerprint of the inputs behind it, so a rebuild only
-touches what actually moved: a full export is ~20 minutes, a rerun where every draw is
-unchanged is ~30 s locally and ~70 s on the runner. That is also what keeps a live
-tournament current - its own rows change as results land, so the fingerprint misses and
-the file re-exports on the next run, no special-casing needed.
+so that P(A beats B) and 1 − P(B beats A) agree exactly rather than approximately.
 
-The player cards and the matchup grid have no fingerprint and rebuild every run, which
-is essentially all of that remaining time: 230 players is ~26k unordered pairs. It used
-to be four minutes, almost none of it spent on the model. `build_h2h_lookups` scanned
-the whole history frame per call and cached on the *ordered* pair, so asking both
-directions of a matchup - which order-invariant prediction always does - missed the
-cache every single time. Indexing that history by unordered pair made each lookup a
-dict read and the export eight times faster, with a byte-identical payload.
+Exchanging the players is not equivalent to negating the row. Features defined for an individual
+player retain their values and travel with that player; only pair-level features are inverted,
+namely the label, `elo_diff`, `elo_expected` and the two head-to-head signals. We assert this
+invariant in the test suite, because an earlier implementation negated a per-player column in
+addition to exchanging it and left slot A incorrectly signed in every mirrored row.
 
-`src/serving/check_export.py` gates publication on shard counts, payload size, empty
-brackets and the share of draws with no simulation.
+## Signals
 
-```bash
-make export && make site    # build, then browse at http://localhost:8000
-```
+The representation comprises four categorical features (`tier`, `round`, and both player
+identities as a learned vocabulary) and thirty-one continuous ones. Each continuous feature is
+computed only from matches dated strictly before the row it describes, so that matches played on
+the same day cannot inform one another.
 
-### What it shows
+**Rating.** `elo_diff`, together with the rating's own win probability
+`elo_expected = 1 / (1 + 10^(−elo_diff / SCALE))`. The constants were fitted on the 2019–2023
+seasons and evaluated on 2024–2026, which the fitting procedure never observed. Under the fitted
+constants the rating alone improves from 0.6868 to 0.7135 AUC, with no model applied on top.
 
-**Draw** - the full bracket, round by round. Completed matches show the real winner;
-unplayed ones show each player's win probability. Selecting a match breaks the prediction
-down into nine drivers, grouped from the 34 raw features (SHAP is additive, so the grouped
-sums are exact).
+| constant | fitted | role |
+|---|---|---|
+| `SCALE` | 569.6 | points per decade of odds; Elo's conventional 400 is too steep for these data |
+| `K_BASE` | 12.3 | base step per result |
+| `MOV` | 3.774 | margin of victory, so that 21–5 moves a rating further than 22–20 |
+| `PROVISIONAL_K` / `_N` | 28.77 for 23 matches | a new entrant departs 1500 within a few events rather than a season |
+| `DECAY` | 0.0201 / yr | drift toward the mean during a layoff, after 60 days of grace |
+| `TIER_ALPHA` | 0.0589 | fitted close to zero, indicating that the hand-set 20-to-50 spread it replaced had little effect |
 
-**Championship odds** - the bracket simulated 10,000 times. Every match in a round, across
-every simulation and in both player orders, is batched into one `predict_proba` call, so a
-full run takes about three seconds. Where the tournament has finished, the actual winner is
-marked whether or not the model called it. A live draw is conditioned on the results so far,
-with the pre-tournament odds one click away.
+We supply `elo_expected` in addition to `elo_diff` deliberately. A tree can approximate a
+logistic function only by a staircase of splits, so providing the transformed quantity directly
+accounts for most of the benefit the improved rating confers. The remaining features are defined
+per player:
 
-**Matchup analyzer** - any two active players head to head: win probability, a side-by-side
-stat comparison, and recent form.
+- **Form:** an EMA of results (α = 0.3), win rate over the trailing 180 days, and a signed win
+  streak.
+- **Rest:** days since the last match, and match counts over the trailing 7 and 14 days. The
+  tour schedules consecutive weeks, and a quarter-final is frequently a player's fourth match in
+  four days.
+- **Margins:** point differential, victory margin, games per match and rubber-game rate, each
+  over the last 10 matches. Two players may hold identical records while differing substantially
+  in form.
+- **Head-to-head:** win rate against the specific opponent, and the winner of the most recent
+  meeting. Both default to 0.5 for a pair that has never met, so the reverse direction is not
+  1 − x and we query both directions.
+- **Context:** seeding, home advantage and shared nationality.
 
-Retrospective predictions use a **point-in-time** model - vocabulary, scaler and estimator
-all fit strictly on matches that finished before that tournament started, so a past call
-never saw its own result or anything after it.
+## Model
 
----
+Gradient-boosted trees are appropriate for these data. The design matrix is tabular, with
+approximately 9,900 observations over 35 features; the informative structure consists of
+thresholds and low-order interactions; feature scales span three orders of magnitude; the
+logistic objective yields probabilities rather than a ranking; and TreeSHAP provides exact
+attributions.
 
-## Tests
+We retain XGBoost, LightGBM and CatBoost, tuned with Optuna to approximately 1,000 to 1,400
+shallow trees. Whichever model wins the current holdout is promoted and refit on all completed
+matches. Because that winner changes between runs, no downstream component assumes a model type.
 
-```bash
-pip install ".[dev]" && pytest -q
-```
+A single global model suffices to predict the coming week, but it cannot support a claim about a
+tournament held in 2019. Each past or live tournament is therefore served by a separate
+point-in-time model whose vocabulary, scaler and estimator are fit only on matches completed
+before that tournament began. The model that predicts the 2019 All England has not observed that
+tournament, nor any match subsequent to it.
 
-The suite asserts the invariants that hold the serving path together, rather than pinning
-outputs that legitimately move as the corpus grows:
+## Results
 
-| Invariant | Why it matters |
-|---|---|
-| `P(A beats B) == 1 - P(B beats A)` exactly | the model is not symmetric; only the two-slot averaging makes a prediction independent of how the scraper stored the pair |
-| per-player columns swap without a sign change | a stray negation left slot A wrong-signed on every mirrored row |
-| a point-in-time model's vocabulary and `trained_through` are strictly pre-cutoff | the whole claim behind a retrospective prediction |
-| Monte Carlo sums to `n_sims`, is seed-deterministic, and a finished draw conditioned on its own results returns the real champion | a seeding bug once reported the first player as a 100% champion |
-| every one of the 34 features maps to a SHAP driver, and grouping is exact | a new feature without a driver raises mid-export |
-| fingerprints change with `EXPORT_VERSION` and when a result lands | forget the bump and reruns ship stale files |
-| leaderboards are distributions over real entrants | see below |
+The figures below are regenerated from the corpus by `analysis/make_figures.py`, so the reported
+numbers track the data rather than becoming stale.
 
-Tests run against the **real scraped corpus**, not fixtures - every bug they pin down was
-invisible on tidy synthetic input. The payload tests skip when `site/data` has not been
-built. CI runs the name tests after the scrape and the full suite after the export, before
-the publish gate.
+### Signals in isolation
 
-Writing them immediately paid for itself, catching two live bugs:
+We first score each signal on its own as a ranker of the held-out rows. For a feature defined
+per player, the signal is the difference between the two players' values.
 
-- **Unfilled draw slots were being modelled as players.** `TBD (Q1)` reaches the model with
-  a default rating like anyone else, and Odisha Open 2022 shipped it with a 0.6% chance of
-  winning the title. Placeholders stay in the bracket - the pairing needs the slot - but are
-  excluded from leaderboards.
-- **Six finished tournaments were labelled "live".** Each was missing exactly one result on
-  Wikipedia, and `status` was derived from the pending count alone, so events from 2021–2025
-  were showing a live badge and a partially-conditioned forecast.
+<img src="analysis/signal_auc.png" width="700" alt="single-signal AUC on the held-out season">
 
----
+The rating dominates, and no other signal falls within 0.06 AUC of it. Seeding, point
+differential, win rate and EMA form largely re-express the same recent results, which explains
+why their contribution within the fitted model is smaller than their univariate scores suggest.
 
-## Pipeline
+Two features warrant comment as diagnostics rather than as signals. Average victory margin
+(0.490) is indistinguishable from chance. Days since last match (0.434) orders matches in the
+wrong direction, in that the player who competed more recently wins more frequently. We
+attribute this to survivorship rather than to fitness, since a player who competed on the
+previous day is typically still active in a draw.
 
-| Step | Script | Output |
-|------|--------|--------|
-| 1 | `src/pipeline/build_config.py` | `data/config/tournaments_config.csv` - tournament calendar 2010→present (year range is dynamic; new seasons appear automatically) |
-| 2 | `src/pipeline/scraper_orchestrator.py` → `scraper_wiki_single.py` | `data/raw/raw_matches.csv` - matches in true bracket order with per-game scores, seeds, walkover + pending flags. `--incremental` merges only new/changed tournaments. Player names are canonicalised on write (`player_names.py`) |
-| 3 | `src/pipeline/feature_engineering.py` | `data/interim/engineered_matches.csv` - 30 temporal features; walkovers and pending matches get features but never update history |
-| 4 | `src/pipeline/data_loader.py` | `data/processed/final_training_data.csv` - every match mirrored A↔B for positional symmetry |
+### Held-out season
 
-`src/pipeline/data_checks.py` is the sanity gate the daily workflow runs before committing scraped data (row counts, nulls, duplicate keys, walkover/pending fractions). It also checks the
-calendar **per season**: `build_config.py` refuses a config that shrank by more than 5%,
-but one lost year out of seventeen is under that threshold, so a season could vanish while
-the total still looked healthy.
+Each candidate was fit on the pre-2026 rows and evaluated once on the test season, alongside the
+fitted rating with no model applied on top.
 
-### Player identity
+| | AUC | logloss | Brier |
+|---|---|---|---|
+| Elo expectancy alone | 0.7012 | 0.6300 | 0.2207 |
+| XGBoost | 0.7043 | 0.6314 | 0.2204 |
+| **LightGBM** | **0.7085** | **0.6247** | **0.2180** |
+| CatBoost | 0.6937 | 0.6448 | 0.2258 |
 
-Wikipedia spells the same player several ways - word order (`Kidambi Srikanth` /
-`Srikanth Kidambi`), optional name parts (`Anthony Ginting` / `Anthony Sinisuka Ginting`),
-case, hyphenation and diacritics. Every spelling was otherwise a separate player with its
-own Elo, form and head-to-head: Parupalli Kashyap's career was split 121/65 and Prannoy's
-four ways. `src/pipeline/player_names.py` folds 79 alternate spellings into 69 canonical
-identities at the point the raw CSV is written.
+The trees outperform the rating, but the improvement is not distinguishable from zero.
+Bootstrapping over matches rather than rows, since the two mirrored rows of a match constitute a
+single observation, gives ΔAUC **+0.0073 with a 95% interval of [−0.0126, +0.0280]**.
 
-The map is explicit rather than a normalisation rule, because normalising is not safe in
-general: **Huang Yu and Huang Yu-kai reduce to the same string but played each other** in
-the third round of Kaohsiung Masters 2023. Every merge was checked against nationality,
-career span, and whether the two names ever shared a draw or met. `data_checks.py` reports
-new collisions but never merges them.
+<img src="analysis/bootstrap_delta.png" width="700" alt="bootstrap distribution of the model's AUC advantage over the rating">
 
-### Pending matches and walkovers
+We likewise do not interpret the ordering of the three candidates. Their range is 0.015 AUC
+against a standard error of approximately 0.02, and CatBoost led this comparison four days
+earlier at 0.7300 before ranking last in it. Refitting under different random seeds does not
+address this, because the models are deterministic given fixed data; a three-seed run reports
+three identical values and conveys an unwarranted impression of precision. Comparisons we treat
+as informative use the paired bootstrap over several temporal folds.
 
-The scraper marks drawn-but-unplayed matches (`is_pending=1`, no bolded winner on Wikipedia). They flow through feature engineering - so the site can predict a published draw - but are excluded from all history, Elo updates, and training.
+### Calibration
 
-Walkovers (`is_walkover=1`) are handled the same way, and for the same reason they used to be
-handled *differently*: dropping them left 76 of 222 post-2018 draws with a non-power-of-two
-first round, which silently broke bracket topology in the Monte Carlo. They are now kept as
-rows so the bracket resolves, but contribute nothing to Elo, EMA, head-to-head or training
-(`load_training_frame(drop_walkover=...)`, defaulting to `drop_pending`).
+The predictions must function as probabilities and not merely as a ranking, because the
+simulation compounds them across five rounds. A systematically overconfident model therefore
+misstates a title probability by more than it misstates any individual match.
 
----
+<img src="analysis/calibration.png" width="560" alt="predicted against realised win rate, five bins">
 
-## Features
+Both are well calibrated near the centre of the range and overconfident toward the extremes:
+matches assigned 0.6 to 0.8 are won approximately 65% of the time. Brier score and log loss
+improve slightly relative to the rating, which is where the small advantage of the trees is
+realised. We apply no post-hoc calibration correction.
 
-**4 categorical:** tier, round, player\_a ID, player\_b ID
+## Tournament simulation
 
-**30 continuous (`CONT_COLS` in `dataset.py`):**
+Winning a 32-player draw requires winning five matches against opponents who are themselves
+uncertain, so a title probability is a distribution over paths rather than a single prediction.
+We simulate each tournament 10,000 times, proceeding round by round: predict, sample a uniform
+variate, advance a winner, and pair the winners.
 
-| Group | Count | Features |
-|-------|-------|---------|
-| Original | 10 | same\_nationality, h2h\_win\_rate, home advantage ×2, 14-day match count ×2, days since last match ×2, 180-day win rate ×2 |
-| Elo / EMA | 10 | player\_a/b Elo (K scaled by tier), Elo difference, player\_a/b EMA form (α=0.3), H2H last winner, win streak ×2, matches in last 7 days ×2 |
-| Score-derived | 4 | avg point differential ×2, avg games per match ×2 - rolling 10 matches |
-| Bracket | 6 | rubber-game rate ×2, avg victory margin ×2, seeding ×2 |
+- **Form propagates within the bracket.** Elo, EMA and win streak are updated per simulation.
+  The in-bracket update omits the margin-of-victory term, since a simulated match has a winner
+  but no scoreline; the score-derived features are held fixed, as generating a scoreline would
+  amount to fabricating data.
+- **Live draws are conditioned on observed results.** Completed matches are fixed to their
+  actual outcome in all 10,000 simulations. A completed draw conditioned on its own results
+  returns the actual champion with probability 1, which the test suite asserts.
+- **Realised pairings use their engineered row.** For a hypothetical match between two
+  undetermined winners, the engine can only reconstruct state by replaying the draw from the
+  first round. Once a pairing is realised, however, the pipeline has engineered a row for it
+  that reflects the rounds already played, and we use that row's estimate in preference to the
+  reconstruction.
 
-**No data leakage:** all temporal features use strict `start_date < current_date` slicing, with pending matches additionally excluded from history.
+Every match of a round, across all simulations and both orientations, is submitted in a single
+`predict_proba` call, so one bracket requires approximately three seconds.
 
-**Elo K-factors by tier:** `{100: 20, 300: 24, 500: 28, 750: 32, 1000: 40, 1500: 50}`. Default Elo = 1500. EMA α = 0.3, default = 0.5.
+## Attribution
 
----
-
-## Models
-
-- **XGBoost / LightGBM / CatBoost** (`src/modeling/train_xgb.py`, `src/modeling/train_lgbm.py`, `src/modeling/train_catboost.py`) - benchmark trainers; all read Optuna-tuned hyperparameters from `models/best_params.json`. Their per-candidate pickles are benchmark artifacts and stay untracked; only the promoted model is committed.
-- **promote.py** - production selection: benchmarks all three tuned candidates on the latest season, retrains the winner on every completed match, writes `models/best_model.pkl`. Run daily by CI.
-- **TabNet** (`src/modeling/train_tabnet.py`) and **DeepFM** (`src/modeling/model.py` + `src/modeling/train.py`) - neural baselines.
-- **Ensemble** (`src/modeling/train_ensemble.py`) - AUC-weighted average of all saved models, for benchmarking.
-
-Hyperparameters for all three tree models are tuned with Optuna (`src/modeling/tune_hyperparams.py`) against the penultimate year so the final holdout stays clean.
-
----
-
-## Monte Carlo Simulation
-
-`src/serving/simulate.py` (used by the exporter, also a CLI):
-
-1. Builds point-in-time player stats (Elo, EMA, streak, …) from data strictly before the tournament start.
-2. Simulates all N brackets round-by-round. Each round batches every match across all simulations into a single `predict_proba` call, with both slot orders averaged - `P(A beats B) ≡ 1 − P(B beats A)` - to eliminate positional bias.
-3. Applies in-bracket Elo/EMA updates per simulation so later-round predictions reflect tournament form.
-4. Matches with real results on record are fixed to their actual outcome in every simulation.
-
-```bash
-python3 src/serving/simulate.py --date 2026-02-24 --tier 300 --sims 10000
-```
-
----
-
-## Automation
-
-`.github/workflows/update-data.yml` runs daily at 06:00 UTC (and on demand via *workflow_dispatch*), in two jobs.
-
-**refresh** - scrape and retrain:
-
-1. Rebuild the tournament calendar (picks up new seasons automatically)
-2. `scraper_orchestrator.py --incremental` - scrape only missing/pending/recent tournaments and merge
-3. `data_checks.py` - abort on anything suspicious before it can reach the deployed app
-4. Re-engineer features + mirror the dataset
-5. Re-select and retrain the production model (`promote.py` - best of tuned XGBoost/LightGBM/CatBoost on the latest season, retrained on all completed matches)
-6. Commit & push
-
-**publish** - export and deploy:
-
-7. Rebuild the derived dataset from `data/raw`, restore the previous `site/data` from cache, then export incrementally
-8. `check_export.py` - refuse to deploy a payload that looks collapsed
-9. `upload-pages-artifact` → `deploy-pages`
-
-Daily rather than weekly because a live tournament's predictions should move as its rounds
-complete. Both the scrape and the export no-op cheaply when nothing has changed, so the
-extra runs cost little: a publish where no draw moved is about five minutes end to end,
-and a third of that is the Pages deploy itself. A push touching `site/**` or
-`src/serving/**` runs **publish** only.
-
----
-
-## Project Structure
-
-```
-Deuce/
-├── run_pipeline.py              # Master CLI: --scrape --features --train --tune --all
-├── Makefile
-├── pyproject.toml               # deps; extras: [deep] torch/TabNet, [research] Optuna, [dev] pytest
-├── tests/                       # invariant suite: order-invariance, mirroring, leakage, payload
-├── .github/workflows/update-data.yml   # daily scrape + retrain + export + deploy
-├── src/
-│   ├── pipeline/                # data acquisition → training table
-│   │   ├── build_config.py          # tournament calendar scraper (dynamic year range)
-│   │   ├── scraper_wiki_single.py   # single-tournament scraper (bracket order, pending flags)
-│   │   ├── scraper_orchestrator.py  # all tournaments; --incremental merge mode
-│   │   ├── data_checks.py           # sanity gate for automated scrapes
-│   │   ├── feature_engineering.py   # 30 temporal features, leakage-free
-│   │   └── data_loader.py           # A↔B mirroring
-│   ├── modeling/                # preprocessing, trainers, model selection
-│   │   ├── dataset.py               # shared preprocessing: vocab/scaler fitting, encoding
-│   │   ├── pit_model.py             # point-in-time trainer (used by the exporter)
-│   │   ├── promote.py               # daily production model selection
-│   │   ├── train_xgb.py / train_lgbm.py / train_catboost.py / train_tabnet.py / train.py
-│   │   ├── train_ensemble.py        # AUC-weighted ensemble selection
-│   │   ├── temporal_cv.py           # rolling 3-fold temporal cross-validation
-│   │   ├── tune_hyperparams.py      # Optuna search
-│   │   └── model.py                 # BWFDeepFM (PyTorch)
-│   └── serving/                 # everything that turns a model into an answer
-│       ├── simulate.py              # vectorised Monte Carlo engine + CLI
-│       ├── export_static.py         # precomputes the static site payload
-│       └── check_export.py          # publish gate for that payload
-├── site/                        # static frontend (index.html + app.js + styles.css)
-│   └── data/                        # generated by `make export`; git-ignored
-├── data/
-│   ├── config/tournaments_config.csv   # tracked
-│   ├── raw/raw_matches.csv             # tracked
-│   ├── interim/                        # git-ignored (regenerated by `make features`)
-│   └── processed/                      # git-ignored (regenerated by `make features`)
-└── models/                      # only best_model.pkl + best_params.json are tracked
-```
-
-Every module bootstraps `sys.path` to the repo root, so scripts run the same whether
-invoked as `python3 src/serving/simulate.py` or imported as `src.serving.simulate`.
-
----
+Each match card reports a SHAP decomposition: the contribution of every input to that particular
+prediction, summing exactly to the difference between the prediction and the base rate. TreeSHAP
+is exact for tree ensembles, so the decomposition reproduces the model's arithmetic rather than
+approximating it. We aggregate the 35 features into 9 drivers (Rating, Recent form,
+Head-to-head, Seeding, Rest & workload, Scoring margin, Home & nation, Player identity, Match
+context); additivity makes the within-group sums exact, so a reader sees "Rating +0.18" in place
+of thirty-five signed coefficients.
 
 ## License
 
-Copyright (C) 2026 melthu
+GPL-3.0-or-later, Copyright (C) 2026 melthu. See [LICENSE](LICENSE).
 
-This program is free software: you can redistribute it and/or modify it under
-the terms of the GNU General Public License as published by the Free Software
-Foundation, either version 3 of the License, or (at your option) any later
-version. See [LICENSE](LICENSE) for the full text.
-
-Match data is scraped from Wikipedia, which publishes under
-[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/); the GPL covers
-this repository's code, not that upstream data.
+Match data is scraped from Wikipedia and is [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+upstream; the GPL covers this repository's code, not that data.
