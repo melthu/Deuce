@@ -199,6 +199,3 @@ of thirty-five signed coefficients.
 ## License
 
 GPL-3.0-or-later, Copyright (C) 2026 melthu. See [LICENSE](LICENSE).
-
-Match data is scraped from Wikipedia and is [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
-upstream; the GPL covers this repository's code, not that data.
