@@ -327,3 +327,18 @@ Deuce/
 
 Every module bootstraps `sys.path` to the repo root, so scripts run the same whether
 invoked as `python3 src/serving/simulate.py` or imported as `src.serving.simulate`.
+
+---
+
+## License
+
+Copyright (C) 2026 melthu
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See [LICENSE](LICENSE) for the full text.
+
+Match data is scraped from Wikipedia, which publishes under
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/); the GPL covers
+this repository's code, not that upstream data.

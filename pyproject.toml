@@ -8,6 +8,10 @@ version = "1.0.0"
 description = "BWF men's singles match prediction - data pipeline, models, and a precomputed static site"
 readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "GPL-3.0-or-later" }
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+]
 
 # The default install is what the scheduled refresh needs: scrape, engineer
 # features, train the gradient-boosted candidates, and precompute the static
