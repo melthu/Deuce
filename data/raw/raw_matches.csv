@@ -1,12 +1,16 @@
 tournament,tier,round,start_date,host_country,player_a,player_a_nat,player_b,player_b_nat,player_a_won,score,player_a_seed,player_b_seed,is_walkover,is_pending
-Super Series Masters Finals 2010,1500,Unknown,2010-01-05,Taiwan,Peter Gade,Denmark,Lee Chong Wei,Malaysia,1,,0,0,0,0
-Super Series Masters Finals 2010,1500,Unknown,2010-01-05,Taiwan,Lee Chong Wei,Malaysia,Nguyen Tien Minh,Vietnam,1,,0,0,0,0
-Super Series Masters Finals 2010,1500,Unknown,2010-01-05,Taiwan,Nguyen Tien Minh,Vietnam,Jan Ø. Jørgensen,Denmark,0,,0,0,0,1
-Super Series Masters Finals 2010,1500,Unknown,2010-01-05,Taiwan,Peter Gade,Denmark,Jan Ø. Jørgensen,Denmark,0,,0,0,0,0
-Super Series Masters Finals 2010,1500,Unknown,2010-01-05,Taiwan,Chen Long,China,Boonsak Ponsana,Thailand,1,,0,0,0,0
-Super Series Masters Finals 2010,1500,Unknown,2010-01-05,Taiwan,Chen Long,China,Taufik Hidayat,Indonesia,1,,0,0,1,0
-Super Series Masters Finals 2010,1500,Unknown,2010-01-05,Taiwan,Taufik Hidayat,Indonesia,Du Pengyu,China,0,,0,0,0,1
-Super Series Masters Finals 2010,1500,Unknown,2010-01-05,Taiwan,Boonsak Ponsana,Thailand,Du Pengyu,China,0,,0,0,0,0
+Super Series Masters Finals 2010,1500,group stage,2010-01-05,Taiwan,Lee Chong Wei,Malaysia,Nguyen Tien Minh,Vietnam,1,"21-12, 21-17",0,0,0,0
+Super Series Masters Finals 2010,1500,group stage,2010-01-05,Taiwan,Peter Gade,Denmark,Jan Ø. Jørgensen,Denmark,1,"21-11, 18-21, 21-16",0,0,0,0
+Super Series Masters Finals 2010,1500,group stage,2010-01-05,Taiwan,Peter Gade,Denmark,Nguyen Tien Minh,Vietnam,1,"21-16, 21-18",0,0,0,0
+Super Series Masters Finals 2010,1500,group stage,2010-01-05,Taiwan,Lee Chong Wei,Malaysia,Jan Ø. Jørgensen,Denmark,1,"21-18, 21-13",0,0,0,0
+Super Series Masters Finals 2010,1500,group stage,2010-01-05,Taiwan,Lee Chong Wei,Malaysia,Peter Gade,Denmark,1,"21-14, 21-12",0,0,0,0
+Super Series Masters Finals 2010,1500,group stage,2010-01-05,Taiwan,Nguyen Tien Minh,Vietnam,Jan Ø. Jørgensen,Denmark,0,"21-18, 21-15",0,0,0,0
+Super Series Masters Finals 2010,1500,group stage,2010-01-05,Taiwan,Boonsak Ponsana,Thailand,Taufik Hidayat,Indonesia,1,"21-18, 18-21, 21-7",0,0,0,0
+Super Series Masters Finals 2010,1500,group stage,2010-01-05,Taiwan,Chen Long,China,Du Pengyu,China,1,"21-15, 13-21, 21-11",0,0,0,0
+Super Series Masters Finals 2010,1500,group stage,2010-01-05,Taiwan,Chen Long,China,Taufik Hidayat,Indonesia,1,"21-15, 14-11",0,0,1,0
+Super Series Masters Finals 2010,1500,group stage,2010-01-05,Taiwan,Boonsak Ponsana,Thailand,Du Pengyu,China,1,"13-21, 21-11, 21-19",0,0,0,0
+Super Series Masters Finals 2010,1500,group stage,2010-01-05,Taiwan,Chen Long,China,Boonsak Ponsana,Thailand,1,"21-11, 21-17",0,0,0,0
+Super Series Masters Finals 2010,1500,group stage,2010-01-05,Taiwan,Taufik Hidayat,Indonesia,Du Pengyu,China,0,,0,0,1,0
 Super Series Masters Finals 2010,1500,semifinals,2010-01-05,Taiwan,Lee Chong Wei,Malaysia,Boonsak Ponsana,Thailand,1,"21-17, 21-18",0,0,0,0
 Super Series Masters Finals 2010,1500,semifinals,2010-01-05,Taiwan,Chen Long,China,Peter Gade,Denmark,0,"21-19, 21-18",0,0,0,0
 Super Series Masters Finals 2010,1500,final,2010-01-05,Taiwan,Lee Chong Wei,Malaysia,Peter Gade,Denmark,1,"21-9, 21-14",0,0,0,0
@@ -110,7 +114,7 @@ Swiss Open Super Series 2010,500,2nd round,2010-03-16,Switzerland,Dicky Palyama,
 Swiss Open Super Series 2010,500,2nd round,2010-03-16,Switzerland,Chen Jin,China,Joachim Persson,Denmark,1,"21-19, 21-11",3,0,0,0
 Swiss Open Super Series 2010,500,2nd round,2010-03-16,Switzerland,Nguyen Tien Minh,Vietnam,Carl Baxter,United Kingdom,1,"21-18, 21-13",7,0,0,0
 Swiss Open Super Series 2010,500,2nd round,2010-03-16,Switzerland,Dionysius Hayom Rumbaka,Indonesia,Chen Long,China,0,"21-12, 17-21, 21-15",0,8,0,0
-Swiss Open Super Series 2010,500,2nd round,2010-03-16,Switzerland,Kazushi Yamada,Japan,Taufik Hidayat,Indonesia,0,"15-21, 12-21",0,4,0,1
+Swiss Open Super Series 2010,500,2nd round,2010-03-16,Switzerland,Kazushi Yamada,Japan,Taufik Hidayat,Indonesia,1,"21-15, 21-12",0,4,0,0
 Swiss Open Super Series 2010,500,2nd round,2010-03-16,Switzerland,Park Sung-hwan,South Korea,Peter Gade,Denmark,0,"21-15, 21-16",0,5,0,0
 Swiss Open Super Series 2010,500,2nd round,2010-03-16,Switzerland,Shon Wan-ho,South Korea,Lin Dan,China,0,"21-11, 21-14",0,2,0,0
 Swiss Open Super Series 2010,500,quarterfinals,2010-03-16,Switzerland,Du Pengyu,China,Hu Yun,Hong Kong,1,"24-22, 21-17",0,0,0,0
@@ -135,7 +139,7 @@ Singapore Super Series 2010,500,1st round,2010-06-15,Singapore,Dicky Palyama,Net
 Singapore Super Series 2010,500,1st round,2010-06-15,Singapore,Robin Gonansa,Singapore,Hu Yun,Hong Kong,0,"21-17, 21-8",0,0,0,0
 Singapore Super Series 2010,500,1st round,2010-06-15,Singapore,Gao Huan,China,Boonsak Ponsana,Thailand,0,"21-19, 17-21, 21-17",0,4,0,0
 Singapore Super Series 2010,500,1st round,2010-06-15,Singapore,Yong Zhao Ashton Chen,Singapore,Simon Santoso,Indonesia,0,"21-13, 22-20",0,6,0,0
-Singapore Super Series 2010,500,1st round,2010-06-15,Singapore,Andre Kurniawan Tedjono,Indonesia,Peter Gade,Denmark,0,"21-14, 21-7",0,2,0,1
+Singapore Super Series 2010,500,1st round,2010-06-15,Singapore,Andre Kurniawan Tedjono,Indonesia,Peter Gade,Denmark,0,"21-14, 21-7",0,2,0,0
 Singapore Super Series 2010,500,2nd round,2010-06-15,Singapore,Muhammad Hafiz Hashim,Malaysia,Dicky Palyama,Netherlands,0,"21-8, 21-13",0,0,0,0
 Singapore Super Series 2010,500,2nd round,2010-06-15,Singapore,Lee Chong Wei,Malaysia,Dionysius Hayom Rumbaka,Indonesia,1,"21-13, 19-21, 21-16",1,0,0,0
 Singapore Super Series 2010,500,2nd round,2010-06-15,Singapore,Sony Dwi Kuncoro,Indonesia,Joachim Persson,Denmark,1,"21-15, 21-13",7,0,0,0
@@ -147,7 +151,7 @@ Singapore Super Series 2010,500,2nd round,2010-06-15,Singapore,Carl Baxter,Engla
 Singapore Super Series 2010,500,quarterfinals,2010-06-15,Singapore,Lee Chong Wei,Malaysia,Sony Dwi Kuncoro,Indonesia,0,"7-21, 21-19, 21-15",1,7,0,0
 Singapore Super Series 2010,500,quarterfinals,2010-06-15,Singapore,Parupalli Kashyap,India,Arvind Bhat,India,1,"21-17, 21-16",0,0,0,0
 Singapore Super Series 2010,500,quarterfinals,2010-06-15,Singapore,Dicky Palyama,Netherlands,Boonsak Ponsana,Thailand,0,"21-14, 21-5",0,4,0,0
-Singapore Super Series 2010,500,quarterfinals,2010-06-15,Singapore,Simon Santoso,Indonesia,Peter Gade,Denmark,0,"17-21, 21-8, 21-17",6,2,0,1
+Singapore Super Series 2010,500,quarterfinals,2010-06-15,Singapore,Simon Santoso,Indonesia,Peter Gade,Denmark,0,"17-21, 21-8, 21-17",6,2,0,0
 Singapore Super Series 2010,500,semifinals,2010-06-15,Singapore,Sony Dwi Kuncoro,Indonesia,Parupalli Kashyap,India,1,"21-19, 22-20",7,0,0,0
 Singapore Super Series 2010,500,semifinals,2010-06-15,Singapore,Sony Dwi Kuncoro,Indonesia,Boonsak Ponsana,Thailand,1,"21-16, 21-16",7,4,0,0
 Singapore Super Series 2010,500,semifinals,2010-06-15,Singapore,Boonsak Ponsana,Thailand,Peter Gade,Denmark,1,"20-22, 21-17, 21-16",4,2,0,0
@@ -188,7 +192,7 @@ World Championships 2010,1500,first round,2010-08-23,France,Jan Ø. Jørgensen,D
 World Championships 2010,1500,first round,2010-08-23,France,Eric Pang,Netherlands,Rajiv Ouseph,England,0,"21-19, 15-21, 23-21",0,0,0,0
 World Championships 2010,1500,first round,2010-08-23,France,Taufik Hidayat,Indonesia,Ola Fagbemi,Nigeria,1,"21-10, 21-10",5,0,0,0
 World Championships 2010,1500,first round,2010-08-23,France,Pedro Martins,Portugal,Hsieh Yu-hsin,Chinese Taipei,0,"22-20, 21-17",0,0,0,0
-World Championships 2010,1500,first round,2010-08-23,France,Kenichi Tago,Japan,Petr Koukal,Czech Republic,0,"19-21, 22-24",12,0,0,1
+World Championships 2010,1500,first round,2010-08-23,France,Kenichi Tago,Japan,Petr Koukal,Czech Republic,1,"21-19, 24-22",12,0,0,0
 World Championships 2010,1500,first round,2010-08-23,France,Tanongsak Saensomboonsuk,Thailand,Parupalli Kashyap,India,1,"14-21, 21-14, 21-16",0,0,0,0
 World Championships 2010,1500,second round,2010-08-23,France,Lee Chong Wei,Malaysia,Muhammad Hafiz Hashim,Malaysia,1,"21-16, 21-16",1,0,0,0
 World Championships 2010,1500,second round,2010-08-23,France,Jan Ø. Jørgensen,Denmark,Rajiv Ouseph,England,0,"21-12, 25-23",11,0,0,0
@@ -255,7 +259,7 @@ China Masters Super Series 2010,500,1st round,2010-09-14,China,Bao Chunlai,China
 China Masters Super Series 2010,500,1st round,2010-09-14,China,Qiao Bin,China,Lü Yi,China,1,"21-11, 21-10",0,0,0,0
 China Masters Super Series 2010,500,1st round,2010-09-14,China,Chen Jin,China,Hong Ji-hoon,South Korea,1,"21-11, 25-23",3,0,0,0
 China Masters Super Series 2010,500,1st round,2010-09-14,China,Chen Long,China,Misha Zilberman,Israel,1,"21-10, 21-10",7,0,0,0
-China Masters Super Series 2010,500,1st round,2010-09-14,China,Dicky Palyama,Netherlands,Wen Kai,China,0,"21-13, 21-18",0,0,0,1
+China Masters Super Series 2010,500,1st round,2010-09-14,China,Dicky Palyama,Netherlands,Wen Kai,China,0,"21-13, 21-18",0,0,0,0
 China Masters Super Series 2010,500,1st round,2010-09-14,China,Hu Yun,Hong Kong,Boonsak Ponsana,Thailand,1,"15-21, 21-6, 27-25",0,6,0,0
 China Masters Super Series 2010,500,1st round,2010-09-14,China,Park Sung-hwan,South Korea,Lin Dan,China,0,"21-11, 21-17",0,4,0,0
 China Masters Super Series 2010,500,1st round,2010-09-14,China,Lee Hyun-il,South Korea,Derek Wong,Singapore,1,"21-15, 21-10",0,0,0,0
@@ -698,7 +702,7 @@ China Masters Super Series 2011,500,semifinals,2011-09-13,China,Lin Dan,China,Ch
 China Masters Super Series 2011,500,first round,2011-09-13,China,Chan Yan Kit,Hong Kong,Anand Pawar,India,1,"21-17, 21-18",0,0,0,0
 China Masters Super Series 2011,500,first round,2011-09-13,China,Wong Wing Ki,Hong Kong,Lee Hyun-il,South Korea,0,"21-13, 19-21, 21-11",0,8,0,0
 China Masters Super Series 2011,500,first round,2011-09-13,China,Jan Ø. Jørgensen,Denmark,Hsueh Hsuan-yi,Chinese Taipei,0,"21-11, 23-21",0,0,0,0
-China Masters Super Series 2011,500,first round,2011-09-13,China,Marc Zwiebler,Germany,Chen Long,China,0,"21-7, 21-13",0,3,0,1
+China Masters Super Series 2011,500,first round,2011-09-13,China,Marc Zwiebler,Germany,Chen Long,China,0,"21-7, 21-13",0,3,0,0
 China Masters Super Series 2011,500,first round,2011-09-13,China,Wang Zhengming,China,Kenichi Tago,Japan,1,"21-14, 21-14",0,0,0,0
 China Masters Super Series 2011,500,first round,2011-09-13,China,Liew Daren,Malaysia,Du Pengyu,China,0,"21-11, 21-14",0,5,0,0
 China Masters Super Series 2011,500,first round,2011-09-13,China,Parupalli Kashyap,India,Rajiv Ouseph,England,1,"19-21, 21-16, 21-11",0,0,0,0
@@ -866,14 +870,18 @@ China Open Super Series Premier 2011,750,second round,2011-11-22,China,Wang Zhen
 China Open Super Series Premier 2011,750,second round,2011-11-22,China,Hans-Kristian Vittinghus,Denmark,Chen Long,China,0,"22-20, 21-16",0,2,0,0
 China Open Super Series Premier 2011,750,quarterfinals,2011-11-22,China,Simon Santoso,Indonesia,Peter Gade,Denmark,1,"15-21, 21-15, 21-16",0,4,0,0
 China Open Super Series Premier 2011,750,quarterfinals,2011-11-22,China,Chen Jin,China,Chen Long,China,0,"21-13, 21-17",5,2,0,0
-Super Series Masters Finals 2011,1500,Unknown,2011-12-14,China,Lee Chong Wei,Malaysia,Peter Gade,Denmark,1,,0,0,0,0
-Super Series Masters Finals 2011,1500,Unknown,2011-12-14,China,Sho Sasaki,Japan,Lee Chong Wei,Malaysia,1,,0,0,0,0
-Super Series Masters Finals 2011,1500,Unknown,2011-12-14,China,Simon Santoso,Indonesia,Sho Sasaki,Japan,0,,0,0,0,1
-Super Series Masters Finals 2011,1500,Unknown,2011-12-14,China,Simon Santoso,Indonesia,Peter Gade,Denmark,0,,0,0,0,1
-Super Series Masters Finals 2011,1500,Unknown,2011-12-14,China,Lin Dan,China,Kenichi Tago,Japan,1,,0,0,0,0
-Super Series Masters Finals 2011,1500,Unknown,2011-12-14,China,Lin Dan,China,Chen Long,China,1,,0,0,0,0
-Super Series Masters Finals 2011,1500,Unknown,2011-12-14,China,Chen Long,China,Taufik Hidayat,Indonesia,0,,0,0,0,1
-Super Series Masters Finals 2011,1500,Unknown,2011-12-14,China,Kenichi Tago,Japan,Taufik Hidayat,Indonesia,0,,0,0,0,1
+Super Series Masters Finals 2011,1500,group stage,2011-12-14,China,Peter Gade,Denmark,Simon Santoso,Indonesia,1,"21-13, 21-9",0,0,0,0
+Super Series Masters Finals 2011,1500,group stage,2011-12-14,China,Lee Chong Wei,Malaysia,Sho Sasaki,Japan,1,"21-11, 18-21, 21-12",0,0,0,0
+Super Series Masters Finals 2011,1500,group stage,2011-12-14,China,Lee Chong Wei,Malaysia,Simon Santoso,Indonesia,1,"21-10, 21-15",0,0,0,0
+Super Series Masters Finals 2011,1500,group stage,2011-12-14,China,Peter Gade,Denmark,Sho Sasaki,Japan,1,"21-15, 21-19",0,0,0,0
+Super Series Masters Finals 2011,1500,group stage,2011-12-14,China,Sho Sasaki,Japan,Simon Santoso,Indonesia,1,"21-19, 23-21",0,0,0,0
+Super Series Masters Finals 2011,1500,group stage,2011-12-14,China,Lee Chong Wei,Malaysia,Peter Gade,Denmark,1,"24-22, 21-14",0,0,0,0
+Super Series Masters Finals 2011,1500,group stage,2011-12-14,China,Lin Dan,China,Chen Long,China,1,"21-15, 19-21, 21-17",0,0,0,0
+Super Series Masters Finals 2011,1500,group stage,2011-12-14,China,Kenichi Tago,Japan,Taufik Hidayat,Indonesia,1,"19-21, 21-19, 21-7",0,0,0,0
+Super Series Masters Finals 2011,1500,group stage,2011-12-14,China,Chen Long,China,Kenichi Tago,Japan,1,"12-21, 21-18, 21-13",0,0,0,0
+Super Series Masters Finals 2011,1500,group stage,2011-12-14,China,Lin Dan,China,Taufik Hidayat,Indonesia,1,"21-12, 21-19",0,0,0,0
+Super Series Masters Finals 2011,1500,group stage,2011-12-14,China,Lin Dan,China,Kenichi Tago,Japan,1,"21-11, 21-13",0,0,0,0
+Super Series Masters Finals 2011,1500,group stage,2011-12-14,China,Chen Long,China,Taufik Hidayat,Indonesia,1,"21-13, 21-7",0,0,0,0
 Super Series Masters Finals 2011,1500,semifinals,2011-12-14,China,Lee Chong Wei,Malaysia,Chen Long,China,0,"21-16, 16-21, 21-18",0,0,0,0
 Super Series Masters Finals 2011,1500,semifinals,2011-12-14,China,Peter Gade,Denmark,Lin Dan,China,0,"21-12, 21-15",0,0,0,0
 Super Series Masters Finals 2011,1500,final,2011-12-14,China,Chen Long,China,Lin Dan,China,0,"21-12, 21-16",0,0,0,0
@@ -1065,7 +1073,7 @@ Singapore Super Series 2012,500,semifinals,2012-06-19,Singapore,Boonsak Ponsana,
 Singapore Super Series 2012,500,final,2012-06-19,Singapore,Wang Zhengming,China,Boonsak Ponsana,Thailand,0,"21-18, 21-19",0,0,0,0
 China Masters Super Series 2012,500,first round,2012-09-11,China,Chen Long,China,Viktor Axelsen,Denmark,1,"20-22, 21-7, 21-8",1,0,0,0
 China Masters Super Series 2012,500,first round,2012-09-11,China,Scott Evans,Republic of Ireland,Misha Zilberman,Israel,0,"24-22, 21-17",0,0,0,0
-China Masters Super Series 2012,500,first round,2012-09-11,China,Parupalli Kashyap,India,Gao Huan,China,0,"13-21, 21-14, 19-21",8,0,0,1
+China Masters Super Series 2012,500,first round,2012-09-11,China,Parupalli Kashyap,India,Gao Huan,China,1,"21-13, 14-21, 21-19",8,0,0,0
 China Masters Super Series 2012,500,first round,2012-09-11,China,Gurusai Datt,India,Muhammad Hafiz Hashim,Malaysia,1,"21-18, 19-21, 21-13",0,0,0,0
 China Masters Super Series 2012,500,first round,2012-09-11,China,Du Pengyu,China,Takuma Ueda,Japan,1,"21-14, 15-21, 21-11",4,0,0,0
 China Masters Super Series 2012,500,first round,2012-09-11,China,Brice Leverdez,France,Zhou Wenlong,China,0,"21-10, 21-16",0,0,0,0
@@ -1127,7 +1135,7 @@ Japan Super Series 2012,500,semifinals,2012-09-18,Japan,Boonsak Ponsana,Thailand
 Japan Super Series 2012,500,final,2012-09-18,Japan,Lee Chong Wei,Malaysia,Boonsak Ponsana,Thailand,1,"21-18, 21-18",1,0,0,0
 Denmark Super Series Premier 2012,750,first round[2],2012-10-16,Denmark,Lee Chong Wei,Malaysia,Viktor Axelsen,Denmark,1,"21-8, 21-18",1,0,0,0
 Denmark Super Series Premier 2012,750,first round[2],2012-10-16,Denmark,Boonsak Ponsana,Thailand,Brice Leverdez,France,1,"21-12, 21-15",0,0,0,0
-Denmark Super Series Premier 2012,750,first round[2],2012-10-16,Denmark,Sho Sasaki,Japan,Anand Pawar,India,0,"21-14, 15-21, 11-21",5,0,0,1
+Denmark Super Series Premier 2012,750,first round[2],2012-10-16,Denmark,Sho Sasaki,Japan,Anand Pawar,India,1,"14-21, 21-15, 21-11",5,0,0,0
 Denmark Super Series Premier 2012,750,first round[2],2012-10-16,Denmark,Liew Daren,Malaysia,Rajiv Ouseph,England,1,"21-17, 21-9",0,0,0,0
 Denmark Super Series Premier 2012,750,first round[2],2012-10-16,Denmark,Chen Jin,China,Suppanyu Avihingsanon,Thailand,0,"11-21, 21-11, 21-15",3,0,0,0
 Denmark Super Series Premier 2012,750,first round[2],2012-10-16,Denmark,Scott Evans,Republic of Ireland,Wong Wing Ki,Hong Kong,0,"17-21, 21-12, 21-16",0,0,0,0
@@ -1249,22 +1257,25 @@ Hong Kong Super Series 2012,500,quarterfinals,2012-11-20,Hong Kong,Tommy Sugiart
 Hong Kong Super Series 2012,500,quarterfinals,2012-11-20,Hong Kong,Sho Sasaki,Japan,Chen Long,China,0,"21-16, 21-12",5,2,0,0
 Hong Kong Super Series 2012,500,semifinals,2012-11-20,Hong Kong,Tommy Sugiarto,Indonesia,Chen Long,China,0,"21-18, 21-10",0,2,0,0
 Hong Kong Super Series 2012,500,final,2012-11-20,Hong Kong,Lee Chong Wei,Malaysia,Chen Long,China,0,"21-19, 21-17",1,2,0,0
-Super Series Masters Finals 2012,1500,Unknown,2012-12-12,China,Hu Yun,Hong Kong,Du Pengyu,China,1,,0,0,0,0
-Super Series Masters Finals 2012,1500,Unknown,2012-12-12,China,Hu Yun,Hong Kong,Boonsak Ponsana,Thailand,0,,0,0,0,1
-Super Series Masters Finals 2012,1500,Unknown,2012-12-12,China,Boonsak Ponsana,Thailand,Lee Chong Wei,Malaysia,0,,0,0,0,1
-Super Series Masters Finals 2012,1500,Unknown,2012-12-12,China,Kenichi Tago,Japan,Chen Long,China,1,,0,0,0,0
-Super Series Masters Finals 2012,1500,Unknown,2012-12-12,China,Chen Long,China,Hans-Kristian Vittinghus,Denmark,1,,0,0,0,0
-Super Series Masters Finals 2012,1500,Unknown,2012-12-12,China,Chen Long,China,Liew Daren,Malaysia,1,,0,0,0,0
-Super Series Masters Finals 2012,1500,Unknown,2012-12-12,China,Liew Daren,Malaysia,Hans-Kristian Vittinghus,Denmark,0,,0,0,0,1
-Super Series Masters Finals 2012,1500,Unknown,2012-12-12,China,Liew Daren,Malaysia,Kenichi Tago,Japan,0,,0,0,0,1
-Super Series Masters Finals 2012,1500,Unknown,2012-12-12,China,Kenichi Tago,Japan,Hans-Kristian Vittinghus,Denmark,0,,0,0,0,1
+Super Series Masters Finals 2012,1500,group stage,2012-12-12,China,Hu Yun,Hong Kong,Boonsak Ponsana,Thailand,1,"19-21, 21-17, 21-9",0,0,0,0
+Super Series Masters Finals 2012,1500,group stage,2012-12-12,China,Du Pengyu,China,Lee Chong Wei,Malaysia,1,"12-21, 21-16, 22-20",0,0,0,0
+Super Series Masters Finals 2012,1500,group stage,2012-12-12,China,Du Pengyu,China,Hu Yun,Hong Kong,1,"21-18, 23-21",0,0,0,0
+Super Series Masters Finals 2012,1500,group stage,2012-12-12,China,Du Pengyu,China,Boonsak Ponsana,Thailand,1,"24-22, 21-23, 21-8",0,0,0,0
+Super Series Masters Finals 2012,1500,group stage,2012-12-12,China,Hu Yun,Hong Kong,Lee Chong Wei,Malaysia,1,,0,0,1,0
+Super Series Masters Finals 2012,1500,group stage,2012-12-12,China,Boonsak Ponsana,Thailand,Lee Chong Wei,Malaysia,1,,0,0,1,0
+Super Series Masters Finals 2012,1500,group stage,2012-12-12,China,Kenichi Tago,Japan,Liew Daren,Malaysia,1,"21-15, 21-18",0,0,0,0
+Super Series Masters Finals 2012,1500,group stage,2012-12-12,China,Chen Long,China,Hans-Kristian Vittinghus,Denmark,1,"20-22, 21-15, 21-11",0,0,0,0
+Super Series Masters Finals 2012,1500,group stage,2012-12-12,China,Chen Long,China,Liew Daren,Malaysia,1,"23-25, 21-8, 21-12",0,0,0,0
+Super Series Masters Finals 2012,1500,group stage,2012-12-12,China,Hans-Kristian Vittinghus,Denmark,Kenichi Tago,Japan,1,"21-18, 21-13",0,0,0,0
+Super Series Masters Finals 2012,1500,group stage,2012-12-12,China,Chen Long,China,Kenichi Tago,Japan,1,"21-15, 14-21, 21-15",0,0,0,0
+Super Series Masters Finals 2012,1500,group stage,2012-12-12,China,Liew Daren,Malaysia,Hans-Kristian Vittinghus,Denmark,1,"17-21, 21-13, 21-14",0,0,0,0
 Super Series Masters Finals 2012,1500,semifinals,2012-12-12,China,Du Pengyu,China,Hans-Kristian Vittinghus,Denmark,1,"21-23, 21-8, 21-13",0,0,0,0
 Super Series Masters Finals 2012,1500,semifinals,2012-12-12,China,Hu Yun,Hong Kong,Chen Long,China,0,"21-10, 21-18",0,0,0,0
 Super Series Masters Finals 2012,1500,final,2012-12-12,China,Du Pengyu,China,Chen Long,China,0,"21-12, 21-13",0,0,0,0
 Korea Open Super Series Premier 2013,750,first round,2013-01-08,South Korea,Lee Chong Wei,Malaysia,Wang Zhengming,China,1,"17-21, 21-14, 21-16",1,0,0,0
 Korea Open Super Series Premier 2013,750,first round,2013-01-08,South Korea,Tommy Sugiarto,Indonesia,Marc Zwiebler,Germany,0,"16-21, 21-14, 21-17",0,0,0,0
 Korea Open Super Series Premier 2013,750,first round,2013-01-08,South Korea,Hu Yun,Hong Kong,Lee Dong-keun,South Korea,1,"9-21, 21-19, 21-16",7,0,0,0
-Korea Open Super Series Premier 2013,750,first round,2013-01-08,South Korea,Rajiv Ouseph,England,Parupalli Kashyap,India,0,"21-19, 21-16",0,0,0,1
+Korea Open Super Series Premier 2013,750,first round,2013-01-08,South Korea,Rajiv Ouseph,England,Parupalli Kashyap,India,0,"21-19, 21-16",0,0,0,0
 Korea Open Super Series Premier 2013,750,first round,2013-01-08,South Korea,Chen Jin,China,Gao Huan,China,0,"14-21, 21-14, 21-15",3,0,0,0
 Korea Open Super Series Premier 2013,750,first round,2013-01-08,South Korea,Henri Hurskainen,Sweden,Chong Wei Feng,Malaysia,0,"24-22, 21-16",0,0,0,0
 Korea Open Super Series Premier 2013,750,first round,2013-01-08,South Korea,Nguyen Tien Minh,Vietnam,Wong Wing Ki,Hong Kong,0,"21-14, 12-21, 18-12",6,0,1,0
@@ -1696,14 +1707,18 @@ Hong Kong Super Series 2013,500,quarterfinals,2013-11-19,Hong Kong,Sony Dwi Kunc
 Hong Kong Super Series 2013,500,quarterfinals,2013-11-19,Hong Kong,Tommy Sugiarto,Indonesia,Wang Zhengming,China,1,"17-21, 21-9, 21-12",5,0,0,0
 Hong Kong Super Series 2013,500,semifinals,2013-11-19,Hong Kong,Sony Dwi Kuncoro,Indonesia,Tommy Sugiarto,Indonesia,1,"21-14, 8-3",0,5,1,0
 Hong Kong Super Series 2013,500,final,2013-11-19,Hong Kong,Lee Chong Wei,Malaysia,Sony Dwi Kuncoro,Indonesia,1,"21-13, 21-9",1,0,0,0
-Super Series Masters Finals 2013,1500,Unknown,2013-12-11,Malaysia,Jan Ø. Jørgensen,Denmark,Lee Chong Wei,Malaysia,1,,0,0,0,0
-Super Series Masters Finals 2013,1500,Unknown,2013-12-11,Malaysia,Lee Chong Wei,Malaysia,Boonsak Ponsana,Thailand,1,,0,0,0,0
-Super Series Masters Finals 2013,1500,Unknown,2013-12-11,Malaysia,Wang Zhengming,China,Boonsak Ponsana,Thailand,0,,0,0,0,1
-Super Series Masters Finals 2013,1500,Unknown,2013-12-11,Malaysia,Jan Ø. Jørgensen,Denmark,Wang Zhengming,China,0,,0,0,0,1
-Super Series Masters Finals 2013,1500,Unknown,2013-12-11,Malaysia,Tommy Sugiarto,Indonesia,Kenichi Tago,Japan,1,,0,0,0,0
-Super Series Masters Finals 2013,1500,Unknown,2013-12-11,Malaysia,Kenichi Tago,Japan,Sony Dwi Kuncoro,Indonesia,0,,0,0,0,1
-Super Series Masters Finals 2013,1500,Unknown,2013-12-11,Malaysia,Hu Yun,Hong Kong,Sony Dwi Kuncoro,Indonesia,0,,0,0,0,1
-Super Series Masters Finals 2013,1500,Unknown,2013-12-11,Malaysia,Tommy Sugiarto,Indonesia,Hu Yun,Hong Kong,1,,0,0,0,0
+Super Series Masters Finals 2013,1500,group stage,2013-12-11,Malaysia,Jan Ø. Jørgensen,Denmark,Boonsak Ponsana,Thailand,1,"21-19, 13-21, 21-11",0,0,0,0
+Super Series Masters Finals 2013,1500,group stage,2013-12-11,Malaysia,Lee Chong Wei,Malaysia,Wang Zhengming,China,1,"21-10, 21-18",0,0,0,0
+Super Series Masters Finals 2013,1500,group stage,2013-12-11,Malaysia,Jan Ø. Jørgensen,Denmark,Wang Zhengming,China,1,"21-9, 21-10",0,0,0,0
+Super Series Masters Finals 2013,1500,group stage,2013-12-11,Malaysia,Lee Chong Wei,Malaysia,Boonsak Ponsana,Thailand,1,"21-6, 21-8",0,0,0,0
+Super Series Masters Finals 2013,1500,group stage,2013-12-11,Malaysia,Lee Chong Wei,Malaysia,Jan Ø. Jørgensen,Denmark,1,"23-21, 24-22",0,0,0,0
+Super Series Masters Finals 2013,1500,group stage,2013-12-11,Malaysia,Boonsak Ponsana,Thailand,Wang Zhengming,China,1,"21-18, 21-15",0,0,0,0
+Super Series Masters Finals 2013,1500,group stage,2013-12-11,Malaysia,Tommy Sugiarto,Indonesia,Sony Dwi Kuncoro,Indonesia,0,"21-19, 21-10",0,0,0,0
+Super Series Masters Finals 2013,1500,group stage,2013-12-11,Malaysia,Kenichi Tago,Japan,Hu Yun,Hong Kong,1,"20-22, 24-22, 21-17",0,0,0,0
+Super Series Masters Finals 2013,1500,group stage,2013-12-11,Malaysia,Tommy Sugiarto,Indonesia,Hu Yun,Hong Kong,1,"21-9, 21-16",0,0,0,0
+Super Series Masters Finals 2013,1500,group stage,2013-12-11,Malaysia,Kenichi Tago,Japan,Sony Dwi Kuncoro,Indonesia,1,"12-21, 21-19, 21-17",0,0,0,0
+Super Series Masters Finals 2013,1500,group stage,2013-12-11,Malaysia,Kenichi Tago,Japan,Tommy Sugiarto,Indonesia,0,"21-14, 20-22, 21-19",0,0,0,0
+Super Series Masters Finals 2013,1500,group stage,2013-12-11,Malaysia,Sony Dwi Kuncoro,Indonesia,Hu Yun,Hong Kong,0,,0,0,1,0
 Super Series Masters Finals 2013,1500,semifinals,2013-12-11,Malaysia,Lee Chong Wei,Malaysia,Jan Ø. Jørgensen,Denmark,1,"21-14, 21-16",1,3,0,0
 Super Series Masters Finals 2013,1500,semifinals,2013-12-11,Malaysia,Kenichi Tago,Japan,Tommy Sugiarto,Indonesia,0,"21-14, 19-21, 21-5",2,4,0,0
 Super Series Masters Finals 2013,1500,final,2013-12-11,Malaysia,Lee Chong Wei,Malaysia,Tommy Sugiarto,Indonesia,1,"21-10, 21-12",1,4,0,0
@@ -2035,8 +2050,8 @@ Denmark Super Series Premier 2014,750,quarterfinals,2014-10-14,Denmark,K. Srikan
 Denmark Super Series Premier 2014,750,quarterfinals,2014-10-14,Denmark,Boonsak Ponsana,Thailand,Tian Houwei,China,0,"21-12, 21-19",0,0,0,0
 Denmark Super Series Premier 2014,750,semifinals,2014-10-14,Denmark,Shon Wan-ho,South Korea,Tian Houwei,China,1,"21-17, 21-9",7,0,0,0
 Denmark Super Series Premier 2014,750,first round,2014-10-14,Denmark,Parupalli Kashyap,India,Rajiv Ouseph,England,1,"21-15, 21-18",0,0,0,0
-Denmark Super Series Premier 2014,750,first round,2014-10-14,Denmark,Dionysius Hayom Rumbaka,Indonesia,Wang Zhengming,China,0,"21-17, 18-21, 19-21",0,6,0,1
-Denmark Super Series Premier 2014,750,first round,2014-10-14,Denmark,Lin Dan,China,Chou Tien-chen,Chinese Taipei,0,"20-22, 21-10, 18-21",0,0,0,1
+Denmark Super Series Premier 2014,750,first round,2014-10-14,Denmark,Dionysius Hayom Rumbaka,Indonesia,Wang Zhengming,China,1,"17-21, 21-18, 21-19",0,6,0,0
+Denmark Super Series Premier 2014,750,first round,2014-10-14,Denmark,Lin Dan,China,Chou Tien-chen,Chinese Taipei,1,"22-20, 10-21, 21-18",0,0,0,0
 Denmark Super Series Premier 2014,750,first round,2014-10-14,Denmark,Marc Zwiebler,Germany,Jan Ø. Jørgensen,Denmark,0,"21-11, 21-16",0,3,0,0
 Denmark Super Series Premier 2014,750,first round,2014-10-14,Denmark,Chen Yuekun,China,Wong Wing Ki,Hong Kong,1,"15-21, 21-17, 21-15",0,0,0,0
 Denmark Super Series Premier 2014,750,first round,2014-10-14,Denmark,Brice Leverdez,France,Hans-Kristian Vittinghus,Denmark,1,"24-22, 16-21, 21-18",0,8,0,0
@@ -2143,14 +2158,18 @@ Hong Kong Super Series 2014,500,quarterfinals,2014-11-18,Hong Kong,Son Wan-ho,So
 Hong Kong Super Series 2014,500,quarterfinals,2014-11-18,Hong Kong,Wang Zhengming,China,Jan Ø. Jørgensen,Denmark,0,"21-16, 10-21, 21-13",5,2,0,0
 Hong Kong Super Series 2014,500,semifinals,2014-11-18,Hong Kong,Son Wan-ho,South Korea,Jan Ø. Jørgensen,Denmark,1,"21-15, 21-15",6,2,0,0
 Hong Kong Super Series 2014,500,final,2014-11-18,Hong Kong,Chen Long,China,Son Wan-ho,South Korea,0,"21-19, 21-16",1,6,0,0
-Super Series Masters Finals 2014,1500,Unknown,2014-12-17,United Arab Emirates,Son Wan-ho,South Korea,Chen Long,China,0,,0,0,1,0
-Super Series Masters Finals 2014,1500,Unknown,2014-12-17,United Arab Emirates,Hans-Kristian Vittinghus,Denmark,Chen Long,China,1,,0,0,1,0
-Super Series Masters Finals 2014,1500,Unknown,2014-12-17,United Arab Emirates,Kenichi Tago,Japan,Hans-Kristian Vittinghus,Denmark,1,,0,0,0,0
-Super Series Masters Finals 2014,1500,Unknown,2014-12-17,United Arab Emirates,Kenichi Tago,Japan,Son Wan-ho,South Korea,0,,0,0,0,1
-Super Series Masters Finals 2014,1500,Unknown,2014-12-17,United Arab Emirates,Jan Ø. Jørgensen,Denmark,Srikanth Kidambi,India,0,,0,0,0,0
-Super Series Masters Finals 2014,1500,Unknown,2014-12-17,United Arab Emirates,Kento Momota,Japan,Jan Ø. Jørgensen,Denmark,1,,0,0,0,0
-Super Series Masters Finals 2014,1500,Unknown,2014-12-17,United Arab Emirates,Kento Momota,Japan,Tommy Sugiarto,Indonesia,1,,0,0,0,0
-Super Series Masters Finals 2014,1500,Unknown,2014-12-17,United Arab Emirates,Tommy Sugiarto,Indonesia,Srikanth Kidambi,India,0,,0,0,0,1
+Super Series Masters Finals 2014,1500,group stage,2014-12-17,United Arab Emirates,Son Wan-ho,South Korea,Hans-Kristian Vittinghus,Denmark,0,"21-13, 21-16",0,0,0,0
+Super Series Masters Finals 2014,1500,group stage,2014-12-17,United Arab Emirates,Chen Long,China,Kenichi Tago,Japan,1,"21-11, 21-14",0,0,0,0
+Super Series Masters Finals 2014,1500,group stage,2014-12-17,United Arab Emirates,Son Wan-ho,South Korea,Kenichi Tago,Japan,0,"21-9, 11-3",0,0,1,0
+Super Series Masters Finals 2014,1500,group stage,2014-12-17,United Arab Emirates,Chen Long,China,Hans-Kristian Vittinghus,Denmark,1,"13-21, 21-10, 21-9",0,0,0,0
+Super Series Masters Finals 2014,1500,group stage,2014-12-17,United Arab Emirates,Hans-Kristian Vittinghus,Denmark,Kenichi Tago,Japan,1,"21-19, 21-16",0,0,0,0
+Super Series Masters Finals 2014,1500,group stage,2014-12-17,United Arab Emirates,Chen Long,China,Son Wan-ho,South Korea,1,,0,0,1,0
+Super Series Masters Finals 2014,1500,group stage,2014-12-17,United Arab Emirates,Jan Ø. Jørgensen,Denmark,Tommy Sugiarto,Indonesia,1,"21-15, 21-9",0,0,0,0
+Super Series Masters Finals 2014,1500,group stage,2014-12-17,United Arab Emirates,Srikanth Kidambi,India,Kento Momota,Japan,1,"15-21, 21-16, 21-10",0,0,0,0
+Super Series Masters Finals 2014,1500,group stage,2014-12-17,United Arab Emirates,Jan Ø. Jørgensen,Denmark,Kento Momota,Japan,0,"20-22, 21-18, 21-12",0,0,0,0
+Super Series Masters Finals 2014,1500,group stage,2014-12-17,United Arab Emirates,Srikanth Kidambi,India,Tommy Sugiarto,Indonesia,1,"21-18, 21-13",0,0,0,0
+Super Series Masters Finals 2014,1500,group stage,2014-12-17,United Arab Emirates,Kento Momota,Japan,Tommy Sugiarto,Indonesia,1,"23-21, 7-21, 21-15",0,0,0,0
+Super Series Masters Finals 2014,1500,group stage,2014-12-17,United Arab Emirates,Jan Ø. Jørgensen,Denmark,Srikanth Kidambi,India,1,"17-21, 21-12, 21-14",0,0,0,0
 Super Series Masters Finals 2014,1500,semifinals,2014-12-17,United Arab Emirates,Chen Long,China,Srikanth Kidambi,India,1,"21-18, 21-9",1,4,0,0
 Super Series Masters Finals 2014,1500,semifinals,2014-12-17,United Arab Emirates,Hans-Kristian Vittinghus,Denmark,Jan Ø. Jørgensen,Denmark,1,"21-11, 21-17",6,2,0,0
 Super Series Masters Finals 2014,1500,final,2014-12-17,United Arab Emirates,Chen Long,China,Hans-Kristian Vittinghus,Denmark,1,"21-16, 21-10",1,6,0,0
@@ -2407,7 +2426,7 @@ Japan Super Series 2015,500,first round,2015-09-08,Japan,Tian Houwei,China,Ng Ka
 Japan Super Series 2015,500,first round,2015-09-08,Japan,Lin Dan,China,Son Wan-ho,South Korea,1,"17-21, 25-23, 21-17",5,0,0,0
 Japan Super Series 2015,500,first round,2015-09-08,Japan,Boonsak Ponsana,Thailand,Lee Chong Wei,Malaysia,0,"10-21, 21-15, 21-16",0,0,0,0
 Japan Super Series 2015,500,first round,2015-09-08,Japan,Kento Momota,Japan,Wei Nan,Hong Kong,1,"21-17, 21-17",4,0,0,0
-Japan Super Series 2015,500,first round,2015-09-08,Japan,Tommy Sugiarto,Indonesia,Hsu Jen-hao,Chinese Taipei,0,"10-21, 17-21",0,0,0,1
+Japan Super Series 2015,500,first round,2015-09-08,Japan,Tommy Sugiarto,Indonesia,Hsu Jen-hao,Chinese Taipei,1,"21-10, 21-17",0,0,0,0
 Japan Super Series 2015,500,first round,2015-09-08,Japan,Wang Zhengming,China,Hu Yun,Hong Kong,0,"10-21, 21-19, 21-18",8,0,0,0
 Japan Super Series 2015,500,first round,2015-09-08,Japan,Ihsan Maulana Mustofa,Indonesia,Marc Zwiebler,Germany,1,"21-15, 18-21, 21-18",0,0,0,0
 Japan Super Series 2015,500,second round,2015-09-08,Japan,Chen Long,China,Tian Houwei,China,0,"21-16, 21-17",1,0,0,0
@@ -2588,14 +2607,18 @@ Hong Kong Super Series 2015,500,quarterfinals,2015-11-17,Hong Kong,Kazumasa Saka
 Hong Kong Super Series 2015,500,quarterfinals,2015-11-17,Hong Kong,Tian Houwei,China,Wang Zhengming,China,1,"21-15, 21-11",0,0,0,0
 Hong Kong Super Series 2015,500,semifinals,2015-11-17,Hong Kong,Anthony Sinisuka Ginting,Indonesia,Tian Houwei,China,0,"18-21, 21-11, 21-6",0,0,0,0
 Hong Kong Super Series 2015,500,final,2015-11-17,Hong Kong,Lee Chong Wei,Malaysia,Tian Houwei,China,1,"21-16, 21-15",0,0,0,0
-Super Series Masters Finals 2015,1500,Unknown,2015-12-09,United Arab Emirates,Jan Ø. Jørgensen,Denmark,Chen Long,China,1,,0,0,0,0
-Super Series Masters Finals 2015,1500,Unknown,2015-12-09,United Arab Emirates,Tian Houwei,China,Chen Long,China,1,,0,0,0,0
-Super Series Masters Finals 2015,1500,Unknown,2015-12-09,United Arab Emirates,Tian Houwei,China,Hu Yun,Hong Kong,0,,0,0,0,1
-Super Series Masters Finals 2015,1500,Unknown,2015-12-09,United Arab Emirates,Hu Yun,Hong Kong,Jan Ø. Jørgensen,Denmark,0,,0,0,0,1
-Super Series Masters Finals 2015,1500,Unknown,2015-12-09,United Arab Emirates,Viktor Axelsen,Denmark,Kento Momota,Japan,1,,0,0,0,0
-Super Series Masters Finals 2015,1500,Unknown,2015-12-09,United Arab Emirates,Chou Tien-chen,Chinese Taipei,Kento Momota,Japan,1,,0,0,0,0
-Super Series Masters Finals 2015,1500,Unknown,2015-12-09,United Arab Emirates,Srikanth Kidambi,India,Chou Tien-chen,Chinese Taipei,0,,0,0,0,1
-Super Series Masters Finals 2015,1500,Unknown,2015-12-09,United Arab Emirates,Srikanth Kidambi,India,Viktor Axelsen,Denmark,0,,0,0,0,1
+Super Series Masters Finals 2015,1500,group stage,2015-12-09,United Arab Emirates,Jan Ø. Jørgensen,Denmark,Hu Yun,Hong Kong,1,"21-10, 23-21",0,0,0,0
+Super Series Masters Finals 2015,1500,group stage,2015-12-09,United Arab Emirates,Chen Long,China,Tian Houwei,China,1,"21-13, 21-13",0,0,0,0
+Super Series Masters Finals 2015,1500,group stage,2015-12-09,United Arab Emirates,Jan Ø. Jørgensen,Denmark,Tian Houwei,China,1,"21-17, 21-16",0,0,0,0
+Super Series Masters Finals 2015,1500,group stage,2015-12-09,United Arab Emirates,Chen Long,China,Hu Yun,Hong Kong,1,"21-17, 21-12",0,0,0,0
+Super Series Masters Finals 2015,1500,group stage,2015-12-09,United Arab Emirates,Tian Houwei,China,Hu Yun,Hong Kong,1,"21-19, 21-10",0,0,0,0
+Super Series Masters Finals 2015,1500,group stage,2015-12-09,United Arab Emirates,Chen Long,China,Jan Ø. Jørgensen,Denmark,1,"21-14, 21-17",0,0,0,0
+Super Series Masters Finals 2015,1500,group stage,2015-12-09,United Arab Emirates,Viktor Axelsen,Denmark,Chou Tien-chen,Chinese Taipei,1,"21-8, 21-16",0,0,0,0
+Super Series Masters Finals 2015,1500,group stage,2015-12-09,United Arab Emirates,Kento Momota,Japan,Srikanth Kidambi,India,1,"21-13, 21-13",0,0,0,0
+Super Series Masters Finals 2015,1500,group stage,2015-12-09,United Arab Emirates,Viktor Axelsen,Denmark,Srikanth Kidambi,India,1,"21-13, 21-18",0,0,0,0
+Super Series Masters Finals 2015,1500,group stage,2015-12-09,United Arab Emirates,Kento Momota,Japan,Chou Tien-chen,Chinese Taipei,1,"21-15, 21-19",0,0,0,0
+Super Series Masters Finals 2015,1500,group stage,2015-12-09,United Arab Emirates,Chou Tien-chen,Chinese Taipei,Srikanth Kidambi,India,1,"21-17, 21-13",0,0,0,0
+Super Series Masters Finals 2015,1500,group stage,2015-12-09,United Arab Emirates,Kento Momota,Japan,Viktor Axelsen,Denmark,1,"19-21, 21-15, 21-15",0,0,0,0
 Super Series Masters Finals 2015,1500,semifinals,2015-12-09,United Arab Emirates,Chen Long,China,Viktor Axelsen,Denmark,0,"21-12, 21-17",1,4,0,0
 Super Series Masters Finals 2015,1500,semifinals,2015-12-09,United Arab Emirates,Jan Ø. Jørgensen,Denmark,Kento Momota,Japan,0,"21-19, 21-18",3,2,0,0
 Super Series Masters Finals 2015,1500,final,2015-12-09,United Arab Emirates,Viktor Axelsen,Denmark,Kento Momota,Japan,0,"21-15, 21-12",4,2,0,0
@@ -2662,7 +2685,7 @@ India Open Super Series 2016,500,quarterfinals,2016-03-29,India,Hans-Kristian Vi
 India Open Super Series 2016,500,semifinals,2016-03-29,India,Xue Song,China,Kento Momota,Japan,0,"17-21, 3-6",0,2,1,0
 India Open Super Series 2016,500,final,2016-03-29,India,Viktor Axelsen,Denmark,Kento Momota,Japan,0,"21-15, 21-18",5,2,0,0
 Malaysia Open Super Series Premier 2016,750,first round,2016-04-05,Malaysia,Chen Long,China,Marc Zwiebler,Germany,1,"21-19, 21-15",1,0,0,0
-Malaysia Open Super Series Premier 2016,750,first round,2016-04-05,Malaysia,Tommy Sugiarto,Indonesia,Wong Wing Ki,Hong Kong,0,"8-21, 21-16, 21-11",0,0,0,1
+Malaysia Open Super Series Premier 2016,750,first round,2016-04-05,Malaysia,Tommy Sugiarto,Indonesia,Wong Wing Ki,Hong Kong,0,"8-21, 21-16, 21-11",0,0,0,0
 Malaysia Open Super Series Premier 2016,750,first round,2016-04-05,Malaysia,Tian Houwei,China,Hans-Kristian Vittinghus,Denmark,1,"21-10, 11-21, 21-10",8,0,0,0
 Malaysia Open Super Series Premier 2016,750,first round,2016-04-05,Malaysia,Hsu Jen-hao,Chinese Taipei,Ng Ka Long,Hong Kong,1,"21-10, 18-21, 21-15",0,0,0,0
 Malaysia Open Super Series Premier 2016,750,first round,2016-04-05,Malaysia,Kento Momota,Japan,Prannoy H. S.,India,1,"21-19, 22-20",3,0,0,0
@@ -2971,14 +2994,18 @@ Hong Kong Super Series 2016,500,quarterfinals,2016-11-22,Hong Kong,Sony Dwi Kunc
 Hong Kong Super Series 2016,500,quarterfinals,2016-11-22,Hong Kong,Ng Ka Long,Hong Kong,Ajay Jayaram,India,1,"21-15, 21-14",0,0,0,0
 Hong Kong Super Series 2016,500,semifinals,2016-11-22,Hong Kong,Hu Yun,Hong Kong,Ng Ka Long,Hong Kong,0,"21-19, 21-7",0,0,0,0
 Hong Kong Super Series 2016,500,final,2016-11-22,Hong Kong,Sameer Verma,India,Ng Ka Long,Hong Kong,0,"21-14, 10-21, 21-11",0,0,0,0
-Super Series Masters Finals 2016,1500,Unknown,2016-12-14,United Arab Emirates,Jan Ø. Jørgensen,Denmark,Tian Houwei,China,1,,0,0,0,0
-Super Series Masters Finals 2016,1500,Unknown,2016-12-14,United Arab Emirates,Jan Ø. Jørgensen,Denmark,Marc Zwiebler,Germany,0,,0,0,1,0
-Super Series Masters Finals 2016,1500,Unknown,2016-12-14,United Arab Emirates,Marc Zwiebler,Germany,Hu Yun,Hong Kong,0,,0,0,0,1
-Super Series Masters Finals 2016,1500,Unknown,2016-12-14,United Arab Emirates,Tian Houwei,China,Hu Yun,Hong Kong,1,,0,0,0,0
-Super Series Masters Finals 2016,1500,Unknown,2016-12-14,United Arab Emirates,Ng Ka Long,Hong Kong,Son Wan-ho,South Korea,0,,0,0,0,0
-Super Series Masters Finals 2016,1500,Unknown,2016-12-14,United Arab Emirates,Son Wan-ho,South Korea,Viktor Axelsen,Denmark,0,,0,0,0,0
-Super Series Masters Finals 2016,1500,Unknown,2016-12-14,United Arab Emirates,Lee Chong Wei,Malaysia,Viktor Axelsen,Denmark,1,,0,0,0,0
-Super Series Masters Finals 2016,1500,Unknown,2016-12-14,United Arab Emirates,Ng Ka Long,Hong Kong,Lee Chong Wei,Malaysia,1,,0,0,0,0
+Super Series Masters Finals 2016,1500,group stage,2016-12-14,United Arab Emirates,Tian Houwei,China,Marc Zwiebler,Germany,1,"21-15, 21-7",0,0,0,0
+Super Series Masters Finals 2016,1500,group stage,2016-12-14,United Arab Emirates,Jan Ø. Jørgensen,Denmark,Hu Yun,Hong Kong,1,"21-8, 21-5",0,0,0,0
+Super Series Masters Finals 2016,1500,group stage,2016-12-14,United Arab Emirates,Jan Ø. Jørgensen,Denmark,Marc Zwiebler,Germany,1,"21-18, 21-10",0,0,0,0
+Super Series Masters Finals 2016,1500,group stage,2016-12-14,United Arab Emirates,Tian Houwei,China,Hu Yun,Hong Kong,1,"21-19, 13-21, 21-7",0,0,0,0
+Super Series Masters Finals 2016,1500,group stage,2016-12-14,United Arab Emirates,Jan Ø. Jørgensen,Denmark,Tian Houwei,China,0,"21-16, 22-20",0,0,0,0
+Super Series Masters Finals 2016,1500,group stage,2016-12-14,United Arab Emirates,Marc Zwiebler,Germany,Hu Yun,Hong Kong,1,"21-10, 18-10",0,0,1,0
+Super Series Masters Finals 2016,1500,group stage,2016-12-14,United Arab Emirates,Son Wan-ho,South Korea,Lee Chong Wei,Malaysia,1,"21-10, 21-16",0,0,0,0
+Super Series Masters Finals 2016,1500,group stage,2016-12-14,United Arab Emirates,Ng Ka Long,Hong Kong,Viktor Axelsen,Denmark,0,"21-13, 21-17",0,0,0,0
+Super Series Masters Finals 2016,1500,group stage,2016-12-14,United Arab Emirates,Ng Ka Long,Hong Kong,Lee Chong Wei,Malaysia,0,"21-15, 22-20",0,0,0,0
+Super Series Masters Finals 2016,1500,group stage,2016-12-14,United Arab Emirates,Son Wan-ho,South Korea,Viktor Axelsen,Denmark,1,"21-19, 14-21, 21-18",0,0,0,0
+Super Series Masters Finals 2016,1500,group stage,2016-12-14,United Arab Emirates,Son Wan-ho,South Korea,Ng Ka Long,Hong Kong,0,"24-26, 21-8, 21-11",0,0,0,0
+Super Series Masters Finals 2016,1500,group stage,2016-12-14,United Arab Emirates,Viktor Axelsen,Denmark,Lee Chong Wei,Malaysia,1,"14-21, 21-14, 21-19",0,0,0,0
 Super Series Masters Finals 2016,1500,semifinals,2016-12-14,United Arab Emirates,Tian Houwei,China,Jan Ø. Jørgensen,Denmark,1,"21-17, 19-21, 21-13",3,1,0,0
 Super Series Masters Finals 2016,1500,semifinals,2016-12-14,United Arab Emirates,Viktor Axelsen,Denmark,Son Wan-ho,South Korea,1,"21-17, 21-19",5,2,0,0
 Super Series Masters Finals 2016,1500,final,2016-12-14,United Arab Emirates,Tian Houwei,China,Viktor Axelsen,Denmark,0,"21-14, 6-21, 21-17",3,5,0,0
@@ -3417,14 +3444,18 @@ Hong Kong Super Series 2017,500,quarterfinals,2017-11-21,Hong Kong,Shi Yuqi,Chin
 Hong Kong Super Series 2017,500,quarterfinals,2017-11-21,Hong Kong,Lee Chong Wei,Malaysia,Son Wan-ho,South Korea,1,"21-11, 21-12",8,2,0,0
 Hong Kong Super Series 2017,500,semifinals,2017-11-21,Hong Kong,Shi Yuqi,China,Lee Chong Wei,Malaysia,0,"21-19, 21-8",6,8,0,0
 Hong Kong Super Series 2017,500,final,2017-11-21,Hong Kong,Chen Long,China,Lee Chong Wei,Malaysia,0,"21-14, 21-19",5,8,0,0
-Super Series Finals 2017,1500,Unknown,2017-12-13,United Arab Emirates,Lee Chong Wei,Malaysia,Son Wan-ho,South Korea,1,,0,0,1,0
-Super Series Finals 2017,1500,Unknown,2017-12-13,United Arab Emirates,Ng Ka Long,Hong Kong,Son Wan-ho,South Korea,1,,0,0,1,0
-Super Series Finals 2017,1500,Unknown,2017-12-13,United Arab Emirates,Chen Long,China,Ng Ka Long,Hong Kong,0,,0,0,0,0
-Super Series Finals 2017,1500,Unknown,2017-12-13,United Arab Emirates,Chen Long,China,Lee Chong Wei,Malaysia,0,,0,0,0,1
-Super Series Finals 2017,1500,Unknown,2017-12-13,United Arab Emirates,Shi Yuqi,China,Srikanth Kidambi,India,1,,0,0,0,0
-Super Series Finals 2017,1500,Unknown,2017-12-13,United Arab Emirates,Chou Tien-chen,Chinese Taipei,Srikanth Kidambi,India,0,,0,0,0,1
-Super Series Finals 2017,1500,Unknown,2017-12-13,United Arab Emirates,Viktor Axelsen,Denmark,Chou Tien-chen,Chinese Taipei,0,,0,0,0,0
-Super Series Finals 2017,1500,Unknown,2017-12-13,United Arab Emirates,Viktor Axelsen,Denmark,Shi Yuqi,China,1,,0,0,0,0
+Super Series Finals 2017,1500,group stage,2017-12-13,United Arab Emirates,Son Wan-ho,South Korea,Chen Long,China,1,,0,0,1,0
+Super Series Finals 2017,1500,group stage,2017-12-13,United Arab Emirates,Lee Chong Wei,Malaysia,Ng Ka Long,Hong Kong,1,"21-14, 21-13",0,0,0,0
+Super Series Finals 2017,1500,group stage,2017-12-13,United Arab Emirates,Lee Chong Wei,Malaysia,Chen Long,China,1,,0,0,1,0
+Super Series Finals 2017,1500,group stage,2017-12-13,United Arab Emirates,Son Wan-ho,South Korea,Ng Ka Long,Hong Kong,0,"21-15, 13-21, 21-16",0,0,0,0
+Super Series Finals 2017,1500,group stage,2017-12-13,United Arab Emirates,Ng Ka Long,Hong Kong,Chen Long,China,1,,0,0,1,0
+Super Series Finals 2017,1500,group stage,2017-12-13,United Arab Emirates,Son Wan-ho,South Korea,Lee Chong Wei,Malaysia,1,"13-21, 22-20, 21-15",0,0,0,0
+Super Series Finals 2017,1500,group stage,2017-12-13,United Arab Emirates,Shi Yuqi,China,Chou Tien-chen,Chinese Taipei,1,"21-19, 21-17",0,0,0,0
+Super Series Finals 2017,1500,group stage,2017-12-13,United Arab Emirates,Srikanth Kidambi,India,Viktor Axelsen,Denmark,0,"21-13, 21-17",0,0,0,0
+Super Series Finals 2017,1500,group stage,2017-12-13,United Arab Emirates,Shi Yuqi,China,Viktor Axelsen,Denmark,1,"13-21, 21-18, 21-17",0,0,0,0
+Super Series Finals 2017,1500,group stage,2017-12-13,United Arab Emirates,Srikanth Kidambi,India,Chou Tien-chen,Chinese Taipei,0,"21-18, 21-18",0,0,0,0
+Super Series Finals 2017,1500,group stage,2017-12-13,United Arab Emirates,Chou Tien-chen,Chinese Taipei,Viktor Axelsen,Denmark,0,"21-16, 14-21, 21-15",0,0,0,0
+Super Series Finals 2017,1500,group stage,2017-12-13,United Arab Emirates,Srikanth Kidambi,India,Shi Yuqi,China,0,"21-17, 19-21, 21-14",0,0,0,0
 Super Series Finals 2017,1500,semifinals,2017-12-13,United Arab Emirates,Shi Yuqi,China,Viktor Axelsen,Denmark,0,"21-12, 21-8",3,8,0,0
 Super Series Finals 2017,1500,semifinals,2017-12-13,United Arab Emirates,Son Wan-ho,South Korea,Lee Chong Wei,Malaysia,0,"21-17, 21-11",1,4,0,0
 Super Series Finals 2017,1500,final,2017-12-13,United Arab Emirates,Viktor Axelsen,Denmark,Lee Chong Wei,Malaysia,1,"19-21, 21-19, 21-15",8,4,0,0
@@ -4420,14 +4451,18 @@ Syed Modi International 2018,300,first round,2018-11-20,India,Chico Aura Dwi War
 Syed Modi International 2018,300,second round,2018-11-20,India,Gurusai Dutt,India,Vicky Angga Saputra,Indonesia,0,"21-10, 7-21, 21-14",0,0,0,0
 Syed Modi International 2018,300,second round,2018-11-20,India,Mithun Manjunath,India,Chico Aura Dwi Wardoyo,Indonesia,0,"21-9, 21-19",0,0,0,0
 Syed Modi International 2018,300,quarter-finals,2018-11-20,India,Vicky Angga Saputra,Indonesia,Chico Aura Dwi Wardoyo,Indonesia,0,"21-17, 21-19",0,0,0,0
-BWF World Tour Finals 2018,1500,Unknown,2018-12-12,China,Shi Yuqi,China,Chou Tien-chen,Chinese Taipei,1,,0,0,0,0
-BWF World Tour Finals 2018,1500,Unknown,2018-12-12,China,Son Wan-ho,South Korea,Chou Tien-chen,Chinese Taipei,1,,0,0,0,0
-BWF World Tour Finals 2018,1500,Unknown,2018-12-12,China,Anthony Sinisuka Ginting,Indonesia,Son Wan-ho,South Korea,0,,0,0,0,0
-BWF World Tour Finals 2018,1500,Unknown,2018-12-12,China,Anthony Sinisuka Ginting,Indonesia,Shi Yuqi,China,0,,0,0,0,0
-BWF World Tour Finals 2018,1500,Unknown,2018-12-12,China,Tommy Sugiarto,Indonesia,Kento Momota,Japan,0,,0,0,0,0
-BWF World Tour Finals 2018,1500,Unknown,2018-12-12,China,Kantaphon Wangcharoen,Thailand,Kento Momota,Japan,0,,0,0,0,0
-BWF World Tour Finals 2018,1500,Unknown,2018-12-12,China,Sameer Verma,India,Kantaphon Wangcharoen,Thailand,1,,0,0,0,0
-BWF World Tour Finals 2018,1500,Unknown,2018-12-12,China,Sameer Verma,India,Tommy Sugiarto,Indonesia,1,,0,0,0,0
+BWF World Tour Finals 2018,1500,group stage,2018-12-12,China,Shi Yuqi,China,Son Wan-ho,South Korea,1,"16-21, 21-19, 21-8",0,0,0,0
+BWF World Tour Finals 2018,1500,group stage,2018-12-12,China,Chou Tien-chen,Chinese Taipei,Anthony Sinisuka Ginting,Indonesia,1,"17-21, 21-18, 21-18",0,0,0,0
+BWF World Tour Finals 2018,1500,group stage,2018-12-12,China,Shi Yuqi,China,Anthony Sinisuka Ginting,Indonesia,1,"21-8, 21-19",0,0,0,0
+BWF World Tour Finals 2018,1500,group stage,2018-12-12,China,Chou Tien-chen,Chinese Taipei,Son Wan-ho,South Korea,0,"18-21, 21-11, 21-14",0,0,0,0
+BWF World Tour Finals 2018,1500,group stage,2018-12-12,China,Son Wan-ho,South Korea,Anthony Sinisuka Ginting,Indonesia,1,"21-11, 21-10",0,0,0,0
+BWF World Tour Finals 2018,1500,group stage,2018-12-12,China,Chou Tien-chen,Chinese Taipei,Shi Yuqi,China,0,"21-17, 21-19",0,0,0,0
+BWF World Tour Finals 2018,1500,group stage,2018-12-12,China,Kento Momota,Japan,Sameer Verma,India,1,"21-18, 21-6",0,0,0,0
+BWF World Tour Finals 2018,1500,group stage,2018-12-12,China,Tommy Sugiarto,Indonesia,Kantaphon Wangcharoen,Thailand,1,"21-18, 18-21, 21-11",0,0,0,0
+BWF World Tour Finals 2018,1500,group stage,2018-12-12,China,Tommy Sugiarto,Indonesia,Sameer Verma,India,0,"21-16, 21-7",0,0,0,0
+BWF World Tour Finals 2018,1500,group stage,2018-12-12,China,Kento Momota,Japan,Kantaphon Wangcharoen,Thailand,1,"21-15, 21-7",0,0,0,0
+BWF World Tour Finals 2018,1500,group stage,2018-12-12,China,Kantaphon Wangcharoen,Thailand,Sameer Verma,India,0,"21-9, 21-18",0,0,0,0
+BWF World Tour Finals 2018,1500,group stage,2018-12-12,China,Kento Momota,Japan,Tommy Sugiarto,Indonesia,1,"21-14, 21-8",0,0,0,0
 BWF World Tour Finals 2018,1500,semi-finals,2018-12-12,China,Shi Yuqi,China,Sameer Verma,India,1,"12-21, 22-20, 21-17",0,0,0,0
 BWF World Tour Finals 2018,1500,semi-finals,2018-12-12,China,Son Wan-ho,South Korea,Kento Momota,Japan,0,"21-14, 21-12",0,2,0,0
 BWF World Tour Finals 2018,1500,final,2018-12-12,China,Shi Yuqi,China,Kento Momota,Japan,1,"21-12, 21-11",0,2,0,0
@@ -5619,14 +5654,18 @@ Syed Modi International 2019,300,first round,2019-11-26,India,Huang Ping-hsien,C
 Syed Modi International 2019,300,second round,2019-11-26,India,Zhao Junpeng,China,Ajay Jayaram,India,1,"21-18, 14-21, 30-28",0,0,0,0
 Syed Modi International 2019,300,second round,2019-11-26,India,Heo Kwang-hee,South Korea,Siril Verma,India,1,"21-9, 24-22",0,0,0,0
 Syed Modi International 2019,300,quarter-finals,2019-11-26,India,Zhao Junpeng,China,Heo Kwang-hee,South Korea,0,"21-14, 19-21, 21-14",0,0,0,0
-BWF World Tour Finals 2019,1500,Unknown,2019-12-11,China,Jonatan Christie,Indonesia,Kento Momota,Japan,0,,0,0,0,0
-BWF World Tour Finals 2019,1500,Unknown,2019-12-11,China,Kento Momota,Japan,Anders Antonsen,Denmark,1,,0,0,0,0
-BWF World Tour Finals 2019,1500,Unknown,2019-12-11,China,Wang Tzu-wei,Chinese Taipei,Anders Antonsen,Denmark,1,,0,0,0,0
-BWF World Tour Finals 2019,1500,Unknown,2019-12-11,China,Jonatan Christie,Indonesia,Wang Tzu-wei,Chinese Taipei,0,,0,0,0,1
-BWF World Tour Finals 2019,1500,Unknown,2019-12-11,China,Chen Long,China,Chou Tien-chen,Chinese Taipei,0,,0,0,0,0
-BWF World Tour Finals 2019,1500,Unknown,2019-12-11,China,Chou Tien-chen,Chinese Taipei,Viktor Axelsen,Denmark,0,,0,0,0,1
-BWF World Tour Finals 2019,1500,Unknown,2019-12-11,China,Anthony Sinisuka Ginting,Indonesia,Viktor Axelsen,Denmark,1,,0,0,0,0
-BWF World Tour Finals 2019,1500,Unknown,2019-12-11,China,Chen Long,China,Anthony Sinisuka Ginting,Indonesia,1,,0,0,0,0
+BWF World Tour Finals 2019,1500,group stage,2019-12-11,China,Kento Momota,Japan,Wang Tzu-wei,Chinese Taipei,1,"21-10, 21-9",0,0,0,0
+BWF World Tour Finals 2019,1500,group stage,2019-12-11,China,Jonatan Christie,Indonesia,Anders Antonsen,Denmark,1,"23-21, 21-16",0,0,0,0
+BWF World Tour Finals 2019,1500,group stage,2019-12-11,China,Jonatan Christie,Indonesia,Wang Tzu-wei,Chinese Taipei,0,"21-12, 21-17",0,0,0,0
+BWF World Tour Finals 2019,1500,group stage,2019-12-11,China,Kento Momota,Japan,Anders Antonsen,Denmark,1,"19-21, 21-15, 21-15",0,0,0,0
+BWF World Tour Finals 2019,1500,group stage,2019-12-11,China,Kento Momota,Japan,Jonatan Christie,Indonesia,1,"21-14, 21-14",0,0,0,0
+BWF World Tour Finals 2019,1500,group stage,2019-12-11,China,Anders Antonsen,Denmark,Wang Tzu-wei,Chinese Taipei,1,"23-21, 12-21, 21-12",0,0,0,0
+BWF World Tour Finals 2019,1500,group stage,2019-12-11,China,Chen Long,China,Viktor Axelsen,Denmark,1,"21-17, 10-21, 21-17",0,0,0,0
+BWF World Tour Finals 2019,1500,group stage,2019-12-11,China,Chou Tien-chen,Chinese Taipei,Anthony Sinisuka Ginting,Indonesia,1,"11-21, 21-15, 25-23",0,0,0,0
+BWF World Tour Finals 2019,1500,group stage,2019-12-11,China,Chen Long,China,Anthony Sinisuka Ginting,Indonesia,0,"21-12, 21-11",0,0,0,0
+BWF World Tour Finals 2019,1500,group stage,2019-12-11,China,Chou Tien-chen,Chinese Taipei,Viktor Axelsen,Denmark,1,"12-21, 21-12, 21-15",0,0,0,0
+BWF World Tour Finals 2019,1500,group stage,2019-12-11,China,Chou Tien-chen,Chinese Taipei,Chen Long,China,0,"21-15, 21-19",0,0,0,0
+BWF World Tour Finals 2019,1500,group stage,2019-12-11,China,Viktor Axelsen,Denmark,Anthony Sinisuka Ginting,Indonesia,0,13-6,0,0,1,0
 BWF World Tour Finals 2019,1500,semi-finals,2019-12-11,China,Kento Momota,Japan,Wang Tzu-wei,Chinese Taipei,1,"21-17, 21-12",0,0,0,0
 BWF World Tour Finals 2019,1500,semi-finals,2019-12-11,China,Chen Long,China,Anthony Sinisuka Ginting,Indonesia,0,"21-15, 21-15",0,0,0,0
 BWF World Tour Finals 2019,1500,final,2019-12-11,China,Kento Momota,Japan,Anthony Sinisuka Ginting,Indonesia,1,"17-21, 21-17, 21-14",0,0,0,0
@@ -5785,10 +5824,21 @@ Thailand Masters 2020,300,first round,2020-01-21,Thailand,Toby Penty,England,Shi
 Thailand Masters 2020,300,second round,2020-01-21,Thailand,Koki Watanabe,Japan,Shesar Hiren Rhustavito,Indonesia,0,"21-19, 21-15",0,0,0,0
 Thailand Masters 2020,300,second round,2020-01-21,Thailand,Liew Daren,Malaysia,Shi Yuqi,China,0,"21-15, 21-18",0,2,0,0
 Thailand Masters 2020,300,quarter-finals,2020-01-21,Thailand,Shesar Hiren Rhustavito,Indonesia,Shi Yuqi,China,0,"21-19, 21-15",0,2,0,0
-BWF World Tour Finals 2020,1500,Unknown,2020-01-27,Thailand,Chou Tien-chen,Chinese Taipei,Viktor Axelsen,Denmark,1,,0,0,0,0
-BWF World Tour Finals 2020,1500,Unknown,2020-01-27,Thailand,Lee Zii Jia,Malaysia,Viktor Axelsen,Denmark,0,,0,0,0,0
-BWF World Tour Finals 2020,1500,Unknown,2020-01-27,Thailand,Anthony Sinisuka Ginting,Indonesia,Lee Zii Jia,Malaysia,0,,0,0,0,1
-BWF World Tour Finals 2020,1500,Unknown,2020-01-27,Thailand,Anthony Sinisuka Ginting,Indonesia,Chou Tien-chen,Chinese Taipei,1,,0,0,0,0
+BWF World Tour Finals 2020,1500,group stage,2020-01-27,Thailand,Chou Tien-chen,Chinese Taipei,Lee Zii Jia,Malaysia,1,"21-16, 12-21, 21-11",0,0,0,0
+BWF World Tour Finals 2020,1500,group stage,2020-01-27,Thailand,Viktor Axelsen,Denmark,Anthony Sinisuka Ginting,Indonesia,1,"21-17, 21-8",0,0,0,0
+BWF World Tour Finals 2020,1500,group stage,2020-01-27,Thailand,Chou Tien-chen,Chinese Taipei,Anthony Sinisuka Ginting,Indonesia,1,"21-19, 21-11",0,0,0,0
+BWF World Tour Finals 2020,1500,group stage,2020-01-27,Thailand,Viktor Axelsen,Denmark,Lee Zii Jia,Malaysia,1,"21-15, 21-4",0,0,0,0
+BWF World Tour Finals 2020,1500,group stage,2020-01-27,Thailand,Lee Zii Jia,Malaysia,Anthony Sinisuka Ginting,Indonesia,0,"21-12, 15-21, 21-13",0,0,0,0
+BWF World Tour Finals 2020,1500,group stage,2020-01-27,Thailand,Viktor Axelsen,Denmark,Chou Tien-chen,Chinese Taipei,1,"21-10, 21-14",0,0,0,0
+BWF World Tour Finals 2020,1500,group stage,2020-01-27,Thailand,Wang Tzu-wei,Chinese Taipei,Ng Ka Long,Hong Kong,1,"21-10, 21-14",0,0,0,0
+BWF World Tour Finals 2020,1500,group stage,2020-01-27,Thailand,Anders Antonsen,Denmark,Srikanth Kidambi,India,1,"15-21, 21-16, 21-18",0,0,0,0
+BWF World Tour Finals 2020,1500,group stage,2020-01-27,Thailand,Anders Antonsen,Denmark,Ng Ka Long,Hong Kong,1,"21-19, 21-16",0,0,0,0
+BWF World Tour Finals 2020,1500,group stage,2020-01-27,Thailand,Wang Tzu-wei,Chinese Taipei,Srikanth Kidambi,India,1,"19-21, 21-9, 21-19",0,0,0,0
+BWF World Tour Finals 2020,1500,group stage,2020-01-27,Thailand,Ng Ka Long,Hong Kong,Srikanth Kidambi,India,1,"12-21, 21-18, 21-19",0,0,0,0
+BWF World Tour Finals 2020,1500,group stage,2020-01-27,Thailand,Anders Antonsen,Denmark,Wang Tzu-wei,Chinese Taipei,0,"21-11, 21-19",0,0,0,0
+BWF World Tour Finals 2020,1500,semi-finals,2020-01-27,Thailand,Viktor Axelsen,Denmark,Chou Tien-chen,Chinese Taipei,1,"21-16, 21-9",0,0,0,0
+BWF World Tour Finals 2020,1500,semi-finals,2020-01-27,Thailand,Anders Antonsen,Denmark,Wang Tzu-wei,Chinese Taipei,1,"21-18, 14-21, 21-16",0,0,0,0
+BWF World Tour Finals 2020,1500,final,2020-01-27,Thailand,Viktor Axelsen,Denmark,Anders Antonsen,Denmark,0,"21-16, 5-21, 21-17",0,0,0,0
 Spain Masters 2020,300,semi-finals,2020-02-18,Spain,Viktor Axelsen,Denmark,Liew Daren,Malaysia,1,"21-10, 21-19",1,0,0,0
 Spain Masters 2020,300,semi-finals,2020-02-18,Spain,Ajay Jayaram,India,Kunlavut Vitidsarn,Thailand,0,"22-20, 21-12",0,0,0,0
 Spain Masters 2020,300,final,2020-02-18,Spain,Viktor Axelsen,Denmark,Kunlavut Vitidsarn,Thailand,1,"21-16, 21-13",1,0,0,0
@@ -6003,7 +6053,7 @@ Orléans Masters 2021,100,second round,2021-03-23,France,Samuel Hsiao,Germany,Ch
 Orléans Masters 2021,100,second round,2021-03-23,France,Parupalli Kashyap,India,Toma Junior Popov,France,0,"21-7, 21-17",5,0,0,0
 Orléans Masters 2021,100,second round,2021-03-23,France,Alex Lane,England,Philip Illum Klindt,Denmark,0,"21-18, 21-11",0,0,0,0
 Orléans Masters 2021,100,third round,2021-03-23,France,Srikanth Kidambi,India,Cheam June Wei,Malaysia,1,"21-17, 22-20",1,0,0,0
-Orléans Masters 2021,100,third round,2021-03-23,France,Toma Junior Popov,France,Philip Illum Klindt,Denmark,0,"8-21, 11-21",0,0,0,1
+Orléans Masters 2021,100,third round,2021-03-23,France,Toma Junior Popov,France,Philip Illum Klindt,Denmark,1,"21-8, 21-11",0,0,0,0
 Orléans Masters 2021,100,quarter-finals,2021-03-23,France,Srikanth Kidambi,India,Toma Junior Popov,France,0,"21-19, 21-17",1,0,0,0
 Orléans Masters 2021,100,first round,2021-03-23,France,Thomas Fourcade,France,Yanis Gaudin,France,0,"21-11, 21-15",0,0,0,0
 Orléans Masters 2021,100,first round,2021-03-23,France,Kim Bruun,Denmark,Sergey Sirant,Russia,0,"21-17, 12-21, 21-17",0,0,0,0
@@ -6224,12 +6274,21 @@ Indonesia Open 2021,1000,first round,2021-11-23,Indonesia,Koki Watanabe,Japan,Vi
 Indonesia Open 2021,1000,second round,2021-11-23,Indonesia,B. Sai Praneeth,India,Christo Popov,France,1,"21-17, 14-21, 21-19",0,0,0,0
 Indonesia Open 2021,1000,second round,2021-11-23,Indonesia,Srikanth Kidambi,India,Viktor Axelsen,Denmark,0,"21-14, 21-18",0,2,0,0
 Indonesia Open 2021,1000,quarter-finals,2021-11-23,Indonesia,B. Sai Praneeth,India,Viktor Axelsen,Denmark,0,"21-12, 21-8",0,2,0,0
-BWF World Tour Finals 2021,1500,group stage,2021-12-01,Indonesia,Viktor Axelsen,Denmark,Rasmus Gemke,Denmark,0,,0,0,0,1
-BWF World Tour Finals 2021,1500,group stage,2021-12-01,Indonesia,Lakshya Sen,India,Kento Momota,Japan,0,,0,0,0,1
-BWF World Tour Finals 2021,1500,group stage,2021-12-01,Indonesia,Viktor Axelsen,Denmark,Lakshya Sen,India,1,,0,0,0,0
+BWF World Tour Finals 2021,1500,group stage,2021-12-01,Indonesia,Viktor Axelsen,Denmark,Rasmus Gemke,Denmark,1,5-1,0,0,1,0
+BWF World Tour Finals 2021,1500,group stage,2021-12-01,Indonesia,Lakshya Sen,India,Kento Momota,Japan,0,1-1,0,0,0,1
+BWF World Tour Finals 2021,1500,group stage,2021-12-01,Indonesia,Viktor Axelsen,Denmark,Lakshya Sen,India,1,"21-15, 21-14",0,0,0,0
 BWF World Tour Finals 2021,1500,group stage,2021-12-01,Indonesia,Rasmus Gemke,Denmark,Kento Momota,Japan,0,,0,0,0,1
 BWF World Tour Finals 2021,1500,group stage,2021-12-01,Indonesia,Viktor Axelsen,Denmark,Kento Momota,Japan,0,,0,0,0,1
 BWF World Tour Finals 2021,1500,group stage,2021-12-01,Indonesia,Rasmus Gemke,Denmark,Lakshya Sen,India,0,,0,0,0,1
+BWF World Tour Finals 2021,1500,group stage,2021-12-01,Indonesia,Srikanth Kidambi,India,Toma Junior Popov,France,1,"21-14, 21-16",0,0,0,0
+BWF World Tour Finals 2021,1500,group stage,2021-12-01,Indonesia,Lee Zii Jia,Malaysia,Kunlavut Vitidsarn,Thailand,1,"21-15, 21-16",0,0,0,0
+BWF World Tour Finals 2021,1500,group stage,2021-12-01,Indonesia,Lee Zii Jia,Malaysia,Toma Junior Popov,France,1,"21-13, 21-19",0,0,0,0
+BWF World Tour Finals 2021,1500,group stage,2021-12-01,Indonesia,Srikanth Kidambi,India,Kunlavut Vitidsarn,Thailand,0,"21-18, 21-7",0,0,0,0
+BWF World Tour Finals 2021,1500,group stage,2021-12-01,Indonesia,Lee Zii Jia,Malaysia,Srikanth Kidambi,India,1,"21-19, 21-14",0,0,0,0
+BWF World Tour Finals 2021,1500,group stage,2021-12-01,Indonesia,Toma Junior Popov,France,Kunlavut Vitidsarn,Thailand,0,"21-12, 20-22, 21-5",0,0,0,0
+BWF World Tour Finals 2021,1500,semi-finals,2021-12-01,Indonesia,Viktor Axelsen,Denmark,Lakshya Sen,India,1,"21-13, 21-11",1,0,0,0
+BWF World Tour Finals 2021,1500,semi-finals,2021-12-01,Indonesia,Kunlavut Vitidsarn,Thailand,Lee Zii Jia,Malaysia,1,"21-18, 21-18",0,2,0,0
+BWF World Tour Finals 2021,1500,final,2021-12-01,Indonesia,Viktor Axelsen,Denmark,Kunlavut Vitidsarn,Thailand,1,"21-12, 21-8",1,0,0,0
 World Championships 2021,1500,semi-finals,2021-12-12,Spain,Lakshya Sen,India,Srikanth Kidambi,India,0,"17-21, 21-14, 21-17",0,12,0,0
 World Championships 2021,1500,semi-finals,2021-12-12,Spain,Anders Antonsen,Denmark,Loh Kean Yew,Singapore,0,"23-21, 21-14",3,0,0,0
 World Championships 2021,1500,final,2021-12-12,Spain,Srikanth Kidambi,India,Loh Kean Yew,Singapore,0,"21-15, 22-20",12,0,0,0
@@ -7085,12 +7144,21 @@ Australian Open 2022,300,first round,2022-11-15,Australia,Pit Seng Low,Australia
 Australian Open 2022,300,second round,2022-11-15,Australia,Weng Hongyang,China,Shi Yuqi,China,0,"21-14, 21-7",0,0,0,0
 Australian Open 2022,300,second round,2022-11-15,Australia,Li Shifeng,China,Loh Kean Yew,Singapore,0,"21-10, 12-21, 23-21",0,2,0,0
 Australian Open 2022,300,quarter-finals,2022-11-15,Australia,Shi Yuqi,China,Loh Kean Yew,Singapore,1,"17-21, 21-16, 21-13",0,2,0,0
-BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Prannoy H. S.,India,Kodai Naraoka,Japan,0,,0,0,0,0
-BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Viktor Axelsen,Denmark,Lu Guangzu,China,1,,0,0,0,0
-BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Prannoy H. S.,India,Lu Guangzu,China,0,,0,0,0,0
-BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Viktor Axelsen,Denmark,Kodai Naraoka,Japan,1,,0,0,0,0
-BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Viktor Axelsen,Denmark,Prannoy H. S.,India,0,,0,0,0,0
-BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Kodai Naraoka,Japan,Lu Guangzu,China,1,,0,0,0,0
+BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Prannoy H. S.,India,Kodai Naraoka,Japan,0,"21-12, 9-21, 21-17",0,0,0,0
+BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Viktor Axelsen,Denmark,Lu Guangzu,China,1,"21-13, 21-11",0,0,0,0
+BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Prannoy H. S.,India,Lu Guangzu,China,0,"23-21, 17-21, 21-19",0,0,0,0
+BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Viktor Axelsen,Denmark,Kodai Naraoka,Japan,1,"21-5, 21-15",0,0,0,0
+BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Viktor Axelsen,Denmark,Prannoy H. S.,India,0,"14-21, 21-17, 21-18",0,0,0,0
+BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Kodai Naraoka,Japan,Lu Guangzu,China,1,"21-19, 21-15",0,0,0,0
+BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Jonatan Christie,Indonesia,Anthony Sinisuka Ginting,Indonesia,0,"6-21, 21-10, 21-9",0,0,0,0
+BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Chou Tien-chen,Chinese Taipei,Loh Kean Yew,Singapore,0,"21-15, 21-17",0,0,0,0
+BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Chou Tien-chen,Chinese Taipei,Anthony Sinisuka Ginting,Indonesia,0,"21-14, 12-21, 21-19",0,0,0,0
+BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Jonatan Christie,Indonesia,Loh Kean Yew,Singapore,1,"16-21, 22-20, 21-10",0,0,0,0
+BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Chou Tien-chen,Chinese Taipei,Jonatan Christie,Indonesia,0,"21-13, 12-21, 21-17",0,0,0,0
+BWF World Tour Finals 2022,1500,group stage,2022-12-07,Thailand[b],Anthony Sinisuka Ginting,Indonesia,Loh Kean Yew,Singapore,1,"21-12, 23-21",0,0,0,0
+BWF World Tour Finals 2022,1500,semi-finals,2022-12-07,Thailand[b],Viktor Axelsen,Denmark,Kodai Naraoka,Japan,1,"21-23, 21-19, 21-18",1,0,0,0
+BWF World Tour Finals 2022,1500,semi-finals,2022-12-07,Thailand[b],Jonatan Christie,Indonesia,Anthony Sinisuka Ginting,Indonesia,0,"21-15, 11-21, 21-18",4,0,0,0
+BWF World Tour Finals 2022,1500,final,2022-12-07,Thailand[b],Viktor Axelsen,Denmark,Anthony Sinisuka Ginting,Indonesia,1,"21-13, 21-14",1,0,0,0
 Malaysia Open 2023,1000,semi-finals,2023-01-10,Malaysia,Viktor Axelsen,Denmark,Kanta Tsuneyama,Japan,1,"21-7, 21-15",1,0,0,0
 Malaysia Open 2023,1000,semi-finals,2023-01-10,Malaysia,Kunlavut Vitidsarn,Thailand,Kodai Naraoka,Japan,0,"21-17, 19-21, 21-17",8,0,0,0
 Malaysia Open 2023,1000,final,2023-01-10,Malaysia,Viktor Axelsen,Denmark,Kodai Naraoka,Japan,1,"21-6, 21-15",1,0,0,0
@@ -7387,7 +7455,7 @@ Malaysia Masters 2023,500,first round,2023-05-23,Malaysia,Li Shifeng,China,Lee C
 Malaysia Masters 2023,500,second round,2023-05-23,Malaysia,Jonatan Christie,Indonesia,Kenta Nishimoto,Japan,0,"22-20, 21-11",3,0,0,0
 Malaysia Masters 2023,500,second round,2023-05-23,Malaysia,Prannoy H. S.,India,Li Shifeng,China,1,"13-21, 21-16, 21-11",0,0,0,0
 Malaysia Masters 2023,500,quarter-finals,2023-05-23,Malaysia,Kenta Nishimoto,Japan,Prannoy H. S.,India,0,"25-23, 18-21, 21-13",0,0,0,0
-Malaysia Masters 2023,500,first round,2023-05-23,Malaysia,Rasmus Gemke,Denmark,Jeon Hyeok-jin,South Korea,0,"21-16, 26-28, 11-21",0,0,0,1
+Malaysia Masters 2023,500,first round,2023-05-23,Malaysia,Rasmus Gemke,Denmark,Jeon Hyeok-jin,South Korea,1,"16-21, 28-26, 21-11",0,0,0,0
 Malaysia Masters 2023,500,first round,2023-05-23,Malaysia,Lee Chia-hao,Chinese Taipei,Kodai Naraoka,Japan,0,"21-18, 21-11",0,5,0,0
 Malaysia Masters 2023,500,first round,2023-05-23,Malaysia,Lin Chun-yi,Chinese Taipei,Chico Aura Dwi Wardoyo,Indonesia,1,"13-21, 21-16, 21-8",0,0,0,0
 Malaysia Masters 2023,500,first round,2023-05-23,Malaysia,Lu Guangzu,China,Lee Zii Jia,Malaysia,0,"21-12, 21-19",0,4,0,0
@@ -8146,18 +8214,18 @@ Guwahati Masters 2023,100,second round,2023-12-05,India,Alwi Farhan,Indonesia,Le
 Guwahati Masters 2023,100,third round,2023-12-05,India,Justin Hoh,Malaysia,Mithun Manjunath,India,1,"21-19, 21-19",0,7,0,0
 Guwahati Masters 2023,100,third round,2023-12-05,India,Abhishek Saini,India,Alwi Farhan,Indonesia,0,"21-15, 21-14",0,0,0,0
 Guwahati Masters 2023,100,quarter-finals,2023-12-05,India,Justin Hoh,Malaysia,Alwi Farhan,Indonesia,1,"17-21, 22-20, 21-17",0,0,0,0
-HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Kodai Naraoka,Japan,Anthony Sinisuka Ginting,Indonesia,0,,0,0,0,0
-HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Shi Yuqi,China,Viktor Axelsen,Denmark,1,,0,0,0,0
-HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Shi Yuqi,China,Anthony Sinisuka Ginting,Indonesia,0,,0,0,0,0
-HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Kodai Naraoka,Japan,Viktor Axelsen,Denmark,0,,0,0,0,0
-HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Kodai Naraoka,Japan,Shi Yuqi,China,0,,0,0,0,0
-HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Viktor Axelsen,Denmark,Anthony Sinisuka Ginting,Indonesia,1,,0,0,0,0
-HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Li Shifeng,China,Anders Antonsen,Denmark,0,,0,0,0,0
-HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Jonatan Christie,Indonesia,Kunlavut Vitidsarn,Thailand,1,,0,0,0,0
-HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Li Shifeng,China,Kunlavut Vitidsarn,Thailand,1,,0,0,0,0
-HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Jonatan Christie,Indonesia,Anders Antonsen,Denmark,1,,0,0,0,0
-HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Anders Antonsen,Denmark,Kunlavut Vitidsarn,Thailand,1,,0,0,0,0
-HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Jonatan Christie,Indonesia,Li Shifeng,China,0,,0,0,0,0
+HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Kodai Naraoka,Japan,Anthony Sinisuka Ginting,Indonesia,0,"10-21, 21-10, 21-18",0,0,0,0
+HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Shi Yuqi,China,Viktor Axelsen,Denmark,1,"21-19, 21-19",0,0,0,0
+HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Shi Yuqi,China,Anthony Sinisuka Ginting,Indonesia,0,"11-21, 21-7, 21-17",0,0,0,0
+HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Kodai Naraoka,Japan,Viktor Axelsen,Denmark,0,"21-17, 21-9",0,0,0,0
+HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Kodai Naraoka,Japan,Shi Yuqi,China,0,"18-21, 23-21, 21-13",0,0,0,0
+HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Viktor Axelsen,Denmark,Anthony Sinisuka Ginting,Indonesia,1,"16-21, 21-7, 21-13",0,0,0,0
+HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Li Shifeng,China,Anders Antonsen,Denmark,0,"21-18, 21-12",0,0,0,0
+HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Jonatan Christie,Indonesia,Kunlavut Vitidsarn,Thailand,1,"21-18, 21-8",0,0,0,0
+HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Li Shifeng,China,Kunlavut Vitidsarn,Thailand,1,"21-18, 22-20",0,0,0,0
+HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Jonatan Christie,Indonesia,Anders Antonsen,Denmark,1,"21-16, 21-18",0,0,0,0
+HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Anders Antonsen,Denmark,Kunlavut Vitidsarn,Thailand,1,"21-16, 21-11",0,0,0,0
+HSBC BWF World Tour Finals 2023,1500,group stage,2023-12-13,China[6],Jonatan Christie,Indonesia,Li Shifeng,China,0,"21-13, 21-18",0,0,0,0
 HSBC BWF World Tour Finals 2023,1500,semi-finals,2023-12-13,China[6],Shi Yuqi,China,Jonatan Christie,Indonesia,1,"21-16, 21-15",0,0,0,0
 HSBC BWF World Tour Finals 2023,1500,semi-finals,2023-12-13,China[6],Viktor Axelsen,Denmark,Anders Antonsen,Denmark,1,"21-9, 21-14",0,0,0,0
 HSBC BWF World Tour Finals 2023,1500,final,2023-12-13,China[6],Shi Yuqi,China,Viktor Axelsen,Denmark,0,"21-11, 21-12",0,0,0,0
@@ -9201,18 +9269,18 @@ Odisha Masters 2024,100,second round,2024-12-10,India,Bharat Raghav,India,Ayush 
 Odisha Masters 2024,100,third round,2024-12-10,India,Raghu Mariswamy,India,Sathish Karunakaran,India,0,"21-8, 21-18",0,6,0,0
 Odisha Masters 2024,100,third round,2024-12-10,India,Zhu Xuanchen,China,Ayush Shetty,India,0,"21-16, 21-16",0,4,0,0
 Odisha Masters 2024,100,quarter-finals,2024-12-10,India,Sathish Karunakaran,India,Ayush Shetty,India,1,"21-18, 12-21, 21-9",6,4,0,0
-BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Chou Tien-chen,Chinese Taipei,Lee Zii Jia,Malaysia,0,,0,0,0,0
-BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Anders Antonsen,Denmark,Li Shifeng,China,1,,0,0,0,0
-BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Chou Tien-chen,Chinese Taipei,Li Shifeng,China,0,,0,0,0,0
-BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Anders Antonsen,Denmark,Lee Zii Jia,Malaysia,0,,0,0,0,0
-BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Lee Zii Jia,Malaysia,Li Shifeng,China,0,,0,0,0,0
-BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Anders Antonsen,Denmark,Chou Tien-chen,Chinese Taipei,0,,0,0,0,0
-BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Shi Yuqi,China,Jonatan Christie,Indonesia,1,,0,0,0,0
-BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Kodai Naraoka,Japan,Kunlavut Vitidsarn,Thailand,0,,0,0,0,0
-BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Shi Yuqi,China,Kunlavut Vitidsarn,Thailand,1,,0,0,0,0
-BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Kodai Naraoka,Japan,Jonatan Christie,Indonesia,0,,0,0,0,0
-BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Shi Yuqi,China,Kodai Naraoka,Japan,0,,0,0,0,0
-BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Kunlavut Vitidsarn,Thailand,Jonatan Christie,Indonesia,0,,0,0,0,0
+BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Chou Tien-chen,Chinese Taipei,Lee Zii Jia,Malaysia,0,"21-13, 21-15",0,0,1,0
+BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Anders Antonsen,Denmark,Li Shifeng,China,1,"21-14, 21-19",0,0,0,0
+BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Chou Tien-chen,Chinese Taipei,Li Shifeng,China,0,"18-21, 21-14, 21-13",0,0,0,0
+BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Anders Antonsen,Denmark,Lee Zii Jia,Malaysia,0,"21-14, 21-19",0,0,1,0
+BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Lee Zii Jia,Malaysia,Li Shifeng,China,0,"20-22, 11-15",0,0,1,0
+BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Anders Antonsen,Denmark,Chou Tien-chen,Chinese Taipei,0,"16-21, 21-18, 21-15",0,0,0,0
+BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Shi Yuqi,China,Jonatan Christie,Indonesia,1,"21-16, 17-21, 21-8",0,0,0,0
+BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Kodai Naraoka,Japan,Kunlavut Vitidsarn,Thailand,0,"24-22, 21-18",0,0,0,0
+BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Shi Yuqi,China,Kunlavut Vitidsarn,Thailand,1,"14-21, 21-19, 25-23",0,0,0,0
+BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Kodai Naraoka,Japan,Jonatan Christie,Indonesia,0,"21-12, 21-11",0,0,0,0
+BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Shi Yuqi,China,Kodai Naraoka,Japan,0,"21-14, 21-17",0,0,0,0
+BWF World Tour Finals 2024,1500,group stage,2024-12-11,China,Kunlavut Vitidsarn,Thailand,Jonatan Christie,Indonesia,0,"21-15, 21-12",0,0,0,0
 BWF World Tour Finals 2024,1500,semi-finals,2024-12-11,China,Anders Antonsen,Denmark,Jonatan Christie,Indonesia,1,"21-6, 15-21, 21-13",0,0,0,0
 BWF World Tour Finals 2024,1500,semi-finals,2024-12-11,China,Chou Tien-chen,Chinese Taipei,Shi Yuqi,China,0,"21-14, 21-18",0,0,0,0
 BWF World Tour Finals 2024,1500,final,2024-12-11,China,Anders Antonsen,Denmark,Shi Yuqi,China,0,"21-18, 21-14",0,0,0,0
@@ -9288,7 +9356,7 @@ Indonesia Masters 2025,500,first round,2025-01-21,Indonesia,Leong Jun Hao,Malays
 Indonesia Masters 2025,500,second round,2025-01-21,Indonesia,Shi Yuqi,China,Jeon Hyeok-jin,South Korea,1,"21-11, 21-14",1,0,0,0
 Indonesia Masters 2025,500,second round,2025-01-21,Indonesia,Chi Yu-jen,Chinese Taipei,Weng Hongyang,China,0,"21-10, 21-11",0,0,0,0
 Indonesia Masters 2025,500,quarter-finals,2025-01-21,Indonesia,Shi Yuqi,China,Weng Hongyang,China,1,"22-20, 21-9",1,0,0,0
-Indonesia Masters 2025,500,first round,2025-01-21,Indonesia,Kunlavut Vitidsarn,Thailand,Nhat Nguyen,Republic of Ireland,0,"9-21, 18-21",4,0,0,1
+Indonesia Masters 2025,500,first round,2025-01-21,Indonesia,Kunlavut Vitidsarn,Thailand,Nhat Nguyen,Republic of Ireland,1,"21-9, 21-18",4,0,0,0
 Indonesia Masters 2025,500,first round,2025-01-21,Indonesia,Lu Guangzu,China,Lee Chia-hao,Chinese Taipei,1,"8-21, 21-13, 21-16",0,0,0,0
 Indonesia Masters 2025,500,first round,2025-01-21,Indonesia,Kodai Naraoka,Japan,Priyanshu Rajawat,India,1,"21-14, 13-21, 21-18",6,0,0,0
 Indonesia Masters 2025,500,first round,2025-01-21,Indonesia,Jason Teh,Singapore,Rasmus Gemke,Denmark,1,"20-22, 21-17, 22-20",0,0,0,0
@@ -10121,7 +10189,7 @@ Hylo Open 2025,500,semi-finals,2025-10-28,Germany,Kalle Koljonen,Finland,Magnus 
 Hylo Open 2025,500,semi-finals,2025-10-28,Germany,Alex Lanier,France,Jonatan Christie,Indonesia,0,"18-21, 21-19, 21-9",4,2,0,0
 Hylo Open 2025,500,final,2025-10-28,Germany,Magnus Johannesen,Denmark,Jonatan Christie,Indonesia,0,"21-14, 21-14",0,2,0,0
 Hylo Open 2025,500,first round,2025-10-28,Germany,Chou Tien-chen,Chinese Taipei,Kalle Koljonen,Finland,0,"21-19, 19-21, 21-18",3,0,0,0
-Hylo Open 2025,500,first round,2025-10-28,Germany,Dicky Dwi Pangestu,Azerbaijan,Nhat Nguyen,Republic of Ireland,0,"21-11, 21-14",0,0,0,1
+Hylo Open 2025,500,first round,2025-10-28,Germany,Dicky Dwi Pangestu,Azerbaijan,Nhat Nguyen,Republic of Ireland,0,"21-11, 21-14",0,0,0,0
 Hylo Open 2025,500,first round,2025-10-28,Germany,Loh Kean Yew,Singapore,Joakim Oldorff,Finland,1,"21-10, 21-12",6,0,0,0
 Hylo Open 2025,500,first round,2025-10-28,Germany,Victor Lai,Canada,Ayush Shetty,India,0,"21-11, 4-21, 21-18",0,0,0,0
 Hylo Open 2025,500,second round,2025-10-28,Germany,Kalle Koljonen,Finland,Nhat Nguyen,Republic of Ireland,1,"21-18, 21-13",0,0,0,0
@@ -10366,23 +10434,18 @@ Odisha Masters 2025,100,second round,2025-12-09,India,Rajesh Srikar,India,Kiran 
 Odisha Masters 2025,100,third round,2025-12-09,India,Siddhanth Gupta,India,Rithvik Sanjeevi,India,0,"15-21, 21-6, 21-17",0,8,0,0
 Odisha Masters 2025,100,third round,2025-12-09,India,Dendi Triansyah,Indonesia,Kiran George,India,0,"21-12, 21-18",0,2,0,0
 Odisha Masters 2025,100,quarter-finals,2025-12-09,India,Rithvik Sanjeevi,India,Kiran George,India,0,"21-11, 21-17",8,2,0,0
-BWF World Tour Finals 2025,1500,top nation,2025-12-17,China,China,,Japan,,0,,1,2,0,1
-BWF World Tour Finals 2025,1500,top nation,2025-12-17,China,Indonesia,,Malaysia,,0,,3,0,0,1
-BWF World Tour Finals 2025,1500,top nation,2025-12-17,China,South Korea,,Thailand,,0,,4,0,0,1
-BWF World Tour Finals 2025,1500,top nation,2025-12-17,China,Chinese Taipei,,France,,0,1-1,5,6,0,1
-BWF World Tour Finals 2025,1500,top nation,2025-12-17,China,Denmark,,India,,0,,7,0,0,1
-BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Kunlavut Vitidsarn,Thailand,Jonatan Christie,Indonesia,1,,0,0,0,0
-BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Anders Antonsen,Denmark,Christo Popov,France,0,,0,0,0,0
-BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Anders Antonsen,Denmark,Jonatan Christie,Indonesia,1,,0,0,0,0
-BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Kunlavut Vitidsarn,Thailand,Christo Popov,France,0,,0,0,0,0
-BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Christo Popov,France,Jonatan Christie,Indonesia,1,,0,0,0,0
-BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Kunlavut Vitidsarn,Thailand,Anders Antonsen,Denmark,1,,0,0,0,0
-BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Li Shifeng,China,Shi Yuqi,China,0,,0,0,0,0
-BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Chou Tien-chen,Chinese Taipei,Kodai Naraoka,Japan,0,,0,0,0,0
-BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Li Shifeng,China,Kodai Naraoka,Japan,0,,0,0,0,0
-BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Chou Tien-chen,Chinese Taipei,Shi Yuqi,China,0,,0,0,0,0
-BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Li Shifeng,China,Chou Tien-chen,Chinese Taipei,0,,0,0,0,1
-BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Shi Yuqi,China,Kodai Naraoka,Japan,1,,0,0,0,0
+BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Kunlavut Vitidsarn,Thailand,Jonatan Christie,Indonesia,1,"21-10, 21-14",0,0,0,0
+BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Anders Antonsen,Denmark,Christo Popov,France,0,"21-13, 12-21, 21-19",0,0,0,0
+BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Anders Antonsen,Denmark,Jonatan Christie,Indonesia,1,"21-16, 21-14",0,0,0,0
+BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Kunlavut Vitidsarn,Thailand,Christo Popov,France,0,"21-11, 18-21, 21-10",0,0,0,0
+BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Christo Popov,France,Jonatan Christie,Indonesia,1,"18-21, 21-16, 21-13",0,0,0,0
+BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Kunlavut Vitidsarn,Thailand,Anders Antonsen,Denmark,1,"21-15, 18-21, 21-13",0,0,0,0
+BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Li Shifeng,China,Shi Yuqi,China,0,"21-13, 23-21",0,0,1,0
+BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Chou Tien-chen,Chinese Taipei,Kodai Naraoka,Japan,0,"21-17, 21-18",0,0,0,0
+BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Li Shifeng,China,Kodai Naraoka,Japan,0,"21-16, 21-15",0,0,1,0
+BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Chou Tien-chen,Chinese Taipei,Shi Yuqi,China,0,"21-11, 19-21, 21-15",0,0,0,0
+BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Li Shifeng,China,Chou Tien-chen,Chinese Taipei,1,"21-14, 14-11",0,0,1,0
+BWF World Tour Finals 2025,1500,group stage,2025-12-17,China,Shi Yuqi,China,Kodai Naraoka,Japan,1,"21-9, 21-11",0,0,0,0
 BWF World Tour Finals 2025,1500,semi-finals,2025-12-17,China,Christo Popov,France,Kodai Naraoka,Japan,1,"21-19, 21-8",0,0,0,0
 BWF World Tour Finals 2025,1500,semi-finals,2025-12-17,China,Kunlavut Vitidsarn,Thailand,Shi Yuqi,China,0,"21-16, 21-13",1,0,0,0
 BWF World Tour Finals 2025,1500,final,2025-12-17,China,Christo Popov,France,Shi Yuqi,China,1,"21-19, 21-9",0,0,0,0

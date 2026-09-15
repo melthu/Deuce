@@ -13,6 +13,17 @@ _SCORE_CELL_RE = re.compile(r"^\d{1,2}\s*r?$", re.IGNORECASE)
 # Matches a bare seed cell: "1" .. "32"
 _SEED_CELL_RE = re.compile(r"^\d{1,2}$")
 
+# A group-stage table writes each game as one shared cell ("21-14"), not as the
+# per-player score cells a bracket uses. Matched against the text with all
+# whitespace removed, so "13- 21" and "15 r -11" both land here.
+_SET_CELL_RE = re.compile(r"^(\d{1,2})r?[-\u2013\u2014](\d{1,2})r?$", re.IGNORECASE)
+
+# BWF annuls every result of a player who withdraws mid-event, and Wikipedia
+# marks those "(voided)". They keep a bolded winner, so without this they would
+# move Elo for a match that officially never counted - three of the 2024 World
+# Tour Finals group matches are voided this way.
+_VOIDED_RE = re.compile(r"void", re.IGNORECASE)
+
 
 # The rungs of a knockout ladder, in every spelling Wikipedia writes them in.
 # Defined here rather than imported, so the scraper keeps depending on nothing
@@ -25,7 +36,8 @@ _SEED_CELL_RE = re.compile(r"^\d{1,2}$")
 # 2010-2019 World Championships write "Quarterfinals"/"Semifinals" where the
 # modern pages write "Quarter-finals"/"Semi-finals", and the first version of
 # this filter deleted every quarter-final and semi-final from all eight.
-BRACKET_ROUNDS = ("first round", "second round", "third round",
+BRACKET_ROUNDS = ("group stage",
+                  "first round", "second round", "third round",
                   "quarter-finals", "semi-finals", "final",
                   "1st round", "2nd round", "3rd round",
                   "quarterfinals", "semifinals", "finals",
@@ -52,11 +64,21 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
     soup = BeautifulSoup(resp.text, "html.parser")
 
     # --- Step 1: Find the mw-heading2 div wrapping the Men's Singles h2 ---
+    #
+    # Prefer the h2. A page can carry a *subsection* called "Men's singles"
+    # before the discipline's own section - the World Tour Finals pages break
+    # their "Seeds" section down by discipline that way - and taking the first
+    # heading of either level scopes the scrape to that seeds table instead of
+    # the draw. The 2025 edition returned zero rows for exactly this reason.
+    # h3 remains a fallback for pages whose draw sits under one.
     ms_heading_div = None
-    for div in soup.find_all("div", class_="mw-heading"):
-        h = div.find(["h2", "h3"])
-        if h and re.search(r"men.?s singles", h.get_text(), re.IGNORECASE):
-            ms_heading_div = div
+    for level in ("h2", "h3"):
+        for div in soup.find_all("div", class_="mw-heading"):
+            h = div.find(level)
+            if h and re.search(r"men.?s singles", h.get_text(), re.IGNORECASE):
+                ms_heading_div = div
+                break
+        if ms_heading_div is not None:
             break
 
     EMPTY_COLS = ["tournament", "tier", "round", "player_a", "player_a_nat",
@@ -122,15 +144,47 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
             col += cs
         return ranges
 
+    # A standings/nations summary table is recognised by these column names.
+    # "Pld"/"W"/"L" are a round-robin standings table; "NOCs"/"Nation" a medal
+    # or participating-nations summary. Either parses as a plausible bracket of
+    # nonsense - the 2025 World Tour Finals shipped "Chinese Taipei vs France"
+    # as a match - so they have to be rejected by name.
+    SUMMARY_HEADERS = {"Seeds", "Rank", "Rank.", "NOCs", "NOC", "W", "L",
+                       "Pld", "Pts", "Nation", "Nations", "Pos", "Team",
+                       "GF", "GA", "GD", "PF", "PA", "SF", "SA", "Players"}
+
     def classify_table(table):
         """Returns 'bracket', 'group_match', or 'skip'."""
         rows = table.find_all("tr")
         if not rows:
             return "skip"
-        headers = {cell.get_text().strip() for cell in rows[0].find_all(["th", "td"])}
+
+        def header_set(row):
+            return {cell.get_text().strip() for cell in row.find_all(["th", "td"])}
+
+        headers = header_set(rows[0])
+        # A summary table often opens with a single spanning title cell ("Top
+        # Nation", "Group A") and carries its real column names on row two.
+        # Reading only row one classified those as brackets, and every column
+        # then inherited the title as its round name.
+        # Only when that lone cell actually carries a title: a bracket table's
+        # header row is often entirely blank, and unioning its first player row
+        # in would classify on names rather than on column headings.
+        if len(headers) == 1 and headers != {""} and len(rows) > 1:
+            headers = headers | header_set(rows[1])
+
+        # Group round-robin match lists. Modern pages name the player columns;
+        # 2018-2020 pages leave those two headers blank and are recognised by
+        # the per-game "Set n" columns beside a score. Without the second form
+        # the group stage fell through to the bracket reader, which found no
+        # round header and labelled every one of those matches "Unknown".
         if "Player 1" in headers and "Player 2" in headers:
             return "group_match"
-        if headers & {"Seeds", "Rank", "NOCs", "W", "L", "Pld", "Pts", "Nation"}:
+        if "Score" in headers and "Date" in headers and any(
+                re.fullmatch(r"Set\s*\d+", h) for h in headers):
+            return "group_match"
+
+        if headers & SUMMARY_HEADERS:
             return "skip"
         return "bracket"
 
@@ -139,6 +193,107 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
             if start <= col_idx <= end:
                 return name
         return "Unknown"
+
+    def parse_player_cell(cell):
+        """(name, nationality, is_winner) for a cell naming a player, else None.
+
+        Shared by the bracket reader and the group-stage reader so the two
+        cannot disagree about who won a match or how a name is spelled.
+        """
+        flagicon = cell.find("span", class_="flagicon")
+        if not flagicon:
+            return None
+
+        # Nationality from the flagicon's <a title>
+        flag_link = flagicon.find("a")
+        nationality = None
+        if flag_link:
+            raw_nat = flag_link.get("title") or (flag_link.find("img") or {}).get("alt", "")
+            nationality = re.sub(r"national badminton team", "", raw_nat,
+                                 flags=re.IGNORECASE).strip() or None
+
+        # Player link = first <a> NOT inside the flagicon, NOT a team link
+        player_link = None
+        for a in cell.find_all("a"):
+            if a.find_parent("span", class_="flagicon"):
+                continue
+            if "national badminton team" in (a.get("title") or "").lower():
+                continue
+            player_link = a
+            break
+
+        if player_link:
+            name = player_link.get("title") or player_link.get_text().strip()
+            name = re.sub(r"\s*\(.*?\)", "", name).strip()
+        else:
+            # No link: either a player without a Wikipedia article (plain text
+            # after the flag) or an empty placeholder slot (TBD qualifier /
+            # future-round cell). Keep both - dropping cells shifts the pairing
+            # and corrupts the bracket.
+            name = cell.get_text().strip()
+            name = re.sub(r"\[\d+\]", "", name)             # footnote refs
+            name = re.sub(r"\s*\(.*?\)", "", name)          # (Q)/(WC) markers
+            name = re.sub(r"^\d{1,2}\s+", "", name).strip()  # inline seed
+            # name == "" → placeholder slot, resolved to TBD at pairing
+
+        # Winner detection - two Wikipedia formats:
+        #   Modern (2018+): <b><span class="flagicon">…</span><a>Name</a></b>
+        #                   → flagicon.parent is the <b> tag
+        #   Classic (2010-2017): <span class="flagicon">…</span><b><a>Name</a></b>
+        #                        → player_link.find_parent("b") is not None
+        is_winner = (
+            flagicon.parent.name == "b"
+            or (player_link is not None and player_link.find_parent("b") is not None)
+        )
+        return name, nationality, is_winner
+
+    def extract_group_rows(table):
+        """Read a group-stage match list: one match per row.
+
+        Laid out as Date | Player 1 | Score | Player 2 | Set 1 | Set 2 | Set 3,
+        so unlike a bracket the per-game scores are shared cells after the
+        second player rather than per-player cells after each. Reading it with
+        the bracket rules left every group match in the corpus with no score at
+        all - 192 rows carrying no margin of victory into Elo or point
+        differential into the rolling stats.
+
+        Yields (name_a, nat_a, wins_a, name_b, nat_b, wins_b,
+                scores_a, scores_b, voided, retired).
+        """
+        for row in table.find_all("tr"):
+            cells = row.find_all(["td", "th"])
+            player_pos = [i for i, c in enumerate(cells)
+                          if c.find("span", class_="flagicon")]
+            if len(player_pos) != 2:
+                continue
+            ia, ib = player_pos
+            pa = parse_player_cell(cells[ia])
+            pb = parse_player_cell(cells[ib])
+            if pa is None or pb is None:
+                continue
+
+            # The cell(s) between the two players hold the match score, and any
+            # "(voided)" annotation.
+            middle = " ".join(cells[k].get_text(" ", strip=True)
+                              for k in range(ia + 1, ib))
+            voided  = bool(_VOIDED_RE.search(middle))
+            retired = bool(WALKOVER_RE.search(middle))
+
+            scores_a, scores_b = [], []
+            for c in cells[ib + 1:]:
+                txt = re.sub(r"\s+", "", c.get_text(" ", strip=True))
+                if not txt:
+                    continue
+                m = _SET_CELL_RE.match(txt)
+                if not m:
+                    break
+                scores_a.append(int(m.group(1)))
+                scores_b.append(int(m.group(2)))
+                if txt.lower().count("r"):
+                    retired = True
+
+            yield (pa[0], pa[1], pa[2], pb[0], pb[1], pb[2],
+                   scores_a, scores_b, voided, retired)
 
     # --- Step 3: Walk each table row-by-row, tracking true column positions ---
     def extract_player_cells(table):
@@ -175,51 +330,10 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
 
             # For each cell that contains a flagicon, look at its row neighbours
             for pos, (cell, true_col, _) in enumerate(row_cells):
-                flagicon = cell.find("span", class_="flagicon")
-                if not flagicon:
+                parsed = parse_player_cell(cell)
+                if parsed is None:
                     continue
-
-                # Nationality from the flagicon's <a title>
-                flag_link = flagicon.find("a")
-                nationality = None
-                if flag_link:
-                    raw_nat = flag_link.get("title") or (flag_link.find("img") or {}).get("alt", "")
-                    nationality = re.sub(r"national badminton team", "", raw_nat, flags=re.IGNORECASE).strip() or None
-
-                # Player link = first <a> NOT inside the flagicon, NOT a team link
-                player_link = None
-                for a in cell.find_all("a"):
-                    if a.find_parent("span", class_="flagicon"):
-                        continue
-                    if "national badminton team" in (a.get("title") or "").lower():
-                        continue
-                    player_link = a
-                    break
-
-                if player_link:
-                    name = player_link.get("title") or player_link.get_text().strip()
-                    name = re.sub(r"\s*\(.*?\)", "", name).strip()
-                else:
-                    # No link: either a player without a Wikipedia article
-                    # (plain text after the flag) or an empty placeholder slot
-                    # (TBD qualifier / future-round cell). Keep both - dropping
-                    # cells shifts the pairing and corrupts the bracket.
-                    name = cell.get_text().strip()
-                    name = re.sub(r"\[\d+\]", "", name)          # footnote refs
-                    name = re.sub(r"\s*\(.*?\)", "", name)       # (Q)/(WC) markers
-                    name = re.sub(r"^\d{1,2}\s+", "", name).strip()  # inline seed
-                    # name == "" → placeholder slot, resolved to TBD at pairing
-
-                # Winner detection - two Wikipedia formats:
-                #   Modern (2018+): <b><span class="flagicon">…</span><a>Name</a></b>
-                #                   → flagicon.parent is the <b> tag
-                #   Classic (2010-2017): <span class="flagicon">…</span><b><a>Name</a></b>
-                #                        → player_link.find_parent("b") is not None
-                is_winner = (
-                    flagicon.parent.name == "b"
-                    or (player_link is not None
-                        and player_link.find_parent("b") is not None)
-                )
+                name, nationality, is_winner = parsed
 
                 # Seed: cell immediately before player cell - bare integer 1-32
                 seed = 0
@@ -258,29 +372,64 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
     # (column, row) and pairing within each column therefore yields matches
     # in real bracket order - essential for simulating the right topology
     # (round N winners [::2] must meet in round N+1).
-    all_pairs = []  # (round_name, cell_a, cell_b)
+    all_pairs  = []  # (round_name, cell_a, cell_b) - bracket tables
+    group_rows = []  # fully-formed match dicts - group-stage tables
     for table in ms_tables:
         table_type = classify_table(table)
         if table_type == "skip":
             continue
-        cells = extract_player_cells(table)
         if table_type == "group_match":
-            # Round-robin tables are flat: pair in document order
-            for i in range(0, len(cells) - 1, 2):
-                all_pairs.append(("group stage", cells[i], cells[i + 1]))
-        else:
-            round_ranges = build_round_ranges(table)
-            cells.sort(key=lambda c: (c[1], c[0]))   # (col, row)
-            i = 0
-            while i < len(cells) - 1:
-                a, b = cells[i], cells[i + 1]
-                if a[1] != b[1]:
-                    i += 1   # column boundary - unpaired cell (bye/champion box)
+            # A group table is one match per row, with its games in shared
+            # cells, so it is read whole rather than paired up from cells.
+            for (na, nat_a, a_wins, nb, nat_b, b_wins,
+                 sc_a, sc_b, voided, retired) in extract_group_rows(table):
+                if not na or not nb or na == nb:
                     continue
-                all_pairs.append((col_to_round(a[1], round_ranges), a, b))
-                i += 2
+                paired = sc_a and sc_b and len(sc_a) == len(sc_b)
+                # Same fallback as the bracket path: games played but no bolding
+                # means the result is on the page and only the markup is missing.
+                if not a_wins and not b_wins and paired:
+                    ga = sum(1 for x, y in zip(sc_a, sc_b) if x > y)
+                    gb = sum(1 for x, y in zip(sc_a, sc_b) if y > x)
+                    if ga != gb:
+                        a_wins, b_wins = ga > gb, gb > ga
+                is_pending = int(not a_wins and not b_wins)
+                # Stored winner-first, the convention the whole corpus uses and
+                # `_parse_score` relies on.
+                if paired:
+                    order = zip(sc_a, sc_b) if a_wins else zip(sc_b, sc_a)
+                    score = ", ".join(f"{w}-{l}" for w, l in order)
+                else:
+                    score = ""
+                group_rows.append({
+                    "tournament": tournament_name,
+                    "tier": tier,
+                    "round": "group stage",
+                    "player_a": na, "player_a_nat": nat_a,
+                    "player_b": nb, "player_b_nat": nat_b,
+                    "player_a_won": 1 if a_wins else 0,
+                    "score": score,
+                    "player_a_seed": 0, "player_b_seed": 0,
+                    # A voided result officially never happened, so it is
+                    # flagged like a walkover: kept visible, but kept out of
+                    # Elo, the rolling score stats and training.
+                    "is_walkover": int((retired or voided) and not is_pending),
+                    "is_pending": is_pending,
+                })
+            continue
+        cells = extract_player_cells(table)
+        round_ranges = build_round_ranges(table)
+        cells.sort(key=lambda c: (c[1], c[0]))   # (col, row)
+        i = 0
+        while i < len(cells) - 1:
+            a, b = cells[i], cells[i + 1]
+            if a[1] != b[1]:
+                i += 1   # column boundary - unpaired cell (bye/champion box)
+                continue
+            all_pairs.append((col_to_round(a[1], round_ranges), a, b))
+            i += 2
 
-    matches = []
+    matches = list(group_rows)
     tbd_counter = 0
     FIRST_ROUNDS = {"first round", "1st round", "group stage"}
     for round_name, cell_a, cell_b in all_pairs:
@@ -305,6 +454,19 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
 
         # Neither player marked as winner → match is drawn but not yet played
         # (upcoming/live tournaments publish the bracket before results exist).
+        #
+        # ...unless the page recorded per-game scores for both of them, which a
+        # genuinely unplayed match cannot have. Then the match *was* played and
+        # only the bolding is missing, so read the winner off the games won.
+        # 17 completed matches sat in the corpus marked unplayed this way -
+        # excluded from training, Elo, form and H2H - as far back as 2010.
+        if not a_wins and not b_wins and scores_a and scores_b \
+                and len(scores_a) == len(scores_b):
+            games_a = sum(1 for x, y in zip(scores_a, scores_b) if x > y)
+            games_b = sum(1 for x, y in zip(scores_a, scores_b) if y > x)
+            if games_a != games_b:
+                a_wins, b_wins = games_a > games_b, games_b > games_a
+
         is_pending = int(not a_wins and not b_wins)
 
         # Reconstruct "W-L" score string from per-game integer arrays
@@ -357,6 +519,15 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
     # carry a qualifying round, so leave that path alone.
     if ms_heading_div is None and not out.empty:
         out = out[out["round"].isin(BRACKET_ROUNDS)].reset_index(drop=True)
+
+    # Tables were found and none of them yielded a match. That is not an empty
+    # draw, it is a page this parser no longer understands - the 2025 World Tour
+    # Finals scoped itself to a seeds table and returned nothing for months
+    # without a word. Say so; the caller keeps whatever it already had.
+    if out.empty:
+        print(f"ERROR: {len(ms_tables)} table(s) under the Men's Singles "
+              f"heading yielded no matches for {tournament_name!r} - the page "
+              f"layout has probably changed: {url}")
 
     return out
 

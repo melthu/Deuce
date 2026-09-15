@@ -6,10 +6,15 @@
  */
 'use strict';
 
-const ROUND_ORDER = ['first round', 'second round', 'third round',
+// A group stage precedes the ladder: the season-ending Finals seat eight
+// players in two groups and send four into the semi-finals.
+const GROUP_ROUND = 'group stage';
+
+const ROUND_ORDER = [GROUP_ROUND, 'first round', 'second round', 'third round',
                      'quarter-finals', 'semi-finals', 'final'];
 
 const ROUND_LABEL = {
+  [GROUP_ROUND]: 'Group stage',
   'first round': 'Round 1', 'second round': 'Round 2', 'third round': 'Round 3',
   'quarter-finals': 'Quarter-finals', 'semi-finals': 'Semi-finals', 'final': 'Final',
 };
@@ -18,6 +23,7 @@ const ROUND_LABEL = {
 // size of the field it starts with. Derived from the match count rather than
 // hardcoded, so a 64-draw reads R64 and an irregular draw stays honest.
 function roundCode(round, nMatches) {
+  if (round === GROUP_ROUND) return 'Groups';
   if (round === 'final') return 'F';
   if (round === 'semi-finals') return 'SF';
   if (round === 'quarter-finals') return 'QF';
@@ -26,6 +32,7 @@ function roundCode(round, nMatches) {
 
 // Column headings for the advancement table, where width is scarce.
 const ROUND_SHORT = {
+  [GROUP_ROUND]: 'Groups',
   'first round': 'R1', 'second round': 'R2', 'third round': 'R3',
   'quarter-finals': 'QF', 'semi-finals': 'SF', 'final': 'Final',
 };
@@ -74,6 +81,18 @@ const TIER_CHIP = {
   100: 'S100', 300: 'S300', 500: 'S500',
   750: 'S750', 1000: 'S1000', 1500: 'Finals',
 };
+
+// Tier 1500 holds two different events - the World Championships and the
+// season-ending World Tour Finals - and the model is right not to separate
+// them. The label has to: every World Championships used to read "Finals".
+const KIND_CHIP  = { worlds: 'Worlds', finals: 'Finals', olympics: 'Olympics' };
+const KIND_LABEL = {
+  worlds: 'World Championships',
+  finals: 'World Tour Finals',
+  olympics: 'Olympic Games',
+};
+const tierChip  = t => KIND_CHIP[t.kind]  || TIER_CHIP[t.tier]  || String(t.tier);
+const tierTitle = t => KIND_LABEL[t.kind] || TIER_LABEL[t.tier] || '';
 
 // ---------------------------------------------------------------- utilities
 
@@ -191,8 +210,8 @@ function renderSidebar() {
     const meta = el('div', 't-meta');
     // The chip rather than a coloured dot: same information, but it says which
     // tier instead of requiring the colour to be decoded.
-    const chip = el('span', `tier-chip sm tier-${t.tier}`, TIER_CHIP[t.tier] || t.tier);
-    chip.title = TIER_LABEL[t.tier] || '';
+    const chip = el('span', `tier-chip sm tier-${t.tier}`, tierChip(t));
+    chip.title = tierTitle(t);
     meta.append(chip);
     meta.append(el('span', 'num', fmtDate(t.date)));
     if (t.status !== 'complete') meta.append(el('span', `pill ${t.status}`, t.status));
@@ -350,12 +369,84 @@ function applyNav() {
   b.setAttribute('aria-expanded', String(!state.navCollapsed));
 }
 
+// Standings for one group, from the matches that have actually been played.
+// A voided or retired match counts for nothing, exactly as it counts for
+// nothing in Elo, the rolling stats and training.
+function groupTable(group, matches) {
+  const rec = new Map(group.players.map(p => [p.name, { name: p.name, nat: p.nat, w: 0, l: 0 }]));
+  let played = 0;
+  for (const m of matches) {
+    if (m.pending || m.wo) continue;
+    const win = m.a_won ? m.a : m.b;
+    const los = m.a_won ? m.b : m.a;
+    if (rec.has(win)) rec.get(win).w++;
+    if (rec.has(los)) rec.get(los).l++;
+    played++;
+  }
+  if (!played) return null;
+
+  const table = el('table', 'group-table');
+  const thead = el('thead');
+  const hr = el('tr');
+  for (const [txt, cls] of [['', ''], ['W', 'num'], ['L', 'num']]) hr.append(el('th', cls, txt));
+  thead.append(hr);
+  table.append(thead);
+  const tb = el('tbody');
+  for (const r of [...rec.values()].sort((x, y) => y.w - x.w || x.l - y.l)) {
+    const tr = el('tr');
+    const nameCell = el('td');
+    nameCell.append(document.createTextNode(`${flag(r.nat)} ${r.name}`.trim()));
+    tr.append(nameCell);
+    tr.append(el('td', 'num', String(r.w)));
+    tr.append(el('td', 'num', String(r.l)));
+    tb.append(tr);
+  }
+  table.append(tb);
+  return table;
+}
+
+// The group stage, as one panel per group. Deliberately not a bracket column:
+// a round robin is not a tree, and rendering its twelve matches as a single
+// tall column beside a two-match semi-final read as a broken draw.
+function renderGroups(doc, groupMatches) {
+  const card = el('div', 'card-box');
+  const chead = el('div', 'card-head');
+  chead.append(el('span', 'lbl', 'Group stage'));
+  chead.append(el('span', 'hint',
+    'Round robin \u00b7 top two of each group reach the semi-finals'));
+  card.append(chead);
+
+  const cols = el('div', 'group-cols');
+  for (const g of doc.groups) {
+    const names = new Set(g.players.map(p => p.name));
+    const mine = groupMatches.filter(m => names.has(m.a) && names.has(m.b));
+    const block = el('div', 'group-block');
+    block.append(el('div', 'group-name', g.name));
+    const tbl = groupTable(g, mine);
+    if (tbl) block.append(tbl);
+    const list = el('div', 'group-matches');
+    for (const m of mine) list.append(matchCard(m));
+    block.append(list);
+    cols.append(block);
+  }
+  card.append(cols);
+  return card;
+}
+
 function renderBracket(doc) {
   const wrap = el('div');
   const scroller = el('div', 'bracket-wrap');
   const bracket = el('div', 'bracket');
 
-  for (const [round, ms] of groupRounds(doc.matches)) {
+  // A round robin feeds a knockout, so its group matches are drawn as groups
+  // and only the ladder goes in the bracket.
+  const rounds = groupRounds(doc.matches);
+  const groupRow = doc.format === 'groups' && doc.groups
+    ? rounds.find(([r]) => r === GROUP_ROUND) : null;
+  const groupsPanel = groupRow ? renderGroups(doc, groupRow[1]) : null;
+
+  for (const [round, ms] of rounds) {
+    if (groupsPanel && round === GROUP_ROUND) continue;
     const col = el('div', 'round');
     const hd = el('div', 'round-name');
     const code = el('span', null, roundCode(round, ms.length));
@@ -381,7 +472,8 @@ function renderBracket(doc) {
   // so the layout does not change shape when a match is selected.
   const card = el('div', 'card-box');
   const chead = el('div', 'card-head');
-  chead.append(el('span', 'lbl', 'Men’s singles bracket'));
+  chead.append(el('span', 'lbl',
+    groupsPanel ? 'Knockout' : 'Men’s singles bracket'));
   chead.append(el('span', 'hint',
     'Left edge: called or missed · ✓ advanced · click any match'));
   card.append(chead);
@@ -389,6 +481,7 @@ function renderBracket(doc) {
 
   const open = state.selected != null && doc.matches[state.selected];
   if (!open) {
+    if (groupsPanel) wrap.append(groupsPanel);
     wrap.append(card);
     return wrap;
   }
@@ -398,6 +491,7 @@ function renderBracket(doc) {
   // to pay for the width.
   const grid = el('div', 'draw-grid');
   const left = el('div', 'draw-main');
+  if (groupsPanel) left.append(groupsPanel);
   left.append(card);
   grid.append(left);
   const rail = el('aside', 'rail');
@@ -651,8 +745,8 @@ async function renderTournament() {
   }
 
   const sub = el('div', 'sub');
-  const chip = el('span', `tier-chip tier-${doc.tier}`, TIER_CHIP[doc.tier] || doc.tier);
-  chip.title = TIER_LABEL[doc.tier] || '';
+  const chip = el('span', `tier-chip tier-${doc.tier}`, tierChip(doc));
+  chip.title = tierTitle(doc);
   sub.append(chip);
   sub.append(el('span', null, fmtDate(doc.date)));
   sub.append(el('span', 'dot', '·'));

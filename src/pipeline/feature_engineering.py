@@ -45,8 +45,13 @@ ROUND_ALIASES = {
     "finals":         "final",
 }
 
-# The knockout ladder, in the order it is actually played.
+# The ladder, in the order it is actually played. A group stage precedes every
+# knockout rung: the season-ending Finals are a round robin feeding straight
+# into the semi-finals, and the Olympic draw (not yet in the corpus) is a group
+# stage feeding a full bracket. Ranking it lets `order_by_round` sort those
+# draws instead of falling back to the order the scraper happened to emit.
 ROUND_RANK = {
+    "group stage": -1,
     "first round": 0, "second round": 1, "third round": 2,
     "quarter-finals": 3, "semi-finals": 4, "final": 5,
 }

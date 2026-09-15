@@ -459,6 +459,147 @@ def predict_match(
     return (p_ab + (1.0 - p_ba)) / 2.0
 
 
+# ----------------------------------------------------------------------
+# Shared per-match machinery
+# ----------------------------------------------------------------------
+class _MatchEngine:
+    """Predicts and resolves batches of matches, carrying per-simulation state.
+
+    Both draw formats need exactly the same thing from the model - given two
+    arrays of player indices, decide who wins in every simulation and roll the
+    ratings forward - and differ only in how they choose who meets whom. That
+    common half lives here so the knockout ladder and the round robin cannot
+    drift apart in how they score a match.
+
+    State is (n_sims, n_players): Elo, EMA form and win streak all carry
+    through a draw, because a simulation that has a player winning three
+    straight must not keep telling the model they arrived on a losing run.
+    """
+
+    def __init__(self, players, player_stats, n_sims, h2h_rate_fn, h2h_last_fn,
+                 scaler, player_to_id, tier_to_id, round_to_id, model_payload,
+                 rng, tier, nat_map=None, fixed_results=None, known_probs=None):
+        self.players  = players
+        self.P        = len(players)
+        self.n_sims   = n_sims
+        self.rng      = rng
+        self.scaler   = scaler
+        self.round_to_id   = round_to_id
+        self.model_payload = model_payload
+        self.nat_map  = nat_map
+        self.fixed    = fixed_results or {}
+        self.known    = known_probs or {}
+        self.h2h_rate = h2h_rate_fn
+        self.h2h_last = h2h_last_fn
+        # Everyone in a draw is an established player by definition, so the
+        # provisional-K branch never applies to an in-draw update.
+        self.K        = elo_model.k_for(tier, elo_model.PROVISIONAL_N)
+        self.tier_id  = tier_to_id.get(tier, 0)
+
+        self.static   = np.array(
+            [[player_stats[p][k] for k in STAT_KEYS] for p in players],
+            dtype=np.float64)
+        self.vocab_id = np.array([player_to_id.get(p, 0) for p in players],
+                                 dtype=np.int64)
+        self.E = np.tile(np.array([player_stats[p]["elo"] for p in players]),
+                         (n_sims, 1))
+        self.M = np.tile(np.array([player_stats[p]["ema_form"] for p in players]),
+                         (n_sims, 1))
+        self.W = np.tile(np.array([player_stats[p]["win_streak"] for p in players],
+                                  dtype=np.float64), (n_sims, 1))
+
+    def win_prob(self, A, B, sim_idx, round_name):
+        """P(A beats B) for every entry, order-invariantly averaged.
+
+        Real results override the model outright; a scheduled-but-unplayed
+        pairing the pipeline has already engineered a row for overrides the
+        reconstruction here, because that row's state beats anything replaying
+        the draw from day one can produce.
+        """
+        P, R = self.P, A.shape[0]
+
+        key = A.astype(np.int64) * P + B
+        uniq, inv = np.unique(key, return_inverse=True)
+        n_u = len(uniq)
+        rate_ab = np.empty(n_u); last_ab = np.empty(n_u)
+        rate_ba = np.empty(n_u); last_ba = np.empty(n_u)
+        same_u  = np.empty(n_u)
+        fixed_u = np.full(n_u, -1.0)      # -1 = no real result on record
+        known_u = np.full(n_u, -1.0)      # -1 = no quoted card for this pair
+        for k, kk in enumerate(uniq):
+            a, b = divmod(int(kk), P)
+            pa_n, pb_n = self.players[a], self.players[b]
+            rate_ab[k] = self.h2h_rate(pa_n, pb_n)
+            last_ab[k] = self.h2h_last(pa_n, pb_n)
+            rate_ba[k] = self.h2h_rate(pb_n, pa_n)
+            last_ba[k] = self.h2h_last(pb_n, pa_n)
+            same_u[k]  = _same_nationality(pa_n, pb_n, self.nat_map)
+            winner = self.fixed.get((round_name, frozenset((pa_n, pb_n))))
+            if winner is not None:
+                fixed_u[k] = 1.0 if winner == pa_n else 0.0
+            quote = self.known.get((round_name, frozenset((pa_n, pb_n))))
+            if quote is not None:
+                ref, prob = quote
+                known_u[k] = prob if ref == pa_n else 1.0 - prob
+
+        SA, SB = self.static[A].copy(), self.static[B].copy()
+        SA[:, STREAK_I] = self.W[sim_idx, A]
+        SB[:, STREAK_I] = self.W[sim_idx, B]
+        eA, eB = self.E[sim_idx, A], self.E[sim_idx, B]
+        mA, mB = self.M[sim_idx, A], self.M[sim_idx, B]
+
+        cont1 = _cont_matrix(SA, SB, eA, eB, mA, mB,
+                             same_u[inv], rate_ab[inv], last_ab[inv])
+        cont2 = _cont_matrix(SB, SA, eB, eA, mB, mA,
+                             same_u[inv], rate_ba[inv], last_ba[inv])
+
+        round_id = self.round_to_id.get(round_name, 0)
+        cat1 = np.column_stack([np.full(R, self.tier_id), np.full(R, round_id),
+                                self.vocab_id[A], self.vocab_id[B]])
+        cat2 = np.column_stack([np.full(R, self.tier_id), np.full(R, round_id),
+                                self.vocab_id[B], self.vocab_id[A]])
+
+        cont = self.scaler.transform(np.vstack([cont1, cont2]))
+        X    = np.hstack([np.vstack([cat1, cat2]).astype(np.float64), cont])
+        probs = model_predict_proba(self.model_payload, X)
+        p = (probs[:R] + (1.0 - probs[R:])) / 2.0
+
+        kn = known_u[inv]
+        p = np.where(kn >= 0.0, kn, p)
+        fx = fixed_u[inv]
+        p = np.where(fx >= 0.0, fx, p)
+        return p
+
+    def play(self, A, B, sim_idx, round_name):
+        """Resolve a batch of matches and roll the state forward.
+
+        Every player must appear at most once per (simulation, call), which is
+        what makes the fancy-indexed updates below safe: a knockout round and a
+        round-robin matchday both have that property by construction.
+
+        Returns (winners, losers) as player-index arrays.
+        """
+        p = self.win_prob(A, B, sim_idx, round_name)
+        a_wins  = self.rng.random(A.shape[0]) < p
+        winners = np.where(a_wins, A, B)
+        losers  = np.where(a_wins, B, A)
+
+        # The margin-of-victory multiplier has no counterpart here: a simulated
+        # match has a winner but no scoreline, so the update uses the plain K.
+        elo_w, elo_l = self.E[sim_idx, winners], self.E[sim_idx, losers]
+        exp_w = elo_model.expected(elo_w, elo_l)
+        self.E[sim_idx, winners] = elo_w + self.K * (1.0 - exp_w)
+        self.E[sim_idx, losers]  = elo_l - self.K * (1.0 - exp_w)
+        self.M[sim_idx, winners] = EMA_ALPHA + (1 - EMA_ALPHA) * self.M[sim_idx, winners]
+        self.M[sim_idx, losers]  = (1 - EMA_ALPHA) * self.M[sim_idx, losers]
+        # Same rule as _elo_prepass: a win extends a winning run or starts one,
+        # a loss extends a losing run or starts one.
+        str_w, str_l = self.W[sim_idx, winners], self.W[sim_idx, losers]
+        self.W[sim_idx, winners] = np.maximum(str_w, 0.0) + 1.0
+        self.W[sim_idx, losers]  = np.minimum(str_l, 0.0) - 1.0
+        return winners, losers
+
+
 def run_monte_carlo(
     n_sims, r1_matchups, player_stats,
     h2h_rate_fn, h2h_last_fn,
@@ -498,36 +639,20 @@ def run_monte_carlo(
     {round_name: {player_name: n_sims_reached}} when return_rounds is set.
     """
     t = DEFAULT_TIER if tier is None else tier
-    # Everyone in a draw is an established player by definition, so the
-    # provisional-K branch never applies to an in-bracket update.
-    K = elo_model.k_for(t, elo_model.PROVISIONAL_N)
-    fixed_results = fixed_results or {}
-    known_probs   = known_probs or {}
 
     players = sorted(player_stats)
     P = len(players)
     pidx = {p: i for i, p in enumerate(players)}
 
-    static   = np.array([[player_stats[p][k] for k in STAT_KEYS] for p in players],
-                        dtype=np.float64)
-    vocab_id = np.array([player_to_id.get(p, 0) for p in players], dtype=np.int64)
-
-    E = np.tile(np.array([player_stats[p]["elo"] for p in players]), (n_sims, 1))
-    M = np.tile(np.array([player_stats[p]["ema_form"] for p in players]), (n_sims, 1))
-    # Win streak carries through the bracket for the same reason Elo and EMA do:
-    # a simulation that has a player winning four straight matches must not go
-    # on telling the model they are on the losing run they arrived with. Unlike
-    # the scoreline-derived stats below it needs no score to update, only a
-    # winner, so it is exactly the pipeline's rule rather than an approximation.
-    W = np.tile(np.array([player_stats[p]["win_streak"] for p in players],
-                         dtype=np.float64), (n_sims, 1))
+    eng = _MatchEngine(players, player_stats, n_sims, h2h_rate_fn, h2h_last_fn,
+                       scaler, player_to_id, tier_to_id, round_to_id,
+                       model_payload, rng, t, nat_map, fixed_results, known_probs)
 
     slots = []
     for _, row in r1_matchups.iterrows():
         slots += [pidx[row["player_a"]], pidx[row["player_b"]]]
     current = np.tile(np.array(slots, dtype=np.int64), (n_sims, 1))
 
-    tier_id = tier_to_id.get(t, 0)
     # `bracket` carries the ladder read off the page plus, for any round fed by
     # something other than a straight halving, that round's slot list. Without
     # it the ladder is derived by halving from the opening round, which is right
@@ -565,83 +690,9 @@ def run_monte_carlo(
 
         A = current[:, 0::2].ravel()          # (R,) player indices in slot a
         B = current[:, 1::2].ravel()
-        R = A.shape[0]
         sim_idx = np.repeat(np.arange(n_sims), n_matches)
 
-        # Pair-level features computed once per unique (a, b) pair
-        key = A.astype(np.int64) * P + B
-        uniq, inv = np.unique(key, return_inverse=True)
-        n_u = len(uniq)
-        rate_ab = np.empty(n_u); last_ab = np.empty(n_u)
-        rate_ba = np.empty(n_u); last_ba = np.empty(n_u)
-        same_u  = np.empty(n_u)
-        fixed_u = np.full(n_u, -1.0)          # -1 = no real result on record
-        known_u = np.full(n_u, -1.0)          # -1 = no quoted card for this pair
-        for k, kk in enumerate(uniq):
-            a, b = divmod(int(kk), P)
-            pa_n, pb_n = players[a], players[b]
-            rate_ab[k] = h2h_rate_fn(pa_n, pb_n)
-            last_ab[k] = h2h_last_fn(pa_n, pb_n)
-            rate_ba[k] = h2h_rate_fn(pb_n, pa_n)
-            last_ba[k] = h2h_last_fn(pb_n, pa_n)
-            same_u[k]  = _same_nationality(pa_n, pb_n, nat_map)
-            winner = fixed_results.get((round_name, frozenset((pa_n, pb_n))))
-            if winner is not None:
-                fixed_u[k] = 1.0 if winner == pa_n else 0.0
-            quote = known_probs.get((round_name, frozenset((pa_n, pb_n))))
-            if quote is not None:
-                ref, prob = quote
-                known_u[k] = prob if ref == pa_n else 1.0 - prob
-
-        SA, SB = static[A].copy(), static[B].copy()
-        SA[:, STREAK_I] = W[sim_idx, A]
-        SB[:, STREAK_I] = W[sim_idx, B]
-        eA, eB = E[sim_idx, A], E[sim_idx, B]
-        mA, mB = M[sim_idx, A], M[sim_idx, B]
-
-        cont1 = _cont_matrix(SA, SB, eA, eB, mA, mB, same_u[inv], rate_ab[inv], last_ab[inv])
-        cont2 = _cont_matrix(SB, SA, eB, eA, mB, mA, same_u[inv], rate_ba[inv], last_ba[inv])
-
-        round_id = round_to_id.get(round_name, 0)
-        cat1 = np.column_stack([np.full(R, tier_id), np.full(R, round_id),
-                                vocab_id[A], vocab_id[B]])
-        cat2 = np.column_stack([np.full(R, tier_id), np.full(R, round_id),
-                                vocab_id[B], vocab_id[A]])
-
-        cont = scaler.transform(np.vstack([cont1, cont2]))
-        X    = np.hstack([np.vstack([cat1, cat2]).astype(np.float64), cont])
-        probs = model_predict_proba(model_payload, X)
-        p = (probs[:R] + (1.0 - probs[R:])) / 2.0
-
-        # A scheduled-but-unplayed match already has an engineered row, and the
-        # probability quoted off it is strictly better informed than the one
-        # reconstructed here - see known_probs.
-        kn = known_u[inv]
-        p = np.where(kn >= 0.0, kn, p)
-
-        # Real results (live/finished tournaments) override the model
-        fx = fixed_u[inv]
-        p = np.where(fx >= 0.0, fx, p)
-
-        a_wins  = rng.random(R) < p
-        winners = np.where(a_wins, A, B)
-        losers  = np.where(a_wins, B, A)
-
-        # In-bracket Elo/EMA/streak updates (each player plays once per
-        # round/sim, so the fancy-indexed assignments never collide)
-        # The margin-of-victory multiplier has no counterpart here: a simulated
-        # match has a winner but no scoreline, so the update uses the plain K.
-        elo_w, elo_l = E[sim_idx, winners], E[sim_idx, losers]
-        exp_w = elo_model.expected(elo_w, elo_l)
-        E[sim_idx, winners] = elo_w + K * (1.0 - exp_w)
-        E[sim_idx, losers]  = elo_l - K * (1.0 - exp_w)
-        M[sim_idx, winners] = EMA_ALPHA + (1 - EMA_ALPHA) * M[sim_idx, winners]
-        M[sim_idx, losers]  = (1 - EMA_ALPHA) * M[sim_idx, losers]
-        # Same rule as _elo_prepass: a win extends a winning run or starts one,
-        # a loss extends a losing run or starts one.
-        str_w, str_l = W[sim_idx, winners], W[sim_idx, losers]
-        W[sim_idx, winners] = np.maximum(str_w, 0.0) + 1.0
-        W[sim_idx, losers]  = np.minimum(str_l, 0.0) - 1.0
+        winners, _ = eng.play(A, B, sim_idx, round_name)
 
         won = winners.reshape(n_sims, n_matches)
         nxt = rounds[round_i + 1] if round_i + 1 < len(rounds) else None
@@ -682,6 +733,242 @@ def run_monte_carlo(
             f"first-round matchups left {current.shape[1]} slots after "
             f"{len(rounds)} rounds. The draw is incomplete."
         )
+
+    idx, counts = np.unique(champions, return_counts=True)
+    titles = {players[i]: int(c) for i, c in zip(idx, counts)}
+    if not return_rounds:
+        return titles
+    return titles, {
+        rnd: {players[i]: int(c) for i, c in enumerate(vec) if c}
+        for rnd, vec in reached.items()
+    }
+
+
+# ----------------------------------------------------------------------
+# Round robin (the season-ending Finals)
+# ----------------------------------------------------------------------
+GROUP_ROUND = "group stage"
+
+
+def is_round_robin(day: pd.DataFrame) -> bool:
+    """Does this draw open with a group stage rather than a knockout round?
+
+    The eight World Tour Finals and the eight Super Series Masters Finals
+    before them seat eight players in two groups of four, play every pairing
+    inside a group, and send the top two of each into the semi-finals. None of
+    that is a bracket: the ladder arithmetic in `build_bracket` has no opening
+    round to halve from, so those draws produced no forecast at all and their
+    index entries pointed at shards that were never written.
+    """
+    return ("round" in day.columns) and (day["round"] == GROUP_ROUND).any()
+
+
+def build_groups(day: pd.DataFrame) -> list[list[str]]:
+    """The groups, read off the group-stage pairings themselves.
+
+    A group is a connected component of the "played each other in the group
+    stage" graph: groups are disjoint by definition, so no group label has to
+    be scraped and no column has to be added to the corpus. Returned in first
+    appearance order, each group's players in the order the page first names
+    them, so Group A stays Group A.
+    """
+    gs = day[day["round"] == GROUP_ROUND]
+    adj: dict[str, set] = {}
+    order: list[str] = []
+    for _, r in gs.iterrows():
+        a, b = r["player_a"], r["player_b"]
+        for x in (a, b):
+            if x not in adj:
+                adj[x] = set()
+                order.append(x)
+        adj[a].add(b)
+        adj[b].add(a)
+
+    seen, groups = set(), []
+    for start in order:
+        if start in seen:
+            continue
+        comp, stack = [], [start]
+        seen.add(start)
+        while stack:
+            cur = stack.pop()
+            comp.append(cur)
+            for nb in adj[cur]:
+                if nb not in seen:
+                    seen.add(nb)
+                    stack.append(nb)
+        groups.append(sorted(comp, key=order.index))
+    return groups
+
+
+def group_matchdays(pairs: list[tuple]) -> list[list[tuple]]:
+    """Split group pairings into matchdays in which nobody plays twice.
+
+    The engine's in-draw Elo/EMA/streak updates are indexed per simulation and
+    assume a player appears at most once in a batch - true of a knockout round
+    by construction, and of a round-robin only once its pairings are laid out
+    this way. Greedy is sufficient and always terminates: the first pairing
+    left over always fits in the next day.
+    """
+    remaining, days = list(pairs), []
+    while remaining:
+        used, day, rest = set(), [], []
+        for a, b in remaining:
+            if a in used or b in used:
+                rest.append((a, b))
+            else:
+                day.append((a, b))
+                used.update((a, b))
+        days.append(day)
+        remaining = rest
+    return days
+
+
+def _standings_order(beat: np.ndarray, rng) -> np.ndarray:
+    """Rank a group, best first, from who beat whom. beat[s, i, j] = i beat j.
+
+    Matches won, then the head-to-head record among everyone tied on that
+    count, then a coin flip. BWF's real tie-breaks go on to games and then
+    points won, which a simulated match does not have - inventing a scoreline
+    to rank on would be fabricating data, so a tie this deep is broken at
+    random and the resulting spread is honest about the uncertainty.
+    """
+    n_sims, g, _ = beat.shape
+    wins = beat.sum(axis=2)                                    # (S, g)
+    tied = (wins[:, :, None] == wins[:, None, :])
+    tied = tied & ~np.eye(g, dtype=bool)[None, :, :]
+    h2h  = (beat * tied).sum(axis=2)                           # (S, g)
+    key  = wins * 100.0 + h2h * 10.0 + rng.random((n_sims, g))
+    return np.argsort(-key, axis=1)
+
+
+def run_round_robin(
+    n_sims, groups, group_pairs, player_stats,
+    h2h_rate_fn, h2h_last_fn,
+    scaler, player_to_id, tier_to_id, round_to_id,
+    model_payload, rng, tier=None,
+    nat_map=None, fixed_results=None, progress_cb=None,
+    return_rounds=False, known_probs=None, n_advance=2,
+    knockout_seeds=None,
+):
+    """Monte Carlo over a group stage feeding a knockout.
+
+    Every group pairing is played (respecting any real result), the groups are
+    ranked, the top `n_advance` of each cross over into the knockout, and that
+    is run on the same engine the bracket draws use.
+
+    knockout_seeds: the real opening knockout pairings, when the page already
+    names them. Who actually came out of a group is then observed rather than
+    reconstructed, which matters because the last BWF tie-breaks are games and
+    then points won - a simulated match has neither, so a group that ends level
+    cannot be ranked the way the real one was. Both 2023 groups ended in a
+    three-way tie on matches won, and 2024's Group A was decided by three
+    voided matches after a withdrawal; without this a finished draw conditioned
+    on its own results returned its real champion about half the time instead
+    of always.
+
+    Returns the same shape as `run_monte_carlo`: {player: n_titles}, plus
+    {round: {player: n_reached}} when `return_rounds` is set.
+    """
+    t = DEFAULT_TIER if tier is None else tier
+    players = sorted(player_stats)
+    P = len(players)
+    pidx = {p: i for i, p in enumerate(players)}
+
+    eng = _MatchEngine(players, player_stats, n_sims, h2h_rate_fn, h2h_last_fn,
+                       scaler, player_to_id, tier_to_id, round_to_id,
+                       model_payload, rng, t, nat_map, fixed_results, known_probs)
+
+    # --- group stage -------------------------------------------------------
+    # beat[s, i, j] = 1 where player index i beat j. Kept over the whole field
+    # rather than per group so the group loop below is plain indexing.
+    beat = np.zeros((n_sims, P, P), dtype=np.int8)
+    days = group_matchdays(group_pairs)
+    sims = np.arange(n_sims)
+    for d, day_pairs in enumerate(days):
+        A = np.tile(np.array([pidx[a] for a, _ in day_pairs], dtype=np.int64), n_sims)
+        B = np.tile(np.array([pidx[b] for _, b in day_pairs], dtype=np.int64), n_sims)
+        sim_idx = np.repeat(sims, len(day_pairs))
+        winners, losers = eng.play(A, B, sim_idx, GROUP_ROUND)
+        beat[sim_idx, winners, losers] = 1
+        if progress_cb:
+            progress_cb(GROUP_ROUND, d + 1, len(days) + 2)
+
+    reached = {}
+    if return_rounds:
+        entrants = np.zeros(P, dtype=np.int64)
+        for gp in groups:
+            for name in gp:
+                entrants[pidx[name]] = n_sims
+        reached[GROUP_ROUND] = entrants
+
+    # --- who advances ------------------------------------------------------
+    if knockout_seeds:
+        # Observed. Every name must be someone with state in this draw; a
+        # placeholder means the page has not filled the slot in yet, in which
+        # case fall through to the simulated standings below.
+        named = [(a, b) for a, b in knockout_seeds
+                 if not is_placeholder(a) and not is_placeholder(b)
+                 and a in pidx and b in pidx]
+    else:
+        named = []
+
+    if named and len(named) == len(knockout_seeds):
+        cols = []
+        for a, b in named:
+            cols.append(np.full(n_sims, pidx[a], dtype=np.int64))
+            cols.append(np.full(n_sims, pidx[b], dtype=np.int64))
+        current = np.column_stack(cols)
+    else:
+        # Reconstructed: rank each group, then deal the qualifiers across the
+        # groups (A1-B2, B1-A2) so two players from one group can only meet
+        # again in the final.
+        per_group = []
+        for gp in groups:
+            idx = np.array([pidx[name] for name in gp], dtype=np.int64)
+            sub = beat[:, idx[:, None], idx[None, :]]          # (S, g, g)
+            order = _standings_order(sub, rng)
+            per_group.append(idx[order])                       # (S, g) global idx
+
+        n_groups = len(per_group)
+        if n_advance == 1:
+            slots = [ranked[:, 0] for ranked in per_group]
+        elif n_advance == 2:
+            slots = []
+            for gi in range(n_groups):
+                slots.append(per_group[gi][:, 0])
+                slots.append(per_group[(gi + 1) % n_groups][:, 1])
+        else:
+            raise ValueError(
+                f"n_advance={n_advance} has no defined crossing; the Finals "
+                "format advances two from each group.")
+        current = np.column_stack(slots)
+
+    # --- knockout ----------------------------------------------------------
+    rounds = round_sequence(current.shape[1] // 2)
+    champions = None
+    for round_i, round_name in enumerate(rounds):
+        if return_rounds:
+            reached[round_name] = np.bincount(current.ravel(), minlength=P)
+        n_matches = current.shape[1] // 2
+        if n_matches == 0:
+            break
+        A = current[:, 0::2].ravel()
+        B = current[:, 1::2].ravel()
+        sim_idx = np.repeat(sims, n_matches)
+        winners, _ = eng.play(A, B, sim_idx, round_name)
+        current = winners.reshape(n_sims, n_matches)
+        if progress_cb:
+            progress_cb(round_name, len(days) + round_i + 1, len(days) + len(rounds))
+        if current.shape[1] == 1:
+            champions = current[:, 0]
+            break
+
+    if champions is None:
+        raise ValueError(
+            f"Round-robin draw never resolved: {len(groups)} group(s) advancing "
+            f"{n_advance} each left {current.shape[1]} slots after {len(rounds)} "
+            "knockout rounds.")
 
     idx, counts = np.unique(champions, return_counts=True)
     titles = {players[i]: int(c) for i, c in zip(idx, counts)}

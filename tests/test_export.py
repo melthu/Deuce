@@ -251,12 +251,19 @@ def test_only_current_tournaments_are_live():
     assert not stale_live, f"finished tournaments labelled live: {stale_live}"
 
 
-def test_every_shard_is_reachable_from_the_index():
+def test_index_and_shards_are_in_one_to_one_correspondence():
     """
     The index is the only entry point, so a shard missing from it is dead
-    weight the site can never open, and a duplicate slug means two tournaments
-    overwrite each other's file. The reverse direction is not asserted: a draw
-    Wikipedia never filled in is indexed without a shard on purpose.
+    weight the site can never open - and an index entry with no shard is worse:
+    a link that 404s.
+
+    Both directions, now. This test used to excuse the second one ("a draw
+    Wikipedia never filled in is indexed without a shard on purpose"), and that
+    exemption hid eight dead links on the live site: every season-ending Finals
+    is a round robin, the exporter could not build a bracket for one and wrote
+    nothing, and the index went on listing all eight. The publish gate's
+    counts could not see it either - index and shard directory were each well
+    over their floor.
     """
     index_path = os.path.join(OUT, "tournaments.json")
     if not os.path.exists(index_path):
@@ -271,6 +278,10 @@ def test_every_shard_is_reachable_from_the_index():
     on_disk = {os.path.basename(p)[:-5] for p in _shards("tournament")}
     orphans = on_disk - set(slugs)
     assert not orphans, f"shards not reachable from the index: {sorted(orphans)[:5]}"
+
+    dangling = set(slugs) - on_disk
+    assert not dangling, (
+        f"index entries with no shard - these 404: {sorted(dangling)[:5]}")
 
 
 def test_latest_player_state_is_actually_the_latest_row(df):
@@ -298,3 +309,61 @@ def test_latest_player_state_is_actually_the_latest_row(df):
     # One 2014 page lists a player in two different first-round matches, so
     # neither row is "later" and no ordering rule can pick between them.
     assert len(stale) <= 1, f"stale player state for {len(stale)} players: {stale}"
+
+
+def test_event_kind_separates_the_two_tier_1500_formats():
+    """
+    Tier alone cannot label an event. The World Championships and the
+    season-ending Finals are both tier 1500 - the model is right not to
+    separate them, they are the two biggest events of a year - so the site
+    labelled every World Championships "Finals".
+    """
+    from src.serving.export_static import event_kind
+
+    assert event_kind("World Championships 2026") == "worlds"
+    assert event_kind("BWF World Tour Finals 2025") == "finals"
+    assert event_kind("HSBC BWF World Tour Finals 2023") == "finals"
+    assert event_kind("Super Series Masters Finals 2012") == "finals"
+    assert event_kind("Malaysia Open 2026") == "tour"
+
+
+def test_index_carries_a_kind_for_every_entry():
+    """The frontend labels off `kind`, falling back to tier; a missing one
+    would silently reinstate the "Finals" label on a World Championships."""
+    index_path = os.path.join(OUT, "tournaments.json")
+    if not os.path.exists(index_path):
+        pytest.skip("index not built")
+    from src.serving.export_static import event_kind
+
+    for entry in json.loads(open(index_path).read()):
+        assert entry.get("kind") == event_kind(entry["name"]), entry["slug"]
+
+
+def test_round_robin_shards_declare_their_format():
+    """
+    A group-stage draw is not a bracket and the frontend has to know before it
+    draws anything. `format` and `groups` are what tell it.
+    """
+    shards = _shards("tournament")
+    if not shards:
+        pytest.skip("shards not built")
+    seen_rr = False
+    for path in shards:
+        doc = json.loads(open(path).read())
+        assert doc.get("format") in ("bracket", "groups"), doc["slug"]
+        has_group_round = any(m["round"] == "group stage" for m in doc["matches"])
+        assert (doc["format"] == "groups") == has_group_round, doc["slug"]
+        if doc["format"] != "groups":
+            continue
+        seen_rr = True
+        groups = doc["groups"]
+        assert groups and len({len(g["players"]) for g in groups}) == 1, doc["slug"]
+        named = [p["name"] for g in groups for p in g["players"]]
+        assert len(named) == len(set(named)), f"{doc['slug']}: player in two groups"
+        # Every group match is between two members of one group.
+        where = {p["name"]: g["name"] for g in groups for p in g["players"]}
+        for m in doc["matches"]:
+            if m["round"] == "group stage":
+                assert where[m["a"]] == where[m["b"]], doc["slug"]
+    if not seen_rr:
+        pytest.skip("no round-robin shard in this build")

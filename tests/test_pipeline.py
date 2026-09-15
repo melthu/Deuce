@@ -164,3 +164,88 @@ def test_bracket_rounds_covers_every_alias():
     )
     # ...and the canonical names themselves, which pages also use verbatim.
     assert set(ROUND_RANK) <= set(BRACKET_ROUNDS)
+
+
+def test_group_stage_is_ranked_before_the_knockout():
+    """
+    `order_by_round` sorts a tournament's rows into true round order before the
+    chronological prepasses scan them, and every row of a tournament shares one
+    start_date, so an unranked round leaves the draw in whatever order the
+    scraper emitted. A round robin feeds its knockout, so the group stage has
+    to rank ahead of every rung.
+    """
+    from src.pipeline.feature_engineering import ROUND_RANK
+
+    assert "group stage" in ROUND_RANK
+    assert ROUND_RANK["group stage"] < min(
+        v for k, v in ROUND_RANK.items() if k != "group stage")
+
+
+def test_no_completed_match_is_recorded_as_unplayed(raw):
+    """
+    `is_pending` means the draw is published and the match has not been played.
+    A row carrying a scoreline therefore cannot be pending: it means the page
+    showed a result the scraper failed to read the winner off, and the match is
+    then dropped from training, Elo, form and H2H while looking fine.
+
+    17 completed matches sat in the corpus this way, as far back as 2010.
+
+    A *decisive* scoreline, specifically. A match abandoned before either
+    player took the lead in games has a partial score and no winner, which is
+    winnerless for a real reason rather than a parsing failure - the 2021 World
+    Tour Finals has one, retired at 1-1 in the opening game.
+    """
+    import re as _re
+
+    def decisive(score):
+        games = _re.findall(r"(\d{1,2})\s*-\s*(\d{1,2})", str(score))
+        if not games:
+            return False
+        a = sum(1 for x, y in games if int(x) > int(y))
+        b = sum(1 for x, y in games if int(y) > int(x))
+        return a != b
+
+    pending = raw[raw["is_pending"] == 1]
+    scored = pending[pending["score"].notna()
+                     & pending["score"].map(decisive)]
+    assert scored.empty, (
+        "matches marked unplayed but carrying a decisive score: "
+        + ", ".join(f"{r.tournament}: {r.player_a} vs {r.player_b} ({r.score})"
+                    for r in scored.head(5).itertuples()))
+
+
+def test_every_row_is_a_match_between_two_players(raw):
+    """
+    A summary table parses into plausible-looking rows. The 2025 World Tour
+    Finals shipped five - "China vs Japan", "Chinese Taipei vs France" - off
+    its Top Nation table, and each of those countries then got a player card on
+    the site. Nations are the readable symptom; the rule is that a player has
+    to appear in more than one tournament or else be a real one-off entrant, so
+    this checks the specific failure instead.
+    """
+    from src.pipeline.player_names import fold_ascii
+
+    nations = {fold_ascii(n) for n in set(raw["player_a_nat"].dropna())
+               | set(raw["player_b_nat"].dropna())}
+    names = {fold_ascii(n) for n in set(raw["player_a"]) | set(raw["player_b"])}
+    bogus = names & nations
+    assert not bogus, f"nations scraped as players: {sorted(bogus)[:8]}"
+
+
+def test_round_robin_draws_are_complete(raw):
+    """
+    A group stage of four plays all six pairings. The 2018-2022 Finals pages
+    write their group tables with blank player headers, which the table
+    classifier did not recognise, so those draws arrived with four to eight of
+    their fifteen matches and no group stage the simulator could use.
+    """
+    gs = raw[raw["round"].str.lower() == "group stage"]
+    if gs.empty:
+        pytest.skip("no group-stage rows in the corpus")
+    for name, sub in gs.groupby("tournament"):
+        players = set(sub["player_a"]) | set(sub["player_b"])
+        # Two groups of four: 2 x C(4,2) = 12.
+        expected = len(players) // 4 * 6
+        assert len(sub) == expected, (
+            f"{name}: {len(sub)} group matches for {len(players)} players, "
+            f"expected {expected}")
