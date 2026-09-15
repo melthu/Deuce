@@ -171,14 +171,23 @@ def dedupe_day(day: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(keep).reset_index(drop=True) if keep else pd.DataFrame()
 
 
-def fingerprint(day: pd.DataFrame, hist: pd.DataFrame) -> str:
+def fingerprint(day: pd.DataFrame, hist: pd.DataFrame, cfg_row=None) -> str:
     """
     Identify the inputs behind a tournament's export: its own rows (which change
-    as a live event progresses) and all history before it (which changes on a
-    rescrape). Cheap enough to compute for every tournament on every run.
+    as a live event progresses), all history before it (which changes on a
+    rescrape), and its config row. Cheap enough to compute for every tournament
+    on every run.
+
+    The config row counts because the shard copies fields straight out of it.
+    Without it, correcting a host country left every shard on the old value -
+    "Thailand[b]" stayed on the 2022 Finals after the config said "Thailand",
+    because not one match row had changed.
     """
     h = hashlib.sha1()
     h.update(str(EXPORT_VERSION).encode())
+    if cfg_row is not None:
+        h.update("|".join(str(cfg_row.get(k, "")) for k in
+                          ("tournament_name", "tier", "host_country")).encode())
     h.update(str(int(pd.util.hash_pandas_object(day, index=False).sum())).encode())
     h.update(str(len(hist)).encode())
     h.update(str(int(pd.util.hash_pandas_object(hist, index=False).sum())).encode())
@@ -214,7 +223,7 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
     if day.empty:
         return "thin", 0
 
-    fp = fingerprint(day, hist)
+    fp = fingerprint(day, hist, cfg_row)
     if os.path.exists(path):
         try:
             with open(path) as f:
@@ -671,6 +680,10 @@ def main():
     cfg["start_date"] = pd.to_datetime(cfg["start_date"], errors="coerce")
     cfg = cfg.dropna(subset=["start_date"])
     cfg = cfg[cfg["start_date"].dt.year >= args.since].sort_values("start_date")
+    # The index lists the whole browsable scope whatever this run exports.
+    # Building it from a --only-filtered config rewrote tournaments.json with a
+    # single entry and took the site down to one tournament.
+    index_cfg = cfg
     if args.only:
         cfg = cfg[cfg["start_date"] == pd.Timestamp(args.only)]
     if args.force:
@@ -708,7 +721,7 @@ def main():
         if f.endswith(".json")
     } if os.path.isdir(os.path.join(args.out, "tournament")) else set()
 
-    index, idx_bytes = export_index(cfg, df, args.out, shards)
+    index, idx_bytes = export_index(index_cfg, df, args.out, shards)
     total_bytes += idx_bytes
 
     if not args.skip_players:

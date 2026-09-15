@@ -367,3 +367,35 @@ def test_round_robin_shards_declare_their_format():
                 assert where[m["a"]] == where[m["b"]], doc["slug"]
     if not seen_rr:
         pytest.skip("no round-robin shard in this build")
+
+
+def test_fingerprint_changes_when_the_config_row_changes(df):
+    """
+    The shard copies name, tier and host straight out of the config row, so a
+    correction there has to invalidate it. It did not: cleaning "Thailand[b]"
+    to "Thailand" left the 2022 Finals shard on the old value indefinitely,
+    because not one match row had changed and the fingerprint only saw those.
+    """
+    day = df[df["tournament"] == df["tournament"].iloc[0]].head(8)
+    hist = df.head(50)
+    base = {"tournament_name": "X Open 2026", "tier": 500, "host_country": "Thailand"}
+
+    unchanged = fingerprint(day, hist, base)
+    assert fingerprint(day, hist, base) == unchanged
+    for field, value in (("host_country", "Thailand[b]"), ("tier", 750),
+                         ("tournament_name", "Y Open 2026")):
+        assert fingerprint(day, hist, {**base, field: value}) != unchanged, field
+
+
+def test_host_countries_carry_no_footnote_markers():
+    """Wikipedia's "[6]"/"[b]" ride along in cell text, and the host is printed
+    verbatim on the site - two World Tour Finals shipped "China[6]" and
+    "Thailand[b]" as their host country."""
+    index_path = os.path.join(OUT, "tournaments.json")
+    if not os.path.exists(index_path):
+        pytest.skip("index not built")
+    import re as _re
+
+    bad = [e["slug"] for e in json.loads(open(index_path).read())
+           if _re.search(r"\[[0-9a-z]{1,3}\]", str(e["host"]), _re.IGNORECASE)]
+    assert not bad, f"footnote markers in host country: {bad[:5]}"

@@ -88,6 +88,19 @@ def get_tier(cell, level_map: dict = LEVEL_MAP) -> int | None:
     return None
 
 
+# Wikipedia's footnote markers - "[6]", "[b]" - ride along in cell text and the
+# host is printed verbatim on the site, where "Thailand[b]" and "China[6]" were
+# showing as the host country of two World Tour Finals.
+_FOOTNOTE_RE = re.compile(r"\[[0-9a-z]{1,3}\]", re.IGNORECASE)
+
+
+def clean_host(text: str | None) -> str | None:
+    """A host country with Wikipedia's footnote markers stripped."""
+    if not text:
+        return None
+    return _FOOTNOTE_RE.sub("", text).strip() or None
+
+
 def get_host_country(cell) -> str | None:
     """
     Read host country from '<li><b>Host:</b> Kuala Lumpur, Malaysia</li>'.
@@ -98,8 +111,8 @@ def get_host_country(cell) -> str | None:
         if b and "host" in b.get_text().lower():
             text = re.sub(r"Host\s*:\s*", "", li.get_text(), flags=re.IGNORECASE).strip()
             if "," in text:
-                return text.split(",")[-1].strip()
-            return text.strip()
+                text = text.split(",")[-1]
+            return clean_host(text)
     return None
 
 
@@ -287,7 +300,7 @@ def scrape_superseries_year(year: int) -> list[dict]:
         if flagicon:
             fa = flagicon.find("a")
             if fa:
-                host_country = fa.get("title", "").strip()
+                host_country = clean_host(fa.get("title", ""))
         if not host_country:
             continue
 
@@ -387,7 +400,7 @@ def scrape_world_championships(year: int) -> list[dict]:
             dates = td.get_text(" ", strip=True)
         elif "location" in label and host is None:
             text = td.get_text(" ", strip=True)
-            host = text.split(",")[-1].strip() or None
+            host = clean_host(text.split(",")[-1])
 
     start_date = parse_start_date(dates, year) if dates else None
     if not start_date or not host:
