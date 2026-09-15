@@ -74,6 +74,18 @@ def main(out_dir: str = "site/data"):
         if doc.get("leaderboard") is None:
             unsimulated.append(doc.get("slug", os.path.basename(path)))
 
+    # Every index entry must have a shard behind it. The counts above cannot
+    # see this: the index and the shard directory were each comfortably over
+    # their floor while eight of the index's entries pointed at files that were
+    # never written, so all eight World Tour Finals were dead links on the live
+    # site. Checked in the index->shard direction, which is the one a reader
+    # travels.
+    on_disk = {os.path.splitext(os.path.basename(f))[0] for f in files}
+    dangling = [e["slug"] for e in index if e["slug"] not in on_disk]
+    if dangling:
+        fail(f"{len(dangling)} index entr(ies) have no shard - these would 404: "
+             f"{', '.join(dangling[:5])}")
+
     if bad:
         fail(f"{len(bad)} shard(s) are not valid JSON: {', '.join(bad[:5])}")
     if empty:

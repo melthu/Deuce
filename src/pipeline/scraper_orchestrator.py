@@ -57,11 +57,34 @@ def run_orchestrator(
     config_path: str = CONFIG_PATH,
     output_path: str = OUTPUT_PATH,
     incremental: bool = False,
+    only: str | None = None,
 ) -> pd.DataFrame:
     config = pd.read_csv(config_path)
 
+    # `--only` re-reads named past events and merges them back like an
+    # incremental run. The incremental selector deliberately leaves old
+    # tournaments alone, so a parser fix would otherwise never reach rows
+    # already in the corpus: the World Tour Finals sat on a half-scraped group
+    # stage for years because nothing ever asked for them again.
+    if only:
+        pat = only
+        match = config["tournament_name"].str.contains(pat, case=False, regex=True,
+                                                       na=False)
+        if not match.any():
+            print(f"ERROR: --only {pat!r} matched no tournament in the config.")
+            return pd.DataFrame()
+        config = config[match]
+        print(f"Targeted rescrape: {len(config)} tournament(s) matching {pat!r}.")
+
     existing = None
-    if incremental and os.path.exists(output_path):
+    if only and os.path.exists(output_path):
+        # Every match of the pattern, bypassing the date/pending selector -
+        # merged back into the existing CSV exactly as an incremental run is.
+        existing = pd.read_csv(output_path)
+        if "is_pending" not in existing.columns:
+            existing["is_pending"] = 0
+        todo = config
+    elif incremental and os.path.exists(output_path):
         existing = pd.read_csv(output_path)
         if "is_pending" not in existing.columns:
             existing["is_pending"] = 0
@@ -173,5 +196,10 @@ if __name__ == "__main__":
     parser.add_argument("--incremental", action="store_true",
                         help="Only scrape missing/pending/recent tournaments and merge "
                              "into the existing CSV (default: full rescrape)")
+    parser.add_argument("--only", metavar="REGEX",
+                        help="Rescrape every configured tournament whose name matches "
+                             "this regex, however old, and merge the result in. Use "
+                             "after a parser fix that the incremental window cannot "
+                             "reach, e.g. --only 'World Tour Finals'")
     args = parser.parse_args()
-    run_orchestrator(incremental=args.incremental)
+    run_orchestrator(incremental=args.incremental, only=args.only)

@@ -11,7 +11,8 @@ import pytest
 
 from src.serving.export_static import FEATURE_NAMES, DRIVER_OF, group_shap
 from src.serving.simulate import (
-    ROUND_ORDER, build_fixed_results, predict_match, round_sequence, run_monte_carlo,
+    GROUP_ROUND, ROUND_ORDER, build_fixed_results, build_groups, group_matchdays,
+    is_round_robin, predict_match, round_sequence, run_monte_carlo, run_round_robin,
 )
 
 SIMS = 200  # enough to check invariants; the real export uses 10,000
@@ -358,3 +359,155 @@ def test_in_bracket_win_streak_follows_the_pipeline_rule(fitted):
         f"streaks at the final were {fa.min()} / {fb.min()}, not the four wins "
         "it took to get there - the in-bracket update is not being applied"
     )
+
+
+# ----------------------------------------------------------------------
+# Round robin (the season-ending Finals)
+# ----------------------------------------------------------------------
+def _rr_args(f, day):
+    """The group stage and the real knockout pairings of a round-robin draw."""
+    groups = build_groups(day)
+    pairs = [(r["player_a"], r["player_b"])
+             for _, r in day[day["round"] == GROUP_ROUND].iterrows()]
+    seeds = []
+    for rnd in ROUND_ORDER:
+        sub = day[day["round"] == rnd]
+        if not sub.empty:
+            seeds = [(r["player_a"], r["player_b"]) for _, r in sub.iterrows()]
+            break
+    return groups, pairs, seeds
+
+
+def _run_rr(f, groups, pairs, seeds=None, fixed=None, sims=SIMS, **kw):
+    return run_round_robin(
+        sims, groups, pairs, f["stats"], f["h2h_rate"], f["h2h_last"],
+        f["pre"]["scaler"], f["pre"]["player_to_id"], f["pre"]["tier_to_id"],
+        f["pre"]["round_to_id"], f["payload"], np.random.default_rng(42),
+        tier=f["tier"], nat_map=f["nat_map"], fixed_results=fixed or {},
+        knockout_seeds=seeds, **kw)
+
+
+def test_groups_partition_the_field(round_robin):
+    """
+    Groups are read as connected components of the group-stage pairings, so no
+    group label has to be scraped. They must be disjoint, equal-sized, and
+    cover everyone who played a group match.
+    """
+    _, day = round_robin
+    assert is_round_robin(day)
+    groups = build_groups(day)
+    assert len(groups) >= 2, groups
+
+    sizes = {len(g) for g in groups}
+    assert len(sizes) == 1, f"uneven groups: {[len(g) for g in groups]}"
+
+    flat = [p for g in groups for p in g]
+    assert len(flat) == len(set(flat)), "a player appears in two groups"
+
+    gs = day[day["round"] == GROUP_ROUND]
+    played = set(gs["player_a"]) | set(gs["player_b"])
+    assert set(flat) == played
+
+    # Nobody plays outside their own group.
+    where = {p: i for i, g in enumerate(groups) for p in g}
+    for _, r in gs.iterrows():
+        assert where[r["player_a"]] == where[r["player_b"]], (
+            f"{r['player_a']} and {r['player_b']} are in different groups")
+
+
+def test_group_matchdays_never_play_anyone_twice(round_robin):
+    """
+    The engine's per-simulation Elo/EMA/streak updates are fancy-indexed and
+    assume a player appears at most once in a batch. A knockout round has that
+    for free; a round robin only has it once its pairings are split this way,
+    and a collision would silently corrupt the state rather than raise.
+    """
+    _, day = round_robin
+    pairs = [(r["player_a"], r["player_b"])
+             for _, r in day[day["round"] == GROUP_ROUND].iterrows()]
+    days = group_matchdays(pairs)
+
+    assert [p for d in days for p in d] and sorted(
+        [tuple(sorted(p)) for d in days for p in d]
+    ) == sorted(tuple(sorted(p)) for p in pairs), "matchdays lost or invented a pairing"
+
+    for d in days:
+        seen = [x for pair in d for x in pair]
+        assert len(seen) == len(set(seen)), f"a player plays twice on one matchday: {d}"
+
+
+def test_round_robin_is_a_distribution_over_the_field(fitted_rr, round_robin):
+    """Title odds are a distribution over the players actually in the draw."""
+    f = fitted_rr
+    _, day = round_robin
+    groups, pairs, _ = _rr_args(f, day)
+    counts = _run_rr(f, groups, pairs)
+
+    assert sum(counts.values()) == SIMS
+    field = {p for g in groups for p in g}
+    assert set(counts) <= field, f"a non-entrant won a simulation: {set(counts) - field}"
+
+
+def test_round_robin_conditioned_on_its_results_returns_its_real_champion(
+        fitted_rr, round_robin):
+    """
+    The same invariant the bracket draws hold, on the format that had none.
+
+    It needs the real knockout pairings: BWF separates a group tie on games and
+    then points won, and a simulated match has neither. Both 2023 groups ended
+    three-way level on matches won and 2024's Group A was settled by three
+    voided matches after a withdrawal, so reconstructed standings returned the
+    real champion about half the time.
+    """
+    f = fitted_rr
+    _, day = round_robin
+    groups, pairs, seeds = _rr_args(f, day)
+    counts = _run_rr(f, groups, pairs, seeds=seeds,
+                     fixed=build_fixed_results(day))
+
+    final = day[day["round"] == "final"].iloc[0]
+    champion = final["player_a"] if final["player_a_won"] == 1 else final["player_b"]
+    assert counts.get(champion, 0) == SIMS, (
+        f"expected {champion} to win every conditioned simulation, got "
+        f"{sorted(counts.items(), key=lambda kv: -kv[1])[:5]}")
+
+
+def test_round_robin_advancement_counts_fill_every_slot(fitted_rr, round_robin):
+    """
+    Reaching a round is a marginal, not a distribution: the per-round counts
+    must sum to that round's slot count. Everyone in the draw plays the group
+    stage, and exactly four reach a two-match semi-final.
+    """
+    f = fitted_rr
+    _, day = round_robin
+    groups, pairs, _ = _rr_args(f, day)
+    _, reached = _run_rr(f, groups, pairs, return_rounds=True)
+
+    field = {p for g in groups for p in g}
+    assert sum(reached[GROUP_ROUND].values()) == SIMS * len(field)
+
+    for rnd, n_matches in (("semi-finals", 2), ("final", 1)):
+        if rnd in reached:
+            assert sum(reached[rnd].values()) == SIMS * n_matches * 2, rnd
+
+
+def test_round_robin_does_not_leak_the_result_into_the_pre_tournament_board(
+        fitted_rr, round_robin):
+    """
+    Without knockout seeds nobody may be certain, and nobody may be impossible.
+
+    The exporter passes the observed qualifiers only to the conditioned
+    forecast. Passing them to the pre-tournament one let the answer into the
+    question: the four men who really reached the 2024 semi-finals were quoted
+    at 100% to reach them, and the other four at zero, before a ball was hit.
+    """
+    f = fitted_rr
+    _, day = round_robin
+    groups, pairs, _ = _rr_args(f, day)
+    _, reached = _run_rr(f, groups, pairs, return_rounds=True)
+
+    sf = reached.get("semi-finals", {})
+    field = {p for g in groups for p in g}
+    assert len(sf) > len(field) // 2, (
+        "only the real semi-finalists can reach the semi-finals - the observed "
+        f"result has leaked into the pre-tournament forecast: {sf}")

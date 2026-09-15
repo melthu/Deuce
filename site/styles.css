@@ -1335,3 +1335,55 @@ input[type="search"]:focus {
     color: var(--faint);
   }
 }
+
+/* ---------------------------------------------------------------- groups
+   The season-ending Finals are a round robin feeding a knockout, so their
+   opening stage is not a tree and gets panels rather than a bracket column. */
+.group-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+  padding: 14px;
+}
+
+.group-block { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+.group-name {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.group-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.group-table th {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: left;
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.group-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.group-table .num { text-align: right; font-family: var(--mono); width: 2.2em; }
+.group-table tbody tr:last-child td { border-bottom: none; }
+/* Deliberately no "these two go through" emphasis. The table is sorted on
+   matches won, and BWF separates a tie on games and then points won - which
+   this payload does not carry. Both 2023 groups ended three-way level, so
+   marking the top two would be asserting a qualification the standings cannot
+   actually establish. */
+
+.group-matches { display: flex; flex-direction: column; gap: 8px; }

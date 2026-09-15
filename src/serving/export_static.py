@@ -38,15 +38,19 @@ from src.pipeline.feature_engineering import order_by_round
 from src.pipeline.player_names import fold_ascii
 from src.modeling.pit_model import train_point_in_time
 from src.serving.simulate import (
+    GROUP_ROUND,
     ROUND_ORDER,
     build_bracket,
     build_fixed_results,
+    build_groups,
     build_h2h_lookups,
     build_time_zero_state,
     is_placeholder,
+    is_round_robin,
     load_model,
     predict_match,
     run_monte_carlo,
+    run_round_robin,
 )
 
 DATA_PATH   = "data/processed/final_training_data.csv"
@@ -66,7 +70,7 @@ STALE_AFTER_DAYS = 21
 
 # Bump when the payload shape or any exported computation changes, so a
 # rerun regenerates files that would otherwise look up to date.
-EXPORT_VERSION = 11
+EXPORT_VERSION = 12
 
 FEATURE_NAMES = ["tier", "round", "player_a", "player_b"] + CONT_COLS
 
@@ -96,6 +100,26 @@ DRIVER_OF = {f: d for d, fs in _DRIVERS.items() for f in fs}
 # ----------------------------------------------------------------------
 # helpers
 # ----------------------------------------------------------------------
+def event_kind(name: str) -> str:
+    """What sort of event this is, for labelling.
+
+    Tier alone cannot say. The World Championships and the season-ending
+    Finals both sit at tier 1500 - the model is right not to distinguish them,
+    they are the two biggest events of a year - but the site was labelling
+    both "Finals", so every World Championships read as a World Tour Finals.
+    Derived from the name rather than stored, because the tier is a model
+    feature and re-coding it would move the feature space.
+    """
+    low = str(name).lower()
+    if "world championships" in low:
+        return "worlds"
+    if "finals" in low:
+        return "finals"
+    if "olympic" in low:
+        return "olympics"
+    return "tour"
+
+
 def derive_status(n_played: int, n_pending: int, tour_date) -> str:
     """
     Where a tournament is in its life, from its own rows.
@@ -147,14 +171,23 @@ def dedupe_day(day: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(keep).reset_index(drop=True) if keep else pd.DataFrame()
 
 
-def fingerprint(day: pd.DataFrame, hist: pd.DataFrame) -> str:
+def fingerprint(day: pd.DataFrame, hist: pd.DataFrame, cfg_row=None) -> str:
     """
     Identify the inputs behind a tournament's export: its own rows (which change
-    as a live event progresses) and all history before it (which changes on a
-    rescrape). Cheap enough to compute for every tournament on every run.
+    as a live event progresses), all history before it (which changes on a
+    rescrape), and its config row. Cheap enough to compute for every tournament
+    on every run.
+
+    The config row counts because the shard copies fields straight out of it.
+    Without it, correcting a host country left every shard on the old value -
+    "Thailand[b]" stayed on the 2022 Finals after the config said "Thailand",
+    because not one match row had changed.
     """
     h = hashlib.sha1()
     h.update(str(EXPORT_VERSION).encode())
+    if cfg_row is not None:
+        h.update("|".join(str(cfg_row.get(k, "")) for k in
+                          ("tournament_name", "tier", "host_country")).encode())
     h.update(str(int(pd.util.hash_pandas_object(day, index=False).sum())).encode())
     h.update(str(len(hist)).encode())
     h.update(str(int(pd.util.hash_pandas_object(hist, index=False).sum())).encode())
@@ -190,7 +223,7 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
     if day.empty:
         return "thin", 0
 
-    fp = fingerprint(day, hist)
+    fp = fingerprint(day, hist, cfg_row)
     if os.path.exists(path):
         try:
             with open(path) as f:
@@ -209,7 +242,12 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
 
     df_t = df[~same_day | mine]          # drop a co-dated tournament's rows
     r1, stats = build_time_zero_state(df_t, date_key, tier)
-    if r1.empty:
+    round_robin = is_round_robin(day)
+    # A round robin has no first round to open from, which is not the same
+    # thing as having no data: the sixteen season-ending Finals were all
+    # rejected here and shipped index entries pointing at shards that were
+    # never written.
+    if r1.empty and not round_robin:
         return "thin", 0
     h2h_rate, h2h_last = build_h2h_lookups(df, date_key)
     scaler, p2i, t2i, r2i = (pre["scaler"], pre["player_to_id"],
@@ -280,16 +318,45 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
     n_pending = len(matches) - len(played)
     status = derive_status(len(played), n_pending, tour_date)
 
-    def simulate(fixed, known=None):
+    # The group stage, and the knockout pairings it fed, for a round robin.
+    groups, group_pairs, knockout_seeds, knockout_round = [], [], [], None
+    if round_robin:
+        groups = build_groups(day)
+        gs = day[day["round"] == GROUP_ROUND]
+        # Every pairing the draw published, voided ones included. A void is a
+        # withdrawal after the fact, so dropping those here would let hindsight
+        # into the pre-tournament forecast: all three of Lee Zii Jia's 2024
+        # group matches were voided, and without them he had no schedule to win
+        # and was quoted at exactly zero before the event began. Where a void
+        # does change who advances, the conditioned run reads the real
+        # qualifiers off the knockout rows instead of ranking the groups.
+        group_pairs = [(r["player_a"], r["player_b"]) for _, r in gs.iterrows()]
+        for rnd in ROUND_ORDER:
+            sub = day[day["round"] == rnd]
+            if not sub.empty:
+                knockout_round = rnd
+                knockout_seeds = [(r["player_a"], r["player_b"])
+                                  for _, r in sub.iterrows()]
+                break
+
+    def simulate(fixed, known=None, seeds=None):
         # A handful of draws are genuinely incomplete on Wikipedia. Ship the
         # bracket without a forecast rather than a fabricated one, and say so.
         try:
-            counts, reached = run_monte_carlo(
-                N_SIMS, r1, stats, h2h_rate, h2h_last,
-                scaler, p2i, t2i, r2i, payload,
-                np.random.default_rng(42), tier=tier,
-                nat_map=nat_map, fixed_results=fixed, return_rounds=True,
-                known_probs=known, bracket=build_bracket(day))
+            if round_robin:
+                counts, reached = run_round_robin(
+                    N_SIMS, groups, group_pairs, stats, h2h_rate, h2h_last,
+                    scaler, p2i, t2i, r2i, payload,
+                    np.random.default_rng(42), tier=tier,
+                    nat_map=nat_map, fixed_results=fixed, return_rounds=True,
+                    known_probs=known, knockout_seeds=seeds)
+            else:
+                counts, reached = run_monte_carlo(
+                    N_SIMS, r1, stats, h2h_rate, h2h_last,
+                    scaler, p2i, t2i, r2i, payload,
+                    np.random.default_rng(42), tier=tier,
+                    nat_map=nat_map, fixed_results=fixed, return_rounds=True,
+                    known_probs=known, bracket=build_bracket(day))
         except ValueError as e:
             print(f"    no simulation for {date_key}: {e}")
             return None
@@ -304,7 +371,7 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
         # draw. Deliberately NOT renormalised the way `p` is - "reaches the
         # semi-final" is a per-player marginal, not a distribution over players,
         # so it sums to the number of slots in that round rather than to 1.
-        rounds_seen = [r for r in ROUND_ORDER if r in reached]
+        rounds_seen = [r for r in ([GROUP_ROUND] + ROUND_ORDER) if r in reached]
         adv_rounds  = rounds_seen[1:]
 
         # Everyone in the draw, not just everyone who won a simulation. Keying
@@ -348,7 +415,13 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
              for m in matches
              if m["pending"] and not is_placeholder(m["a"])
              and not is_placeholder(m["b"])}
-    live = simulate(build_fixed_results(day), known) if status == "live" else None
+    # `knockout_seeds` belongs only here. It says who really came out of the
+    # groups, which is a result like any other - handing it to the
+    # pre-tournament forecast would let the answer leak into the question, and
+    # did: the four men who actually reached the 2024 semi-finals were quoted
+    # at 100% to reach them and the other four at zero, before a ball was hit.
+    live = (simulate(build_fixed_results(day), known, knockout_seeds)
+            if status == "live" else None)
     leaderboard_live = live[1] if live else None
 
     doc = {
@@ -357,6 +430,15 @@ def export_tournament(cfg_row, df, raw, nat_map, fallback_payload, out_dir):
         "tournament": name,
         "date": date_key,
         "tier": tier,
+        "kind": event_kind(name),
+        # "groups" for a round robin, "bracket" otherwise. The frontend needs
+        # to know before it can draw anything.
+        "format": "groups" if round_robin else "bracket",
+        "groups": [
+            {"name": f"Group {chr(65 + gi)}",
+             "players": [{"name": pl, "nat": nat_map.get(pl, "")} for pl in gp]}
+            for gi, gp in enumerate(groups)
+        ] if round_robin else None,
         "host": cfg_row["host_country"],
         "model": model_label,
         # The estimator that actually produced these numbers. promote.py's
@@ -547,20 +629,33 @@ def export_matchups(roster, stats, h2h_rate, h2h_last, pre, payload,
 # ----------------------------------------------------------------------
 # index
 # ----------------------------------------------------------------------
-def export_index(cfg, df, out_dir):
+def export_index(cfg, df, out_dir, shards=None):
+    """The browsable list.
+
+    `shards` is the set of slugs that actually have a tournament file. An entry
+    without one is a dead link: the index listed every configured tournament
+    with rows, but a draw the exporter could not render writes nothing, and all
+    eight World Tour Finals shipped as index entries pointing at a 404. Passing
+    None keeps every entry, for callers that only want the listing.
+    """
     rows = []
     for _, c in cfg.iterrows():
         d = pd.Timestamp(c["start_date"])
         day = df[(df["start_date"] == d) & (df["tournament"] == c["tournament_name"])]
         if day.empty:
             continue
+        slug = slugify(c["tournament_name"])
+        if shards is not None and slug not in shards:
+            print(f"  index: dropping {slug} - no shard was written for it")
+            continue
         pending = int((day["is_pending"] == 1).sum())
         played  = int((day["is_pending"] == 0).sum())
         rows.append({
             "name": c["tournament_name"],
-            "slug": slugify(c["tournament_name"]),
+            "slug": slug,
             "date": d.strftime("%Y-%m-%d"),
             "tier": int(c["tier"]),
+            "kind": event_kind(c["tournament_name"]),
             "host": c["host_country"],
             "status": derive_status(played, pending, d),
         })
@@ -585,6 +680,10 @@ def main():
     cfg["start_date"] = pd.to_datetime(cfg["start_date"], errors="coerce")
     cfg = cfg.dropna(subset=["start_date"])
     cfg = cfg[cfg["start_date"].dt.year >= args.since].sort_values("start_date")
+    # The index lists the whole browsable scope whatever this run exports.
+    # Building it from a --only-filtered config rewrote tournaments.json with a
+    # single entry and took the site down to one tournament.
+    index_cfg = cfg
     if args.only:
         cfg = cfg[cfg["start_date"] == pd.Timestamp(args.only)]
     if args.force:
@@ -613,7 +712,16 @@ def main():
         else:
             n_thin += 1
 
-    index, idx_bytes = export_index(cfg, df, args.out)
+    # What the site can actually serve: the shards on disk, not the ones this
+    # run happened to write - a fingerprint hit writes nothing and the file is
+    # still there. Anything else in the index is a 404 waiting to be clicked.
+    shards = {
+        os.path.splitext(f)[0]
+        for f in os.listdir(os.path.join(args.out, "tournament"))
+        if f.endswith(".json")
+    } if os.path.isdir(os.path.join(args.out, "tournament")) else set()
+
+    index, idx_bytes = export_index(index_cfg, df, args.out, shards)
     total_bytes += idx_bytes
 
     if not args.skip_players:

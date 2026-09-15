@@ -136,3 +136,35 @@ def _fit_for(df, raw, pair):
         "h2h_rate": h2h_rate, "h2h_last": h2h_last,
         "nat_map": load_nat_map(raw),
     }
+
+
+@pytest.fixture(scope="session")
+def round_robin(cfg, df):
+    """
+    A completed round-robin draw: two groups feeding a knockout.
+
+    The sixteen season-ending Finals are the only format in the corpus with no
+    opening knockout round, which is exactly why they were invisible for so
+    long - every fixture above screens for a first round, so nothing in the
+    suite had ever simulated one and all sixteen shipped as index entries
+    pointing at shards that were never written.
+    """
+    from src.serving.export_static import dedupe_day
+    from src.serving.simulate import is_round_robin
+
+    completed = df[df["is_pending"] == 0]
+    for _, row in cfg.sort_values("start_date", ascending=False).iterrows():
+        date = pd.Timestamp(row["start_date"])
+        day = dedupe_day(completed[(completed["start_date"] == date)
+                                   & (completed["tournament"] == row["tournament_name"])])
+        if day.empty or not is_round_robin(day):
+            continue
+        if (day["round"] == "final").sum() == 1:
+            return row, day
+    pytest.skip("no completed round-robin tournament found")
+
+
+@pytest.fixture(scope="session")
+def fitted_rr(df, raw, round_robin):
+    """A point-in-time model and preprocessors for the `round_robin` draw."""
+    return _fit_for(df, raw, round_robin)
