@@ -20,14 +20,42 @@ const ROUND_LABEL = {
 };
 
 // Bracket column heading: the named rounds by name, everything earlier by the
-// size of the field it starts with. Derived from the match count rather than
+// size of the field it starts with. Derived from the draw rather than
 // hardcoded, so a 64-draw reads R64 and an irregular draw stays honest.
-function roundCode(round, nMatches) {
+function roundCode(round, nEntrants) {
   if (round === GROUP_ROUND) return 'Groups';
   if (round === 'final') return 'F';
   if (round === 'semi-finals') return 'SF';
   if (round === 'quarter-finals') return 'QF';
-  return 'R' + (nMatches * 2);
+  return 'R' + nEntrants;
+}
+
+// How many players enter each round, counted back from the last round the page
+// publishes: every match eliminates one, so a round's field is the field of the
+// round after it plus its own match count.
+//
+// Reading it off the round's own size instead (2 x matches) assumes the draw
+// halves, which the Super 100/300 format breaks - it opens with a preliminary
+// round only part of the field plays and the seeds enter one round later, so 16
+// opening matches are followed by a 16-match round of 32, not an 8-match round
+// of 16. Both columns then read "R32": 24 tournaments shipped a bracket with two
+// identically labelled opening columns, Vietnam Open 2026 among them. Counting
+// back names the first of them R48, which is what the draw is.
+//
+// A group stage does not eliminate one player per match, so its count is not a
+// field size - but it is always the first rung, so it only reaches its own
+// entry, and `roundCode` names that column "Groups" without reading the number.
+function fieldSizes(grouped) {
+  const n = i => grouped[i][1].length;
+  // Seed with the winners of the last round published - one champion where the
+  // draw runs to a final, and an honest count for a draw that stops short.
+  let alive = grouped.length ? n(grouped.length - 1) : 0;
+  const sizes = [];
+  for (let i = grouped.length - 1; i >= 0; i--) {
+    alive += n(i);
+    sizes[i] = alive;
+  }
+  return sizes;
 }
 
 // Column headings for the advancement table, where width is scarce.
@@ -441,15 +469,16 @@ function renderBracket(doc) {
   // A round robin feeds a knockout, so its group matches are drawn as groups
   // and only the ladder goes in the bracket.
   const rounds = groupRounds(doc.matches);
+  const entrants = fieldSizes(rounds);
   const groupRow = doc.format === 'groups' && doc.groups
     ? rounds.find(([r]) => r === GROUP_ROUND) : null;
   const groupsPanel = groupRow ? renderGroups(doc, groupRow[1]) : null;
 
-  for (const [round, ms] of rounds) {
+  for (const [i, [round, ms]] of rounds.entries()) {
     if (groupsPanel && round === GROUP_ROUND) continue;
     const col = el('div', 'round');
     const hd = el('div', 'round-name');
-    const code = el('span', null, roundCode(round, ms.length));
+    const code = el('span', null, roundCode(round, entrants[i]));
     code.title = ROUND_LABEL[round] || round;
     hd.append(code);
     hd.append(el('span', 'n', String(ms.length)));
