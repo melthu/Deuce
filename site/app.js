@@ -483,13 +483,29 @@ function renderBracket(doc) {
     hd.append(code);
     hd.append(el('span', 'n', String(ms.length)));
     col.append(hd);
+    // How this column reaches the next one, which is what the connectors draw.
+    // A knockout halves and the pair wrapper says so: two feeders joined into
+    // the match their winners meet in. A preliminary round does not halve -
+    // each of its winners meets a player entering the draw one round later -
+    // so there is no pair to join, and the vertical join drew a tree that is
+    // not there. Match j feeds match j in that case, checked by name across
+    // all 24 such draws, so the ticks either side of the gap already line up
+    // into the straight run that is true.
+    const next = rounds[i + 1];
+    if (next && next[1].length === ms.length) col.classList.add('straight');
+    // Fed, but not one-to-one either: a draw missing preliminary matches
+    // (Akita Masters 2019 opens with 6 against a 16-match second round). Which
+    // match feeds which is not recoverable from the column, so draw nothing
+    // rather than a line that claims a pairing.
+    else if (next && next[1].length > ms.length) col.classList.add('unwired');
+
     const body = el('div', 'round-body');
     // Wrap adjacent matches in pairs so the connectors can join the two
     // feeders of each next-round match. An odd tail (a bye, or a half-scraped
     // draw) gets a pair of one rather than being dropped.
-    for (let i = 0; i < ms.length; i += 2) {
+    for (let j = 0; j < ms.length; j += 2) {
       const pair = el('div', 'pair');
-      for (const m of ms.slice(i, i + 2)) pair.append(matchCard(m));
+      for (const m of ms.slice(j, j + 2)) pair.append(matchCard(m));
       body.append(pair);
     }
     col.append(body);
