@@ -590,6 +590,22 @@ input[type="search"]:focus {
 }
 .round:last-child .pair::after { display: none; }
 
+/* A preliminary round does not converge, so it has no pair to join. The Super
+   100/300 draws open with a round only part of the field plays and the seeds
+   enter one round later, so each winner meets a player entering there rather
+   than meeting the match next to it. The vertical join drew a tree that is not
+   in the draw. Match j feeds match j, so the out-tick and the next column's
+   in-tick already meet as one straight line across the gap. */
+.round.straight .pair::after { display: none; }
+
+/* Fed, but not one-to-one: a draw missing preliminary matches (Akita Masters
+   2019 opens with 6 against a 16-match second round). Nothing in the column
+   says which match feeds which, so draw no connector at all rather than one
+   that claims a pairing. */
+.round.unwired .pair::after,
+.round.unwired .slot::after,
+.round.unwired + .round .slot::before { display: none; }
+
 /* The match card keeps `overflow: hidden` so the probability fill stays inside
    its rounded corners, which would also clip any connector drawn on it - hence
    this wrapper, whose only job is to carry the two ticks. */
