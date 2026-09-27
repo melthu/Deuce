@@ -19,6 +19,12 @@ OUTPUT_PATH = "data/raw/raw_matches.csv"
 # or starts within LOOKAHEAD_DAYS (draws are published shortly before).
 RESCRAPE_WINDOW_DAYS = 21
 LOOKAHEAD_DAYS       = 7
+# A tournament with no rows at all is retried only while it is this recent.
+# Past that it is an event that was never played (the 2020-21 cancellations)
+# or a page the parser can't read, and retrying it every few hours only buries
+# real failures under the same thirty errors. A full scrape or `--only` still
+# reaches it.
+MISSING_RETRY_DAYS   = 60
 
 
 def _select_incremental(config: pd.DataFrame, existing: pd.DataFrame) -> pd.DataFrame:
@@ -43,8 +49,15 @@ def _select_incremental(config: pd.DataFrame, existing: pd.DataFrame) -> pd.Data
     else:
         pending = set()
 
+    missing = ~config["tournament_name"].isin(have)
+    stale   = missing & (dates < pd.Timestamp(today - timedelta(days=MISSING_RETRY_DAYS)))
+    if stale.any():
+        print(f"Incremental mode: skipping {int(stale.sum())} tournaments older than "
+              f"{MISSING_RETRY_DAYS} days that have never yielded matches "
+              f"(full scrape or --only to retry).")
+
     mask = (
-        ~config["tournament_name"].isin(have)
+        (missing & ~stale)
         | config["tournament_name"].isin(pending)
         | ((dates >= lo) & (dates <= hi))
     )

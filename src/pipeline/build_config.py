@@ -149,16 +149,23 @@ def get_draw_url(cell, year: int) -> str | None:
     Primary:  <a> with visible text 'Draw' pointing at an existing article.
     Fallback: first <a> whose target page is year-specific ('.../{year}_…'),
     i.e. the tournament-name link on 2021-era pages.
+
+    Both must land on a year-specific page. Before an edition's article exists,
+    editors sometimes point its 'Draw' link at the series article instead
+    (2026's Arctic Open linked plain 'Arctic_Open'), and scraping that would
+    pull the series' roll of past winners, or nothing, in place of this year's
+    draw. Such an event is left out until its own article appears.
     """
+    prefix = f"https://en.wikipedia.org/wiki/{year}_"
     for a in cell.find_all("a"):
         if a.get_text().strip().lower() == "draw":
             url = article_url(a)
-            if url:
+            if url and url.startswith(prefix):
                 return url
     # Fallback: year-specific link on the tournament name itself (2021-era pages)
     for a in cell.find_all("a"):
         url = article_url(a)
-        if url and url.startswith(f"https://en.wikipedia.org/wiki/{year}_"):
+        if url and url.startswith(prefix):
             return url
     return None
 
@@ -202,6 +209,7 @@ def _scrape_calendar_page(url: str, year: int, level_map: dict) -> list[dict]:
     soup = BeautifulSoup(resp.text, "html.parser")
     tournaments = []
     seen_urls: set[str] = set()
+    no_article: list[str] = []
 
     for cell in soup.find_all("td"):
         if "Level" not in cell.get_text():
@@ -212,7 +220,12 @@ def _scrape_calendar_page(url: str, year: int, level_map: dict) -> list[dict]:
             continue
 
         draw_url = get_draw_url(cell, year)
-        if not draw_url or draw_url in seen_urls:
+        if not draw_url:
+            # Normal for an event whose article isn't written yet, but a played
+            # event that stays in this list is one the site is silently missing.
+            no_article.append(get_tournament_name(cell, year) or "(unnamed)")
+            continue
+        if draw_url in seen_urls:
             continue
 
         tournament_name = get_tournament_name(cell, year)
@@ -240,6 +253,9 @@ def _scrape_calendar_page(url: str, year: int, level_map: dict) -> list[dict]:
         })
 
     print(f"  {year}: {len(tournaments)} Super 100+ tournaments found.")
+    if no_article:
+        print(f"  {year}: {len(no_article)} left out, no {year} draw article yet: "
+              f"{', '.join(no_article)}")
     return tournaments
 
 
