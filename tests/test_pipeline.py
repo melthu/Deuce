@@ -249,3 +249,40 @@ def test_round_robin_draws_are_complete(raw):
         assert len(sub) == expected, (
             f"{name}: {len(sub)} group matches for {len(players)} players, "
             f"expected {expected}")
+
+
+def test_draw_link_to_series_article_is_rejected():
+    """
+    2026's Arctic Open had its 'Draw' link pointed at the series article
+    ('Arctic_Open') before the edition's own page existed. Accepting it would
+    have scraped the series page as that year's draw.
+    """
+    from bs4 import BeautifulSoup
+    from src.pipeline.build_config import get_draw_url
+
+    def cell(href):
+        return BeautifulSoup(f'<td><b><a href="/wiki/Arctic_Open">Arctic Open</a></b> '
+                             f'(<a href="{href}">Draw</a>)</td>', "html.parser").td
+
+    assert get_draw_url(cell("/wiki/Arctic_Open"), 2026) is None
+    assert get_draw_url(cell("/wiki/2026_Arctic_Open"), 2026) == \
+        "https://en.wikipedia.org/wiki/2026_Arctic_Open"
+
+
+def test_incremental_skips_long_empty_tournaments():
+    """
+    A tournament that never yielded rows (the 2020-21 cancellations) must not be
+    rescraped on every run, while a recently-started one with no rows yet must.
+    """
+    from datetime import date, timedelta
+    from src.pipeline.scraper_orchestrator import _select_incremental
+
+    recent = (date.today() - timedelta(days=30)).isoformat()
+    config = pd.DataFrame({
+        "tournament_name": ["Cancelled 2020", "Recent", "Scraped"],
+        "start_date":      ["2020-03-03", recent, "2024-01-01"],
+    })
+    existing = pd.DataFrame({"tournament": ["Scraped"], "start_date": ["2024-01-01"],
+                             "is_pending": [0]})
+    picked = set(_select_incremental(config, existing)["tournament_name"])
+    assert picked == {"Recent"}
