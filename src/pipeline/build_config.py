@@ -19,6 +19,27 @@ WORLD_TOUR_LAST_YEAR  = date.today().year + 1
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
+
+# Wikipedia intermittently stalls a read or answers 429/5xx under load. One
+# such blip used to drop a whole season from the scrape, which the shrink guard
+# in build_config() then (correctly) refused - failing the scheduled run over a
+# transient error. Retry those before giving up; a 404 is a real answer and is
+# returned straight away.
+RETRIES = 3
+RETRY_STATUSES = {429, 500, 502, 503, 504}
+
+
+def _fetch(url: str) -> requests.Response:
+    for attempt in range(RETRIES + 1):
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=30)
+            if resp.status_code not in RETRY_STATUSES or attempt == RETRIES:
+                return resp
+        except (requests.ConnectionError, requests.Timeout):
+            if attempt == RETRIES:
+                raise
+        time.sleep(5 * 2 ** attempt)
+
 # BWF World Tour (2018-present)
 LEVEL_MAP = {
     "World Tour Finals": 1500,
@@ -197,7 +218,7 @@ def _scrape_calendar_page(url: str, year: int, level_map: dict) -> list[dict]:
     tier, draw URL, tournament name, host country, and start date.
     """
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=15)
+        resp = _fetch(url)
         if resp.status_code == 404:
             print(f"  {year}: page not found (404) - skipping.")
             return []
@@ -283,7 +304,7 @@ def scrape_superseries_year(year: int) -> list[dict]:
     """
     url = f"https://en.wikipedia.org/wiki/{year}_BWF_Super_Series"
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=15)
+        resp = _fetch(url)
         if resp.status_code == 404:
             print(f"  {year}: page not found (404) - skipping.")
             return []
@@ -391,7 +412,7 @@ def scrape_world_championships(year: int) -> list[dict]:
     """
     parent = f"https://en.wikipedia.org/wiki/{year}_BWF_World_Championships"
     try:
-        resp = requests.get(parent, headers=HEADERS, timeout=15)
+        resp = _fetch(parent)
         if resp.status_code == 404:
             print(f"  {year}: no World Championships page - skipping.")
             return []
