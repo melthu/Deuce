@@ -170,6 +170,20 @@ ALIASES = {
     "Milan Ludik": "Milan Ludík",
     "Michal Rogalski": "Michał Rogalski",
     "Przemyslaw Wacha": "Przemysław Wacha",
+
+    # Lower-cased surnames, all arriving with the November 2026 draws. Each
+    # pair shares a nationality, has never met, and differs only in case - so
+    # one player, kept under the established capitalised spelling.
+    "Daniil dubovenko": "Daniil Dubovenko",      # Israel
+    "Enogat roy": "Enogat Roy",                  # France
+    "Ginpaul sonna": "Ginpaul Sonna",            # India
+    "Mark shelley Alcala": "Mark Shelley Alcala",  # United States
+    "Matthias kicklitz": "Matthias Kicklitz",    # Germany
+    "Rounak chouhan": "Rounak Chouhan",          # India
+    "Tushar suveer": "Tushar Suveer",            # India
+    # Chinese Taipei; the same name in Western order, unhyphenated and
+    # lower-cased. Same nationality, never met.
+    "Zhe ying wu": "Wu Zhe-ying",
 }
 
 
