@@ -50,7 +50,18 @@ def test_same_nationality_is_actually_reaching_the_model(fitted):
     failing, so the only way to notice is that predictions stop moving.
     """
     f = fitted
-    pairs = [(r["player_a"], r["player_b"]) for _, r in f["day"].iterrows()]
+    # The feature is only nonzero for compatriots, and a real draw need not
+    # contain a single all-one-nation match - Hong Kong Open 2026 did not, and
+    # this test failed on it with nothing broken. So pair the draw's own
+    # players by nationality rather than relying on who happened to meet.
+    players = sorted(set(f["day"]["player_a"]) | set(f["day"]["player_b"]))
+    by_nat = {}
+    for p in players:
+        if f["nat_map"].get(p):
+            by_nat.setdefault(f["nat_map"][p], []).append(p)
+    pairs = [(g[0], g[1]) for g in by_nat.values() if len(g) >= 2]
+    if not pairs:
+        pytest.skip("no two players in this draw share a nationality")
     with_nat = [_predict(f, a, b) for a, b in pairs]
     without = [predict_match(a, b, "first round", f["stats"], f["h2h_rate"], f["h2h_last"],
                              f["pre"]["scaler"], f["pre"]["player_to_id"],

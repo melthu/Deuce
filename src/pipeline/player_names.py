@@ -184,6 +184,9 @@ ALIASES = {
     # Chinese Taipei; the same name in Western order, unhyphenated and
     # lower-cased. Same nationality, never met.
     "Zhe ying wu": "Wu Zhe-ying",
+    # Thailand; Guwahati Masters 2026 lower-cases the syllable after the
+    # hyphen. Never met. Kept under the spelling already in the data.
+    "Wongsup Wongsup-in": "Wongsup Wongsup-In",
 }
 
 

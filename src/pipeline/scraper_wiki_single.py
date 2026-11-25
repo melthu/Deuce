@@ -139,6 +139,11 @@ def scrape_wiki_single(url: str, tournament_name: str, tier: int) -> pd.DataFram
         for cell in rows[0].find_all(["th", "td"]):
             cs = int(cell.get("colspan", 1))
             text = cell.get_text().strip().lower()
+            # Hong Kong Open 2026 headed its semis "Semi finals". Nothing
+            # downstream knows that spelling, so the simulation treated those
+            # rows as an unknown round and replayed the semis from the model -
+            # losing semi-finalists "won" the title. Hyphenate it here.
+            text = re.sub(r"\b(quarter|semi)\s+final", r"\1-final", text)
             if text:
                 ranges.append((col, col + cs - 1, text))
             col += cs
